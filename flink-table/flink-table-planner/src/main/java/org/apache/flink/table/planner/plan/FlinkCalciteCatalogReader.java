@@ -61,7 +61,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/**
+/** 用于将 Flink 的 Catalog 与 Calcite 查询优化器进行集成，在优化过程中将 Flink 表与 CatalogSchemaTable 对象进行转换
  * Flink specific {@link CalciteCatalogReader} that changes the RelOptTable which wrapped a {@link
  * CatalogSchemaTable} to a {@link FlinkPreparingTableBase}.
  */
@@ -79,7 +79,7 @@ public class FlinkCalciteCatalogReader extends CalciteCatalogReader {
                         SqlNameMatchers.withCaseSensitive(config != null && config.caseSensitive()),
                         typeFactory),
                 Stream.concat(defaultSchemas.stream(), Stream.of(Collections.<String>emptyList()))
-                        .collect(Collectors.toList()),
+                        .collect(Collectors.toList()), //这里defaultSchemas集合加上一个空的List,测试参见StreamConcatTest
                 typeFactory,
                 config);
     }
@@ -103,7 +103,7 @@ public class FlinkCalciteCatalogReader extends CalciteCatalogReader {
             }
         }
     }
-
+    //该方法将 CatalogSchemaTable 转换为 Flink 的表结构（FlinkPreparingTableBase）。根据 CatalogBaseTable 的具体类型（如 QueryOperationCatalogView、ConnectorCatalogTable 等），调用不同的转换方法
     /** Translate this {@link CatalogSchemaTable} into Flink source table. */
     private static FlinkPreparingTableBase toPreparingTable(
             RelOptSchema relOptSchema,
@@ -111,8 +111,8 @@ public class FlinkCalciteCatalogReader extends CalciteCatalogReader {
             RelDataType rowType,
             CatalogSchemaTable schemaTable) {
         final ResolvedCatalogBaseTable<?> resolvedBaseTable =
-                schemaTable.getContextResolvedTable().getResolvedTable();
-        final CatalogBaseTable originTable = resolvedBaseTable.getOrigin();
+                schemaTable.getContextResolvedTable().getResolvedTable();  //获取flink已解析的表
+        final CatalogBaseTable originTable = resolvedBaseTable.getOrigin(); //未解析的表
         if (originTable instanceof QueryOperationCatalogView) {
             return convertQueryOperationView(
                     relOptSchema, names, rowType, (QueryOperationCatalogView) originTable);

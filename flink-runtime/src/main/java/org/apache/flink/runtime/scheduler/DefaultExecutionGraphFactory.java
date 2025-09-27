@@ -140,12 +140,12 @@ public class DefaultExecutionGraphFactory implements ExecutionGraphFactory {
             Logger log)
             throws Exception {
         ExecutionDeploymentListener executionDeploymentListener =
-                new ExecutionDeploymentTrackerDeploymentListenerAdapter(executionDeploymentTracker);
+                new ExecutionDeploymentTrackerDeploymentListenerAdapter(executionDeploymentTracker); //执行图部署监听器
         ExecutionStateUpdateListener combinedExecutionStateUpdateListener =
                 (execution, previousState, newState) -> {
                     executionStateUpdateListener.onStateUpdate(execution, previousState, newState);
                     if (newState.isTerminal()) {
-                        executionDeploymentTracker.stopTrackingDeploymentOf(execution);
+                        executionDeploymentTracker.stopTrackingDeploymentOf(execution); //执行状态更新
                     }
                 };
 
@@ -176,7 +176,7 @@ public class DefaultExecutionGraphFactory implements ExecutionGraphFactory {
                         markPartitionFinishedStrategy,
                         nonFinishedHybridPartitionShouldBeUnknown,
                         jobManagerJobMetricGroup);
-
+       //检查点协调器
         final CheckpointCoordinator checkpointCoordinator =
                 newExecutionGraph.getCheckpointCoordinator();
 

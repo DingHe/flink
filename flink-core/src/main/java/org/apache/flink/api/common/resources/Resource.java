@@ -39,9 +39,9 @@ public abstract class Resource<T extends Resource<T>>
     private static final long serialVersionUID = 1L;
 
     private static final int MAX_VALUE_SCALE = 8;
-
+   //资源名称
     private final String name;
-
+   //资源大小
     private final BigDecimal value;
 
     protected Resource(String name, double value) {

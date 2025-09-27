@@ -30,7 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
-
+ //Mapped Diagnostic Context,MDC 是日志记录中的一个重要机制，它允许为每个线程绑定一些上下文信息（如 JobID），方便在日志中追踪和区分不同线程的执行情况
 /** Utility class to manage common Flink attributes in {@link MDC} (only {@link JobID} ATM). */
 public class MdcUtils {
 
@@ -39,7 +39,7 @@ public class MdcUtils {
     /**
      * Replace MDC contents with the provided one and return a closeable object that can be used to
      * restore the original MDC.
-     *
+     *  替换当前 MDC 中的内容，并返回一个可以关闭的对象，关闭时恢复原始的 MDC 内容。
      * @param context to put into MDC
      */
     public static MdcCloseable withContext(Map<String, String> context) {
@@ -54,7 +54,7 @@ public class MdcUtils {
         void close();
     }
 
-    /**
+    /** 包装一个 Runnable，使得在执行任务前将 contextData 添加到 MDC 中，执行完毕后再移除
      * Wrap the given {@link Runnable} so that the given data is added to {@link MDC} before its
      * execution and removed afterward.
      */
@@ -66,7 +66,7 @@ public class MdcUtils {
         };
     }
 
-    /**
+    /**  包装一个 Callable，使得在执行任务前将 contextData 添加到 MDC 中，执行完毕后再移除
      * Wrap the given {@link Callable} so that the given data is added to {@link MDC} before its
      * execution and removed afterward.
      */
@@ -79,7 +79,7 @@ public class MdcUtils {
         };
     }
 
-    /**
+    /** 将给定的 Executor 包装成一个可以在执行任务时自动设置 MDC 上下文的 Executor,这个方法为 Flink 中的作业执行提供了一个全局的 MDC 上下文，确保任务执行时所有的日志都包含正确的 JobID
      * Wrap the given {@link Executor} so that the given {@link JobID} is added before it executes
      * any submitted commands and removed afterward.
      */

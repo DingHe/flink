@@ -29,7 +29,7 @@ import javax.annotation.Nonnull;
  * This message is sent from the {@link org.apache.flink.runtime.taskexecutor.TaskExecutor} to the
  * {@link org.apache.flink.runtime.jobmaster.JobMaster} to tell the checkpoint coordinator that a
  * checkpoint request could not be heeded. This can happen if a Task is already in RUNNING state but
- * is internally not yet ready to perform checkpoints.
+ * is internally not yet ready to perform checkpoints.该消息从taskexecutor发往jobmaster，告知算子无法执行快照备份
  */
 public class DeclineCheckpoint extends AbstractCheckpointMessage implements java.io.Serializable {
 

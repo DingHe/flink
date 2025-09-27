@@ -44,8 +44,14 @@ import static java.util.Objects.requireNonNull;
  * cycle.
  *
  * @param <OUT> The output type of the operator
- * @param <F> The type of the user function
+ * @param <F> The type of the user function，UserFunctionProvider接口可以获取用户定义的函数，OutputTypeConfigurable设置输出类型
  */
+//核心作用是为包含用户自定义函数（UDF，User-Defined Function） 的算子提供一个通用的模板和基础设施
+//管理 UDF 的生命周期：它将 Function 接口的 open() 和 close() 方法与算子的生命周期 (AbstractStreamOperator 的 open() 和 close()) 关联起来，
+// 确保用户函数在算子启动时被初始化，在算子结束时被正确关闭
+//集成 UDF 的状态管理：它负责将用户函数中实现的状态接口（如 CheckpointedFunction 或 ListCheckpointed）与 Flink 的底层状态管理和检查点机制集成起来，
+// 确保用户函数的状态能够在检查点时被正确保存和恢复
+//提供运行时上下文：它将 StreamingRuntimeContext 传递给用户函数，让用户函数能够访问任务配置、度量、状态后端等运行时信息
 @PublicEvolving
 public abstract class AbstractUdfStreamOperator<OUT, F extends Function>
         extends AbstractStreamOperator<OUT>
@@ -54,6 +60,7 @@ public abstract class AbstractUdfStreamOperator<OUT, F extends Function>
     private static final long serialVersionUID = 1L;
 
     /** The user function. */
+    //存储用户自定义函数的实例
     protected final F userFunction;
 
     public AbstractUdfStreamOperator(F userFunction) {
@@ -83,14 +90,14 @@ public abstract class AbstractUdfStreamOperator<OUT, F extends Function>
         FunctionUtils.setFunctionRuntimeContext(userFunction, getRuntimeContext());
     }
 
-    @Override
+    @Override  //checkpoint barriers 会调用（异步）snapshotState() 方法触发 checkpoint
     public void snapshotState(StateSnapshotContext context) throws Exception {
         super.snapshotState(context);
         StreamingFunctionUtils.snapshotFunctionState(
                 context, getOperatorStateBackend(), userFunction);
     }
 
-    @Override
+    @Override  //initializeState() 既包含在初始化过程中算子状态的初始化逻辑（比如注册 keyed 状态），又包含异常后从 checkpoint 中恢复原有状态的逻辑
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
         StreamingFunctionUtils.restoreFunctionState(context, userFunction);

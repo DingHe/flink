@@ -84,7 +84,7 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
         // We need to make the source order deterministic. The source IDs are
         // not returned in the same order, which means that submitting the same
         // program twice might result in different traversal, which breaks the
-        // deterministic hash assignment.
+        // deterministic hash assignment. 排序源节点，保证同一个任务的多次提交保证hash一致
         List<Integer> sources = new ArrayList<>();
         for (Integer sourceNodeId : streamGraph.getSourceIDs()) {
             sources.add(sourceNodeId);
@@ -94,7 +94,7 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
         //
         // Traverse the graph in a breadth-first manner. Keep in mind that
         // the graph is not a tree and multiple paths to nodes can exist.
-        //
+        //广度优先遍历，因为图不是树，同一个节点的路径可能存在多个
 
         // Start with source nodes
         for (Integer sourceNodeId : sources) {
@@ -109,8 +109,8 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
             // generate the hash code.
             if (generateNodeHash(
                     currentNode,
-                    hashFunction,
-                    hashes,
+                    hashFunction, //hash函数
+                    hashes, //存储hash结果
                     streamGraph.isChainingEnabled(),
                     streamGraph)) {
                 // Add the child nodes
@@ -159,11 +159,11 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
                 // If the input node has not been visited yet, the current
                 // node will be visited again at a later point when all input
                 // nodes have been visited and their hashes set.
-                if (!hashes.containsKey(inEdge.getSourceId())) {
+                if (!hashes.containsKey(inEdge.getSourceId())) { //入边的源节点还没有访问，则直接返回，后续继续访问
                     return false;
                 }
             }
-
+            //到这里说明该节点依赖的所有节点都已经生成了hash值
             Hasher hasher = hashFunction.newHasher();
             byte[] hash =
                     generateDeterministicHash(node, hasher, hashes, isChainingEnabled, streamGraph);
@@ -221,7 +221,7 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
         // Include stream node to hash. We use the current size of the computed
         // hashes as the ID. We cannot use the node's ID, because it is
         // assigned from a static counter. This will result in two identical
-        // programs having different hashes.
+        // programs having different hashes.使用节点集合的大小计算hash值
         generateNodeLocalHash(hasher, hashes.size());
 
         // Include chained nodes to hash
@@ -237,7 +237,7 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
         byte[] hash = hasher.hash().asBytes();
 
         // Make sure that all input nodes have their hash set before entering
-        // this loop (calling this method).
+        // this loop (calling this method). 确保当前节点的所有上游节点已经计算了hash值
         for (StreamEdge inEdge : node.getInEdges()) {
             byte[] otherHash = hashes.get(inEdge.getSourceId());
 
@@ -250,7 +250,7 @@ public class StreamGraphHasherV2 implements StreamGraphHasher {
                                 + node
                                 + ".");
             }
-
+            //跟上游节点的hash值重新算hash值
             for (int j = 0; j < hash.length; j++) {
                 hash[j] = (byte) (hash[j] * 37 ^ otherHash[j]);
             }

@@ -44,16 +44,21 @@ import java.util.Collections;
  *   keyed.window(TumblingEventTimeWindows.of(Duration.ofMinutes(1)));
  * }</pre>
  */
+//是 Flink 中一个具体的 WindowAssigner 实现，
+// 它的作用是将数据流中的元素根据其事件时间（Event Time）分配到不重叠、固定大小的滚动窗口中
 @PublicEvolving
 public class TumblingEventTimeWindows extends WindowAssigner<Object, TimeWindow> {
     private static final long serialVersionUID = 1L;
-
+    //表示每个滚动窗口的大小，以毫秒为单位
     private final long size;
-
+    //全局偏移量，以毫秒为单位。这个参数允许调整窗口的起始点。
+    // 例如，如果一个窗口大小是1小时，通常从整点开始（0:00:00, 1:00:00），
+    // 但如果你设置了 offset 为 15 分钟（900000 毫秒），
+    // 那么窗口就会从每小时的第15分钟开始（0:15:00, 1:15:00）。它也常用于调整时区
     private final long globalOffset;
-
+    //错开偏移量。这是一个可选的偏移量，用于在某些情况下错开不同 WindowAssigner 实例的窗口边界
     private Long staggerOffset = null;
-
+    //窗口错开策略。这是一个枚举，定义了如何计算 staggerOffset，例如 ALIGNED 表示不进行错开
     private final WindowStagger windowStagger;
 
     protected TumblingEventTimeWindows(long size, long offset, WindowStagger windowStagger) {
@@ -66,7 +71,7 @@ public class TumblingEventTimeWindows extends WindowAssigner<Object, TimeWindow>
         this.globalOffset = offset;
         this.windowStagger = windowStagger;
     }
-
+    //为给定的元素和其事件时间戳分配一个 TimeWindow
     @Override
     public Collection<TimeWindow> assignWindows(
             Object element, long timestamp, WindowAssignerContext context) {

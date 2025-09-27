@@ -71,12 +71,12 @@ import java.util.stream.Stream;
 @PublicEvolving
 public final class ValueLiteralExpression implements ResolvedExpression {
 
-    private final @Nullable Object value;
+    private final @Nullable Object value;  //字面量的值
 
-    private final DataType dataType;
+    private final DataType dataType; //数据类型
 
     public ValueLiteralExpression(@Nonnull Object value) {
-        this(value, deriveDataTypeFromValue(value));
+        this(value, deriveDataTypeFromValue(value)); //从值推断类型
     }
 
     public ValueLiteralExpression(@Nullable Object value, DataType dataType) {
@@ -88,11 +88,11 @@ public final class ValueLiteralExpression implements ResolvedExpression {
 
     public boolean isNull() {
         return value == null;
-    }
+    } //是否为空
 
     /**
      * Returns the value (excluding null) as an instance of the given class.
-     *
+     * 把值转化为某个类
      * <p>It supports conversions to default conversion classes of {@link LogicalType LogicalTypes}
      * and additionally to {@link BigDecimal} for all types of {@link LogicalTypeFamily#NUMERIC}.
      * This method should not be called with other classes.
@@ -316,7 +316,7 @@ public final class ValueLiteralExpression implements ResolvedExpression {
         }
     }
 
-    @Override
+    @Override  //字面量没有子节点
     public List<Expression> getChildren() {
         return Collections.emptyList();
     }
@@ -349,7 +349,7 @@ public final class ValueLiteralExpression implements ResolvedExpression {
     }
 
     // --------------------------------------------------------------------------------------------
-
+    //推断数据类型
     private static DataType deriveDataTypeFromValue(Object value) {
         return ValueDataTypeConverter.extractDataType(value)
                 .orElseThrow(

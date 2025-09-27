@@ -137,7 +137,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 
     @GuardedBy("lock")
     private DeterminismEnvelope<ResourceID> resourceId;
-
+   //用于在同一个进程中启动和管理 Dispatcher（任务调度器）、ResourceManager（资源管理器）和 WebMonitorEndpoint（Web监控端点）
     @GuardedBy("lock")
     private DispatcherResourceManagerComponent clusterComponent;
 
@@ -162,7 +162,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
     @GuardedBy("lock")
     private DelegationTokenManager delegationTokenManager;
 
-    @GuardedBy("lock")
+    @GuardedBy("lock") //公共的rpc服务
     private RpcService commonRpcService;
 
     @GuardedBy("lock")
@@ -189,7 +189,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
             LOG.error(msg);
             throw new IllegalConfigurationException(msg);
         }
-
+        //添加线程关闭本对象，如果添加成功，本会添加的线程，否则为空
         shutDownHook =
                 ShutdownHookUtil.addShutdownHook(
                         () -> this.closeAsync().join(), getClass().getSimpleName(), LOG);
@@ -284,7 +284,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 
         return SecurityUtils.getInstalledContext();
     }
-
+    //集群启动
     private void runCluster(Configuration configuration, PluginManager pluginManager)
             throws Exception {
         synchronized (lock) {
@@ -293,7 +293,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
             // write host information into configuration
             configuration.set(JobManagerOptions.ADDRESS, commonRpcService.getAddress());
             configuration.set(JobManagerOptions.PORT, commonRpcService.getPort());
-
+            //创建Dispatcher 、 ResourceManager 和 Rest断点 组建的工厂
             final DispatcherResourceManagerComponentFactory
                     dispatcherResourceManagerComponentFactory =
                             createDispatcherResourceManagerComponentFactory(configuration);
@@ -369,7 +369,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
             LOG.info("Using working directory: {}.", workingDirectory);
 
             rpcSystem = RpcSystem.load(configuration);
-
+            //rpc服务，根节点为flink，然后是rpc
             commonRpcService =
                     RpcUtils.createRemoteRpcService(
                             rpcSystem,
@@ -378,7 +378,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
                             getRPCPortRange(configuration),
                             configuration.get(JobManagerOptions.BIND_HOST),
                             configuration.getOptional(JobManagerOptions.RPC_BIND_PORT));
-
+            //JMX服务，用于监控
             JMXService.startInstance(configuration.get(JMXServerOptions.JMX_SERVER_PORT));
 
             // update the configuration used to create the high availability services
@@ -748,7 +748,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
         int returnCode;
         Throwable throwable = null;
 
-        try {
+        try {  //等待结束
             returnCode = clusterEntrypoint.getTerminationFuture().get().processExitCode();
         } catch (Throwable e) {
             throwable = ExceptionUtils.stripExecutionException(e);

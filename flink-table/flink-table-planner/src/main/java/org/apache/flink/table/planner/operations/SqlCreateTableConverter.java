@@ -57,15 +57,15 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
+//SqlCreateTableConverter 是 Flink 表规划器中一个辅助类，用于将 SqlCreateTable、SqlCreateTableAs 等 SQL 语法节点转换为具体的操作对象，如 CreateTableOperation 或 CreateTableASOperation。这些操作对象最终会被执行计划使用，用于定义或修改表结构
 /** Helper class for converting {@link SqlCreateTable} to {@link CreateTableOperation}. */
 class SqlCreateTableConverter {
 
-    private final MergeTableLikeUtil mergeTableLikeUtil;
-    private final MergeTableAsUtil mergeTableAsUtil;
-    private final CatalogManager catalogManager;
+    private final MergeTableLikeUtil mergeTableLikeUtil;//用于支持 LIKE 子句的表合并逻辑（如基于现有表创建新表时继承或覆盖其属性），提供方法来处理表属性、分区键、分布策略等的合并
+    private final MergeTableAsUtil mergeTableAsUtil; //用于支持 CREATE TABLE AS（CTAS）语法的表合并逻辑，帮助在定义表时基于查询结果推导表模式，并确保查询输出与表定义一致
+    private final CatalogManager catalogManager; //Flink 中用于管理 Catalog（元数据）的核心组件，负责获取、解析和存储表的元数
     private final FlinkTypeFactory typeFactory;
-    private final SqlRewriterUtils rewriterUtils;
+    private final SqlRewriterUtils rewriterUtils; //用于重写 SQL 节点，例如补充字段、修正分区信息等
 
     SqlCreateTableConverter(
             FlinkCalciteSqlValidator sqlValidator,
@@ -81,14 +81,14 @@ class SqlCreateTableConverter {
         this.typeFactory = (FlinkTypeFactory) sqlValidator.getTypeFactory();
         this.rewriterUtils = new SqlRewriterUtils(sqlValidator);
     }
-
+    //将 SqlCreateTable（表示 SQL 的 CREATE TABLE 语句）转换为 CreateTableOperation
     /** Convert the {@link SqlCreateTable} node. */
     Operation convertCreateTable(SqlCreateTable sqlCreateTable) {
-        CatalogTable catalogTable = createCatalogTable(sqlCreateTable);
+        CatalogTable catalogTable = createCatalogTable(sqlCreateTable); //已解析的表元数据
 
-        UnresolvedIdentifier unresolvedIdentifier =
+        UnresolvedIdentifier unresolvedIdentifier =   //未解析的表名
                 UnresolvedIdentifier.of(sqlCreateTable.fullTableName());
-        ObjectIdentifier identifier = catalogManager.qualifyIdentifier(unresolvedIdentifier);
+        ObjectIdentifier identifier = catalogManager.qualifyIdentifier(unresolvedIdentifier); //补充全限定名
 
         return new CreateTableOperation(
                 identifier,
@@ -96,7 +96,7 @@ class SqlCreateTableConverter {
                 sqlCreateTable.isIfNotExists(),
                 sqlCreateTable.isTemporary());
     }
-
+    //将 SqlCreateTableAs（表示 SQL 的 CREATE TABLE AS SELECT 语句）转换为 CreateTableASOperation
     /** Convert the {@link SqlCreateTableAs} node. */
     Operation convertCreateTableAS(
             FlinkPlannerImpl flinkPlanner, SqlCreateTableAs sqlCreateTableAs) {
@@ -138,7 +138,7 @@ class SqlCreateTableConverter {
         return new CreateTableASOperation(
                 createTableOperation, Collections.emptyMap(), query, false);
     }
-
+    //生成 CatalogTable 实例，包含模式（Schema）、分区键、分布策略等
     private ResolvedCatalogTable createCatalogTable(
             SqlCreateTableAs sqlCreateTableAs, ResolvedSchema mergeSchema) {
         Map<String, String> tableOptions =
@@ -177,7 +177,7 @@ class SqlCreateTableConverter {
 
         return catalogManager.resolveCatalogTable(catalogTable);
     }
-
+    //创建CatalogTable表，在CreateTableOperation中，当作一个属性
     private CatalogTable createCatalogTable(SqlCreateTable sqlCreateTable) {
 
         final Schema sourceTableSchema;
@@ -203,7 +203,7 @@ class SqlCreateTableConverter {
 
         Map<SqlTableLike.FeatureOption, SqlTableLike.MergingStrategy> mergingStrategies =
                 mergeTableLikeUtil.computeMergingStrategies(likeOptions);
-
+        //合并create table语句的参数
         Map<String, String> mergedOptions =
                 mergeOptions(sqlCreateTable, sourceProperties, mergingStrategies);
 
@@ -213,7 +213,7 @@ class SqlCreateTableConverter {
                 sqlCreateTable.getFullConstraints().stream()
                         .filter(SqlTableConstraint::isPrimaryKey)
                         .findAny();
-
+        //通过SchemaBuilder构建Schema
         Schema mergedSchema =
                 mergeTableLikeUtil.mergeTables(
                         mergingStrategies,
@@ -224,10 +224,10 @@ class SqlCreateTableConverter {
                                 .map(Collections::singletonList)
                                 .orElseGet(Collections::emptyList),
                         primaryKey.orElse(null));
-
+        //表的分布信息
         Optional<TableDistribution> mergedTableDistribution =
                 mergeDistribution(sourceTableDistribution, sqlCreateTable, mergingStrategies);
-
+        //表的分区键
         List<String> partitionKeys =
                 mergePartitions(
                         sourcePartitionKeys,
@@ -236,7 +236,7 @@ class SqlCreateTableConverter {
         verifyPartitioningColumnsExist(mergedSchema, partitionKeys);
 
         String tableComment = OperationConverterUtils.getTableComment(sqlCreateTable.getComment());
-
+        //终于在这里构建了CatalogTable
         CatalogTable catalogTable =
                 CatalogTable.newBuilder()
                         .schema(mergedSchema)

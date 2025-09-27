@@ -31,8 +31,8 @@ public interface Result<
         R extends Result<VID, RID, V, R>> {
 
     RID getId();
-
+    //获取结果类型
     ResultPartitionType getResultType();
-
+    //获取生产者
     V getProducer();
 }

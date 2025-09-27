@@ -41,29 +41,29 @@ import java.util.function.Consumer;
  * been received. If the monitor detects that a heartbeat has timed out, it will notify the {@link
  * HeartbeatListener} about it. A heartbeat times out iff no heartbeat signal has been received
  * within a given timeout interval.
- *
+ *  Receiver，存在于JobMaster与TaskExecutor中
  * @param <I> Type of the incoming heartbeat payload
  * @param <O> Type of the outgoing heartbeat payload
  */
 @ThreadSafe
 class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
 
-    /** Heartbeat timeout interval in milli seconds. */
+    /** Heartbeat timeout interval in milli seconds. 心跳超时时间，单位为毫秒。如果在这个时间间隔内未收到心跳信号，系统会认为目标不可用*/
     private final long heartbeatTimeoutIntervalMs;
-
+    //允许的最大 RPC 请求失败次数。如果超过该次数，目标会被标记为不可到达
     private final int failedRpcRequestsUntilUnreachable;
-
+    //当前心跳管理器所属的资源标识符，用于标记自身
     /** Resource ID which is used to mark one own's heartbeat signals. */
     private final ResourceID ownResourceID;
-
-    /** Heartbeat listener with which the heartbeat manager has been associated. */
+    //一个回调接口，定义了如何处理接收到的心跳和超时事件。
+    /** Heartbeat listener with which the heartbeat manager has been associated. 一个回调接口，定义了如何处理接收到的心跳和超时事件*/
     private final HeartbeatListener<I, O> heartbeatListener;
 
     /** Executor service used to run heartbeat timeout notifications. */
     private final ScheduledExecutor mainThreadExecutor;
 
     protected final Logger log;
-
+    //存储正在监控的目标以及其对应的心跳监控器
     /** Map containing the heartbeat monitors associated with the respective resource ID. */
     private final ConcurrentHashMap<ResourceID, HeartbeatMonitor<O>> heartbeatTargets;
 
@@ -103,7 +103,7 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
 
         this.heartbeatTimeoutIntervalMs = heartbeatTimeoutIntervalMs;
         this.failedRpcRequestsUntilUnreachable = failedRpcRequestsUntilUnreachable;
-        this.ownResourceID = Preconditions.checkNotNull(ownResourceID);
+        this.ownResourceID = Preconditions.checkNotNull(ownResourceID); //标识自身的id
         this.heartbeatListener = Preconditions.checkNotNull(heartbeatListener, "heartbeatListener");
         this.mainThreadExecutor = Preconditions.checkNotNull(mainThreadExecutor);
         this.log = Preconditions.checkNotNull(log);
@@ -133,7 +133,7 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
     // HeartbeatManager methods
     // ----------------------------------------------------------------------------------------------
 
-    @Override
+    @Override //为指定的目标创建并启动心跳监控器
     public void monitorTarget(ResourceID resourceID, HeartbeatTarget<O> heartbeatTarget) {
         if (!stopped) {
             if (heartbeatTargets.containsKey(resourceID)) {
@@ -162,7 +162,7 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
         }
     }
 
-    @Override
+    @Override //停止监控指定目标
     public void unmonitorTarget(ResourceID resourceID) {
         if (!stopped) {
             HeartbeatMonitor<O> heartbeatMonitor = heartbeatTargets.remove(resourceID);
@@ -184,7 +184,7 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
         heartbeatTargets.clear();
     }
 
-    @Override
+    @Override //获取最新的心跳信息
     public long getLastHeartbeatFrom(ResourceID resourceId) {
         HeartbeatMonitor<O> heartbeatMonitor = heartbeatTargets.get(resourceId);
 
@@ -203,7 +203,7 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
     // HeartbeatTarget methods
     // ----------------------------------------------------------------------------------------------
 
-    @Override
+    @Override  //处理来自指定目标的心跳信号
     public CompletableFuture<Void> receiveHeartbeat(
             ResourceID heartbeatOrigin, I heartbeatPayload) {
         if (!stopped) {
@@ -218,7 +218,7 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
         return FutureUtils.completedVoidFuture();
     }
 
-    @Override
+    @Override  //响应来自目标的心跳请求，同时向目标发送心跳
     public CompletableFuture<Void> requestHeartbeat(
             final ResourceID requestOrigin, I heartbeatPayload) {
         if (!stopped) {

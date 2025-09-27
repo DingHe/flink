@@ -77,7 +77,7 @@ public class SqlNodeConvertContext implements SqlNodeConverter.ConvertContext {
         return flinkPlanner;
     }
 
-    @Override
+    @Override //利用FlinkPlannerImpl把SqlNode转为RelNode
     public RelRoot toRelRoot(SqlNode sqlNode) {
         return flinkPlanner.rel(sqlNode);
     }

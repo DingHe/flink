@@ -61,11 +61,16 @@ import static org.apache.flink.table.types.logical.utils.LogicalTypeChecks.isCom
  *
  * @see DataTypes for a list of supported data types and instances of this class.
  */
+//Flink 表生态系统中已完全解析的数据类型的抽象，用于声明操作的输入和/或输出类型
+//声明逻辑类型：DataType 必须包含一个逻辑类型 (LogicalType)。逻辑类型独立于任何物理表示，类似于 SQL 标准中的数据类型，如 INT, STRING, ROW 等。它是 Flink 内部优化器和执行计划的基础
+//提供物理表示提示：DataType 可以提供可选的物理表示提示 (conversionClass)。这个提示告诉 Flink，在与外部 API 交互时（例如，从数据源读取或写入数据汇），该数据应该被表示为什么样的 Java 类。
+// 例如，一个逻辑时间戳 (TIMESTAMP) 可以被表示为 java.sql.Timestamp 或 java.time.LocalDateTime
+
 @PublicEvolving
 public abstract class DataType implements AbstractDataType<DataType>, Serializable {
-
+    //存储与该 DataType 关联的逻辑类型
     protected final LogicalType logicalType;
-
+    //存储该 DataType 在与外部 API 交互时所使用的物理表示类
     protected final Class<?> conversionClass;
 
     DataType(LogicalType logicalType, @Nullable Class<?> conversionClass) {
@@ -102,8 +107,9 @@ public abstract class DataType implements AbstractDataType<DataType>, Serializab
      *
      * @return the children data types
      */
+    //返回一个列表，包含该数据类型的所有子类型
     public abstract List<DataType> getChildren();
-
+    //它允许一个 DataTypeVisitor 来访问该 DataType 及其子类型，从而执行特定的操作，例如类型推断、校验或打印
     public abstract <R> R accept(DataTypeVisitor<R> visitor);
 
     /**
@@ -117,6 +123,7 @@ public abstract class DataType implements AbstractDataType<DataType>, Serializab
      *
      * @see RowData
      */
+    //创建该 DataType 的一个深层副本，并将其所有转换类设置为 Flink 的内部数据类型。
     public DataType toInternal() {
         return DataTypeUtils.toInternalDataType(this);
     }
@@ -154,6 +161,7 @@ public abstract class DataType implements AbstractDataType<DataType>, Serializab
      * <p>Note: This method returns an empty list for every {@link DataType} that is not a composite
      * type.
      */
+    //返回复合类型（如 ROW）的第一级字段名称列表。对于非复合类型，返回空列表
     public static List<String> getFieldNames(DataType dataType) {
         final LogicalType type = dataType.getLogicalType();
         if (type.is(LogicalTypeRoot.DISTINCT_TYPE)) {
@@ -170,6 +178,7 @@ public abstract class DataType implements AbstractDataType<DataType>, Serializab
      * <p>Note: This method returns an empty list for every {@link DataType} that is not a composite
      * type.
      */
+    //返回复合类型的第一级字段的 DataType 列表。对于非复合类型，返回空列表
     public static List<DataType> getFieldDataTypes(DataType dataType) {
         final LogicalType type = dataType.getLogicalType();
         if (type.is(LogicalTypeRoot.DISTINCT_TYPE)) {
@@ -186,6 +195,7 @@ public abstract class DataType implements AbstractDataType<DataType>, Serializab
      * <p>Note: This method returns {@code 0} for every {@link DataType} that is not a composite
      * type.
      */
+    //返回复合类型的第一级字段数量。对于非复合类型，返回 0
     public static int getFieldCount(DataType dataType) {
         return getFieldDataTypes(dataType).size();
     }
@@ -196,6 +206,7 @@ public abstract class DataType implements AbstractDataType<DataType>, Serializab
      * <p>Note: This method returns an empty list for every {@link DataType} that is not a composite
      * type.
      */
+    //回一个有序的 DataTypes.Field 列表，其中每个字段包含名称和 DataType
     public static List<DataTypes.Field> getFields(DataType dataType) {
         final List<String> names = getFieldNames(dataType);
         final List<DataType> dataTypes = getFieldDataTypes(dataType);

@@ -37,6 +37,12 @@ import org.apache.flink.table.types.logical.LogicalType;
  *
  * @param <T> kind of data type returned after mutation
  */
+// Flink 表生态系统中描述数据类型的最高抽象接口。
+// 它不直接代表一个具体的数据类型，而是定义了所有数据类型（无论是已解析的还是未解析的）都必须具备的基本行为，
+// 例如设置可空性（nullability）和指定物理表示（bridged class）
+    //区分了两种数据类型
+    //已解析的数据类型（DataType）：可以直接用于声明操作的输入/输出类型，包含了完整的信息
+    //未解析的数据类型（UnresolvedDataType）：在解析前需要查阅 Catalog 或配置，如 TIMESTAMP(3) 在没有指定时区时就是一个未解析的类型
 @PublicEvolving
 public interface AbstractDataType<T extends AbstractDataType<T>> {
 
@@ -45,6 +51,7 @@ public interface AbstractDataType<T extends AbstractDataType<T>> {
      *
      * @return a new, reconfigured data type instance
      */
+    //表明该数据类型的数据不期望为空
     T notNull();
 
     /**
@@ -55,6 +62,7 @@ public interface AbstractDataType<T extends AbstractDataType<T>> {
      *
      * @return a new, reconfigured data type instance
      */
+    //表明该数据类型的数据可以为空
     T nullable();
 
     /**
@@ -69,5 +77,6 @@ public interface AbstractDataType<T extends AbstractDataType<T>> {
      *
      * @return a new, reconfigured data type instance
      */
+    //指定当数据进入或离开表生态系统时，应使用给定的 Java 类来表示
     T bridgedTo(Class<?> newConversionClass);
 }

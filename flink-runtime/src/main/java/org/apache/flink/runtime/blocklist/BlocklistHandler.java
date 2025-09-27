@@ -27,7 +27,7 @@ import java.util.Collection;
 import java.util.Set;
 import java.util.function.Function;
 
-/**
+/** BlocklistHandler 接口负责管理所有被阻塞的节点（BlockedNode），并在资源上执行与阻塞相关的操作
  * This class is responsible for managing all {@link BlockedNode}s and performing them on resources.
  */
 public interface BlocklistHandler {
@@ -35,14 +35,14 @@ public interface BlocklistHandler {
     /**
      * Add new blocked node records. If a node (identified by node id) already exists, the newly
      * added one will be merged with the existing one.
-     *
+     * 在处理任务执行或资源管理时，如果某些节点发生故障或被认为不可靠，可以通过该方法将这些节点加入到阻塞列表中
      * @param newNodes the new blocked node records
      */
     void addNewBlockedNodes(Collection<BlockedNode> newNodes);
 
     /**
      * Returns whether the given task manager is blocked (located on blocked nodes).
-     *
+     * 在任务调度或资源分配时，用于判断某个任务管理器是否应该被排除，因为它位于阻塞节点上
      * @param taskManagerId ID of the task manager to query
      * @return true if the given task manager is blocked, otherwise false
      */
@@ -50,14 +50,14 @@ public interface BlocklistHandler {
 
     /**
      * Get all blocked node ids.
-     *
+     * 用于查询所有处于阻塞状态的节点 ID，可以用来检查哪些节点当前不可用
      * @return a set containing all blocked node ids
      */
     Set<String> getAllBlockedNodeIds();
 
     /**
      * Register a new blocklist listener.
-     *
+     * 当阻塞节点的状态发生变化时（例如添加或移除被阻塞的节点），该监听器将会接收到通知
      * @param blocklistListener the newly registered listener
      */
     void registerBlocklistListener(BlocklistListener blocklistListener);

@@ -21,6 +21,8 @@ package org.apache.flink.streaming.api;
 import org.apache.flink.annotation.PublicEvolving;
 
 /** Interface for working with time and timers. */
+//TimerService 是 Flink 中用于处理**时间和定时器（timers）**的核心接口。
+// 它为 ProcessFunction 等有状态的函数提供了与时间相关的操作能力
 @PublicEvolving
 public interface TimerService {
 
@@ -31,9 +33,11 @@ public interface TimerService {
     String UNSUPPORTED_DELETE_TIMER_MSG = "Deleting timers is only supported on a keyed streams.";
 
     /** Returns the current processing time. */
+    //返回当前算子实例的处理时间，即机器的系统时间
     long currentProcessingTime();
 
     /** Returns the current event-time watermark. */
+    //返回当前算子实例的事件时间水印
     long currentWatermark();
 
     /**
@@ -44,6 +48,7 @@ public interface TimerService {
      * org.apache.flink.streaming.api.datastream.KeyedStream} then that context will also be active
      * when you receive the timer notification.
      */
+    //注册一个基于处理时间的定时器。当当前处理时间达到或超过 time 参数时，onTimer() 方法会被触发
     void registerProcessingTimeTimer(long time);
 
     /**
@@ -54,6 +59,7 @@ public interface TimerService {
      * org.apache.flink.streaming.api.datastream.KeyedStream} then that context will also be active
      * when you receive the timer notification.
      */
+    //注册一个基于事件时间的定时器。当事件时间水印达到或超过 time 参数时，onTimer() 方法会被触发
     void registerEventTimeTimer(long time);
 
     /**
@@ -63,6 +69,7 @@ public interface TimerService {
      * <p>Timers can internally be scoped to keys and/or windows. When you delete a timer, it is
      * removed from the current keyed context.
      */
+    //删除一个之前注册的基于处理时间的定时器
     void deleteProcessingTimeTimer(long time);
 
     /**
@@ -72,5 +79,6 @@ public interface TimerService {
      * <p>Timers can internally be scoped to keys and/or windows. When you delete a timer, it is
      * removed from the current keyed context.
      */
+    //删除一个之前注册的基于事件时间的定时器
     void deleteEventTimeTimer(long time);
 }

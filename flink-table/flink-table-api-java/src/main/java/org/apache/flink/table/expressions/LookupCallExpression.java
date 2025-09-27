@@ -36,9 +36,9 @@ import java.util.stream.Collectors;
 @PublicEvolving
 public final class LookupCallExpression implements Expression {
 
-    private final String unresolvedName;
+    private final String unresolvedName; //函数名
 
-    private final List<Expression> args;
+    private final List<Expression> args; //参数
 
     LookupCallExpression(String unresolvedFunction, List<Expression> args) {
         this.unresolvedName = Preconditions.checkNotNull(unresolvedFunction);

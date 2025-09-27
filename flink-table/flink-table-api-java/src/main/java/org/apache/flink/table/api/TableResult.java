@@ -33,7 +33,7 @@ import java.util.concurrent.TimeoutException;
 @PublicEvolving
 public interface TableResult {
 
-    /**
+    /** 对于数据操作和数据查询，返回flink job的JobClient客户端，其他返回空
      * For DML and DQL statement, return the {@link JobClient} which associates the submitted Flink
      * job. For other statements (e.g. DDL, DCL) return empty.
      */
@@ -41,7 +41,7 @@ public interface TableResult {
 
     /**
      * Wait if necessary until the data is ready.
-     *
+     * 对于select操作，等待到第一条数据返回，对于insert操作，等待整个job完成，其他立刻返回
      * <p>For a select operation, this method will wait until the first row can be accessed locally.
      * For an insert operation, this method will wait for the job to finish, because the result
      * contains only one row. For other operations, this method will return immediately, because the
@@ -54,7 +54,7 @@ public interface TableResult {
 
     /**
      * Wait if necessary for at most the given time for the data to be ready.
-     *
+     * 跟上面的await一样，但是有超时时间
      * <p>For a select operation, this method will wait until the first row can be accessed locally.
      * For an insert operation, this method will wait for the job to finish, because the result
      * contains only one row. For other operations, this method will return immediately, because the
@@ -122,7 +122,7 @@ public interface TableResult {
      * | (name of the insert table) | BIGINT      | the insert table name |
      * +----------------------------+-------------+-----------------------+
      * </pre>
-     *
+     * 返回结果的Schema
      * <p>The schema of SELECT is the selected field names and types.
      */
     ResolvedSchema getResolvedSchema();
@@ -142,7 +142,7 @@ public interface TableResult {
 
     /**
      * Return the {@link ResultKind} which represents the result type.
-     *
+     * 获取返回值类型SUCCESS_WITH_CONTENT或者SUCCESS
      * <p>For DDL operation and USE operation, the result kind is always {@link ResultKind#SUCCESS}.
      * For other operations, the result kind is always {@link ResultKind#SUCCESS_WITH_CONTENT}.
      */
@@ -193,7 +193,7 @@ public interface TableResult {
      *       the clients once they're produced, but it is possible for the same result to be
      *       delivered multiple times.
      * </ul>
-     *
+     * 获取可关闭迭代器的结果内容
      * <p>In order to fetch result to local, you can call either {@link #collect()} and {@link
      * #print()}. But, they can't be called both on the same {@link TableResult} instance, because
      * the result can only be accessed once.

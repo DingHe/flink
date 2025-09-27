@@ -29,14 +29,14 @@ public interface TaskInfo {
      *
      * @return The task name.
      */
-    String getTaskName();
+    String getTaskName(); //任务名称
 
     /**
      * Gets the max parallelism aka the max number of subtasks.
      *
      * @return The max parallelism.
      */
-    int getMaxNumberOfParallelSubtasks();
+    int getMaxNumberOfParallelSubtasks(); //最大并行度
 
     /**
      * Gets the number of this parallel subtask. The numbering starts from 0 and goes up to
@@ -44,14 +44,14 @@ public interface TaskInfo {
      *
      * @return The index of the parallel subtask.
      */
-    int getIndexOfThisSubtask();
+    int getIndexOfThisSubtask(); //这个子任务的索引
 
     /**
      * Gets the parallelism with which the parallel task runs.
      *
      * @return The parallelism with which the parallel task runs.
      */
-    int getNumberOfParallelSubtasks();
+    int getNumberOfParallelSubtasks(); //子任务的并行度
 
     /**
      * Gets the attempt number of this parallel subtask. First attempt is numbered 0. The attempt
@@ -60,7 +60,7 @@ public interface TaskInfo {
      *
      * @return The attempt number of the subtask.
      */
-    int getAttemptNumber();
+    int getAttemptNumber(); //尝试次数
 
     /**
      * Returns the name of the task, appended with the subtask indicator, such as "MyTask (3/6)#1",
@@ -69,7 +69,7 @@ public interface TaskInfo {
      *
      * @return The name of the task, with subtask indicator.
      */
-    String getTaskNameWithSubtasks();
+    String getTaskNameWithSubtasks(); //子任务的名称
 
     /**
      * Returns the allocation id for where this task is executed.

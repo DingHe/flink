@@ -22,7 +22,7 @@ import org.apache.flink.annotation.PublicEvolving;
 
 /**
  * Represents an artifact that can be explained using a summary string.
- *
+ * 执行计划的详细输出信息
  * @see #explain(ExplainDetail...)
  */
 @PublicEvolving

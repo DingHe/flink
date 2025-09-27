@@ -114,10 +114,10 @@ public final class JobSubmitHandler
 
         Collection<Tuple2<String, Path>> artifacts =
                 getArtifactFilesToUpload(requestBody.artifactFileNames, nameToFile);
-
+        //上传jobgraph序列化文件和jar包
         CompletableFuture<JobGraph> finalizedJobGraphFuture =
                 uploadJobGraphFiles(gateway, jobGraphFuture, jarFiles, artifacts, configuration);
-
+        //提交任务
         CompletableFuture<Acknowledge> jobSubmissionFuture =
                 finalizedJobGraphFuture.thenCompose(
                         jobGraph -> gateway.submitJob(jobGraph, timeout));

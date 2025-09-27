@@ -156,13 +156,13 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
 
     /** {@code true} if all source tasks are stoppable. */
     private boolean isStoppable = true;
-
+    //存储执行图的顶点
     /** All job vertices that are part of this graph. */
     private final Map<JobVertexID, ExecutionJobVertex> tasks;
-
+    //按照执行图顶点的创建顺序存储
     /** All vertices, in the order in which they were created. * */
     private final List<ExecutionJobVertex> verticesInCreationOrder;
-
+    //中间结果集
     /** All intermediate results that are part of this graph. */
     private final Map<IntermediateDataSetID, IntermediateResult> intermediateResults;
 
@@ -194,14 +194,14 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
 
     /** Blob writer used to offload RPC messages. */
     private final BlobWriter blobWriter;
-
+   //总的执行图顶点数量
     /** Number of total job vertices. */
     private int numJobVerticesTotal;
 
     private final PartitionGroupReleaseStrategy.Factory partitionGroupReleaseStrategyFactory;
 
     private PartitionGroupReleaseStrategy partitionGroupReleaseStrategy;
-
+    //调度拓扑图
     private DefaultExecutionTopology executionTopology;
 
     @Nullable private InternalFailuresListener internalTaskFailuresListener;
@@ -278,7 +278,7 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
     @Nullable private String changelogStorageName;
 
     @Nullable private TernaryBoolean stateChangelogEnabled;
-
+    //JogGraph的json格式
     private String jsonPlan;
 
     /** Shuffle master to register partitions for task deployment. */
@@ -286,7 +286,7 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
 
     private final ExecutionDeploymentListener executionDeploymentListener;
     private final ExecutionStateUpdateListener executionStateUpdateListener;
-
+    //边管理器
     private final EdgeManager edgeManager;
 
     private final Map<ExecutionVertexID, ExecutionVertex> executionVerticesById;
@@ -863,7 +863,7 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
         partitionGroupReleaseStrategy =
                 partitionGroupReleaseStrategyFactory.createInstance(getSchedulingTopology());
     }
-
+    //遍历JobGraph的顶点，并创建ExecutionJobVertex，设置并行度
     /** Attach job vertices without initializing them. */
     private void attachJobVertices(
             List<JobVertex> topologicallySorted, JobManagerJobMetricGroup jobManagerJobMetricGroup)
@@ -876,7 +876,7 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
 
             VertexParallelismInformation parallelismInfo =
                     parallelismStore.getParallelismInfo(jobVertex.getID());
-
+            //创建执行图的顶点
             // create the execution job vertex and attach it to the graph
             ExecutionJobVertex ejv =
                     executionJobVertexFactory.createExecutionJobVertex(
@@ -885,7 +885,7 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
                             parallelismInfo,
                             coordinatorStore,
                             jobManagerJobMetricGroup);
-
+            //执行图的顶点存储到tasks属性
             ExecutionJobVertex previousTask = this.tasks.putIfAbsent(jobVertex.getID(), ejv);
             if (previousTask != null) {
                 throw new JobException(

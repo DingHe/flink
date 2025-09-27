@@ -816,7 +816,7 @@ public class FutureUtils {
      */
     public static ConjunctFuture<Void> completeAll(
             Collection<? extends CompletableFuture<?>> futuresToComplete) {
-        return new CompletionConjunctFuture(futuresToComplete);
+        return new CompletionConjunctFuture(futuresToComplete);  //逐个确认关闭处理
     }
 
     /**
@@ -1237,7 +1237,7 @@ public class FutureUtils {
      * @param <T> type of the value
      */
     public static <T> void forward(CompletableFuture<T> source, CompletableFuture<T> target) {
-        source.whenComplete(forwardTo(target));
+        source.whenComplete(forwardTo(target)); //whenComplete接收一个两参数的回调函数，第一个是正常的返回结果，第二个是异常值（没异常则为null）
     }
 
     /**

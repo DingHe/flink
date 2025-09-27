@@ -38,10 +38,10 @@ class TaskMailboxProcessorTest {
 
     private static final int DEFAULT_PRIORITY = 0;
 
-    @Test
+    @Test   //如果mailbox不是OPEN状态，则无法投递邮件
     void testRejectIfNotOpen() {
         MailboxProcessor mailboxProcessor = new MailboxProcessor(controller -> {});
-        mailboxProcessor.prepareClose();
+        mailboxProcessor.prepareClose(); //属于静默状态，不再接收邮件
 
         assertThatThrownBy(
                         () ->

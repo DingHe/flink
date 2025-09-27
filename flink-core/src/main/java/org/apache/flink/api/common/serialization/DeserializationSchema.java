@@ -44,6 +44,8 @@ import java.io.Serializable;
  *
  * @param <T> The type created by the deserialization schema.
  */
+// Flink 中一个核心接口，其作用是定义如何将外部数据源（如 Kafka、文件、Socket 等）的字节消息反序列化为 Flink 内部可以处理的 Java/Scala 对象。
+// 它充当了 Flink 外部输入数据和内部处理逻辑之间的桥梁
 @Public
 public interface DeserializationSchema<T> extends Serializable, ResultTypeQueryable<T> {
     /**
@@ -55,6 +57,8 @@ public interface DeserializationSchema<T> extends Serializable, ResultTypeQuerya
      *
      * @param context Contextual information that can be used during initialization.
      */
+    //初始化方法
+    //在反序列化工作开始前调用，可用于执行一次性设置，如注册用户指标或初始化连接等
     @PublicEvolving
     default void open(InitializationContext context) throws Exception {}
 
@@ -64,6 +68,8 @@ public interface DeserializationSchema<T> extends Serializable, ResultTypeQuerya
      * @param message The message, as a byte array.
      * @return The deserialized message as an object (null if the message cannot be deserialized).
      */
+    //反序列化单个字节消息
+    //接收一个字节数组 message，并返回一个反序列化后的 T 类型对象。如果消息无法反序列化，可以返回 null
     T deserialize(byte[] message) throws IOException;
 
     /**
@@ -77,6 +83,9 @@ public interface DeserializationSchema<T> extends Serializable, ResultTypeQuerya
      * @param message The message, as a byte array.
      * @param out The collector to put the resulting messages.
      */
+    // 反序列化单个字节消息，并允许输出零个或多个结果
+    // 其默认实现是调用 deserialize(byte[] message)，然后将结果通过 Collector 发出。
+    // 它允许一个字节消息产生多个结果，这在某些场景下非常有用，例如当一条消息包含多个记录时
     @PublicEvolving
     default void deserialize(byte[] message, Collector<T> out) throws IOException {
         T deserialize = deserialize(message);
@@ -92,6 +101,7 @@ public interface DeserializationSchema<T> extends Serializable, ResultTypeQuerya
      * @param nextElement The element to test for the end-of-stream signal.
      * @return True, if the element signals end of stream, false otherwise.
      */
+    //判断一个反序列化后的对象是否是流的结束信号
     boolean isEndOfStream(T nextElement);
 
     /**
@@ -115,6 +125,7 @@ public interface DeserializationSchema<T> extends Serializable, ResultTypeQuerya
          *
          * @see MetricGroup
          */
+        //获取一个指标组，允许用户在此方法中注册自定义指标，以监控反序列化过程
         MetricGroup getMetricGroup();
 
         /**
@@ -123,6 +134,7 @@ public interface DeserializationSchema<T> extends Serializable, ResultTypeQuerya
          *
          * @see UserCodeClassLoader
          */
+        //获取用户代码的类加载器，这对于动态加载类或资源非常有用
         UserCodeClassLoader getUserCodeClassLoader();
     }
 }

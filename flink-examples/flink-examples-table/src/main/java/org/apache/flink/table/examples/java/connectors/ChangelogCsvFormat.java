@@ -35,14 +35,16 @@ import java.util.List;
  * The {@link ChangelogCsvFormat} is a decoding format that uses a {@link DeserializationSchema}
  * during runtime. It supports emitting {@code INSERT} and {@code DELETE} changes.
  */
+//专门用于处理包含变更日志（Changelog）信息的 CSV 格式数据。
+// 它的核心作用是定义如何将外部的 CSV 数据，包括 INSERT 和 DELETE 操作，解码成 Flink 内部的 RowData 格式
 public final class ChangelogCsvFormat implements DecodingFormat<DeserializationSchema<RowData>> {
-
+    //定义了 CSV 文件中用于分隔列的字符
     private final String columnDelimiter;
 
     public ChangelogCsvFormat(String columnDelimiter) {
         this.columnDelimiter = columnDelimiter;
     }
-
+    //创建并返回一个运行时解码器，用于将字节流反序列化为 RowData
     @Override
     public DeserializationSchema<RowData> createRuntimeDecoder(
             DynamicTableSource.Context context, DataType producedDataType) {
@@ -52,6 +54,7 @@ public final class ChangelogCsvFormat implements DecodingFormat<DeserializationS
 
         // most of the code in DeserializationSchema will not work on internal data structures
         // create a converter for conversion at the end
+        //创建一个数据结构转换器，用于将反序列化后的数据转换为 Flink 的内部数据格式
         final DataStructureConverter converter =
                 context.createDataStructureConverter(producedDataType);
 
@@ -59,6 +62,7 @@ public final class ChangelogCsvFormat implements DecodingFormat<DeserializationS
         final List<LogicalType> parsingTypes = producedDataType.getLogicalType().getChildren();
 
         // create runtime class
+        //封装了 CSV 解析和变更日志处理的全部逻辑
         return new ChangelogCsvDeserializer(
                 parsingTypes, converter, producedTypeInfo, columnDelimiter);
     }

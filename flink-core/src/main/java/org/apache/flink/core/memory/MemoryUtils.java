@@ -46,7 +46,7 @@ public class MemoryUtils {
 
     @SuppressWarnings("restriction")
     private static sun.misc.Unsafe getUnsafe() {
-        try {
+        try { //通过反射的方式来获取Unsafe类
             Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
             unsafeField.setAccessible(true);
             return (sun.misc.Unsafe) unsafeField.get(null);

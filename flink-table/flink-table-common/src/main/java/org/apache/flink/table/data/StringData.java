@@ -23,6 +23,8 @@ import org.apache.flink.table.data.binary.BinaryStringData;
 import org.apache.flink.table.types.logical.CharType;
 import org.apache.flink.table.types.logical.VarCharType;
 
+//Flink Table API & SQL 内部用于表示字符串数据的核心接口。与 Java 的 String 类不同，
+// StringData 被设计成一种高效的、内存友好的、可变长度的内部数据结构，以减少序列化、反序列化以及内存管理开销
 /** An internal data structure representing data of {@link CharType} and {@link VarCharType}. */
 @PublicEvolving
 public interface StringData extends Comparable<StringData> {
@@ -32,9 +34,11 @@ public interface StringData extends Comparable<StringData> {
      *
      * <p>Note: The returned byte array may be reused.
      */
+    //将此 StringData 对象转换为一个 UTF-8 编码的字节数组
     byte[] toBytes();
 
     /** Converts this {@link StringData} object to a {@link String}. */
+    //将此 StringData 对象转换为一个标准的 Java String 对象
     String toString();
 
     // ------------------------------------------------------------------------------------------

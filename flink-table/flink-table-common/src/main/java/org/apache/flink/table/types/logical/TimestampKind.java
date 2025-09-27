@@ -26,9 +26,9 @@ import org.apache.flink.annotation.Internal;
  */
 @Internal
 public enum TimestampKind {
-    REGULAR,
+    REGULAR,  //常规的时间戳类型
 
-    ROWTIME,
+    ROWTIME,  //事件时间
 
-    PROCTIME
+    PROCTIME //处理时间
 }

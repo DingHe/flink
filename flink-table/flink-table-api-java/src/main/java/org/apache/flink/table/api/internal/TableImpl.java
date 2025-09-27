@@ -72,7 +72,7 @@ public class TableImpl implements Table {
     private static final AtomicInteger uniqueId = new AtomicInteger(0);
 
     private final TableEnvironmentInternal tableEnvironment;
-    private final QueryOperation operationTree;
+    private final QueryOperation operationTree;  //持有Operation
     private final OperationTreeBuilder operationTreeBuilder;
     private final LookupCallResolver lookupResolver;
 
@@ -87,10 +87,10 @@ public class TableImpl implements Table {
             QueryOperation operationTree,
             OperationTreeBuilder operationTreeBuilder,
             LookupCallResolver lookupResolver) {
-        this.tableEnvironment = tableEnvironment;
-        this.operationTree = operationTree;
-        this.operationTreeBuilder = operationTreeBuilder;
-        this.lookupResolver = lookupResolver;
+        this.tableEnvironment = tableEnvironment; //表环境
+        this.operationTree = operationTree; //起点Operation
+        this.operationTreeBuilder = operationTreeBuilder; //构建QueryOperation树的工具
+        this.lookupResolver = lookupResolver; //把函数转为真实的调用
     }
 
     public static TableImpl createTable(
@@ -425,14 +425,14 @@ public class TableImpl implements Table {
         return insertInto(tablePath, false);
     }
 
-    @Override
+    @Override  //返回一个TablePipeline
     public TablePipeline insertInto(String tablePath, boolean overwrite) {
         UnresolvedIdentifier unresolvedIdentifier =
-                tableEnvironment.getParser().parseIdentifier(tablePath);
+                tableEnvironment.getParser().parseIdentifier(tablePath);  //解析表名
         ObjectIdentifier objectIdentifier =
-                tableEnvironment.getCatalogManager().qualifyIdentifier(unresolvedIdentifier);
+                tableEnvironment.getCatalogManager().qualifyIdentifier(unresolvedIdentifier);  //补充catalog和database
         ContextResolvedTable contextResolvedTable =
-                tableEnvironment.getCatalogManager().getTableOrError(objectIdentifier);
+                tableEnvironment.getCatalogManager().getTableOrError(objectIdentifier); //从catalog中获取表
         return insertInto(contextResolvedTable, overwrite);
     }
 

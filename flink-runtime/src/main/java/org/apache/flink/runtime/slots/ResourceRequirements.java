@@ -34,9 +34,9 @@ public class ResourceRequirements implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private final JobID jobId;
-
+    //用于标识 JobMaster，因为资源需求是针对特定的 JobMaster 提出的。这个地址会在资源管理过程中用来定位作业主节点
     private final String targetAddress;
-
+    //该属性存储了作业所需的具体资源要求。它提供了与作业执行相关的具体资源需求，可以包含多种类型的资源要求，如并行度、内存、CPU 等
     private final Collection<ResourceRequirement> resourceRequirements;
 
     private ResourceRequirements(

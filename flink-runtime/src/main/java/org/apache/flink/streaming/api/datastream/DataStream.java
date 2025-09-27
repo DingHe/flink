@@ -124,11 +124,13 @@ import java.util.UUID;
  *
  * @param <T> The type of the elements in this stream.
  */
+// 表示数据流的核心类。它是一个不可变的、代表特定类型元素流的编程对象。
+// 在Flink中，您无法直接操作DataStream中的数据，而是通过调用它的各种方法来创建新的DataStream，从而构建一个数据处理的**转换（Transformation）**链
 @Public
 public class DataStream<T> {
-
+    //执行环境，定义了作业的全局配置（如默认并行度、重启策略等），并负责最终执行数据流图
     protected final StreamExecutionEnvironment environment;
-
+    //引用当前DataStream所代表的转换。在Flink内部，DataStream上的每个操作（如map、filter）都会被翻译成一个Transformation对象
     protected final Transformation<T> transformation;
 
     /**
@@ -147,7 +149,7 @@ public class DataStream<T> {
 
     /**
      * Returns the ID of the {@link DataStream} in the current {@link StreamExecutionEnvironment}.
-     *
+     * 获取此DataStream在当前StreamExecutionEnvironment中的唯一ID
      * @return ID of the DataStream
      */
     @Internal
@@ -157,7 +159,7 @@ public class DataStream<T> {
 
     /**
      * Gets the parallelism for this operator.
-     *
+     * 获取此操作（DataStream）的并行度。并行度决定了多少个并发实例会执行此操作
      * @return The parallelism set for this operator.
      */
     public int getParallelism() {
@@ -166,7 +168,7 @@ public class DataStream<T> {
 
     /**
      * Gets the minimum resources for this operator.
-     *
+     * 获取此操作所需的最小资源规格（如CPU核数、内存）
      * @return The minimum resources set for this operator.
      */
     @PublicEvolving
@@ -176,7 +178,7 @@ public class DataStream<T> {
 
     /**
      * Gets the preferred resources for this operator.
-     *
+     * 获取此操作所偏好的资源规格。Flink调度器在资源充足时会优先使用此配置
      * @return The preferred resources set for this operator.
      */
     @PublicEvolving
@@ -186,7 +188,7 @@ public class DataStream<T> {
 
     /**
      * Gets the type of the stream.
-     *
+     * 获取此DataStream中元素的类型信息。TypeInformation对于Flink的序列化、反序列化以及类型推断非常重要
      * @return The type of the datastream.
      */
     public TypeInformation<T> getType() {
@@ -196,7 +198,7 @@ public class DataStream<T> {
     /**
      * Invokes the {@link org.apache.flink.api.java.ClosureCleaner} on the given function if closure
      * cleaning is enabled in the {@link ExecutionConfig}.
-     *
+     * 对用户提供的函数（如MapFunction）进行闭包清理
      * @return The cleaned Function
      */
     protected <F> F clean(F f) {
@@ -206,13 +208,14 @@ public class DataStream<T> {
     /**
      * Returns the {@link StreamExecutionEnvironment} that was used to create this {@link
      * DataStream}.
-     *
+     * 返回创建此DataStream的执行环境
      * @return The Execution Environment
      */
     public StreamExecutionEnvironment getExecutionEnvironment() {
         return environment;
     }
 
+    //返回当前执行环境的执行配置
     public ExecutionConfig getExecutionConfig() {
         return environment.getConfig();
     }
@@ -220,7 +223,7 @@ public class DataStream<T> {
     /**
      * Creates a new {@link DataStream} by merging {@link DataStream} outputs of the same type with
      * each other. The DataStreams merged using this operator will be transformed simultaneously.
-     *
+     * 将当前DataStream与一个或多个同类型DataStream合并成一个单一的DataStream。所有合并的流中的元素都会被发送到后续操作中，并且它们的元素类型必须相同
      * @param streams The DataStreams to union output with.
      * @return The {@link DataStream}.
      */
@@ -247,7 +250,8 @@ public class DataStream<T> {
      * Creates a new {@link ConnectedStreams} by connecting {@link DataStream} outputs of (possible)
      * different types with each other. The DataStreams connected using this operator can be used
      * with CoFunctions to apply joint transformations.
-     *
+     * 将当前DataStream与另一个可能不同类型的DataStream连接起来，创建一个ConnectedStreams。
+     * 这允许您在两个流上使用 CoFunction 来进行协同处理，但两个流中的元素会分别处理
      * @param dataStream The DataStream with which this stream will be connected.
      * @return The {@link ConnectedStreams}.
      */
@@ -267,7 +271,8 @@ public class DataStream<T> {
      * KeyedBroadcastProcessFunction} or a {@link
      * org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction
      * BroadcastProcessFunction} depending on the current stream being a {@link KeyedStream} or not.
-     *
+     * 将当前DataStream与一个广播流（BroadcastStream）连接起来。
+     * 这使得主流的每个元素都可以访问广播流中的所有状态数据，常用于配置数据或规则的动态更新
      * @param broadcastStream The broadcast stream with the broadcast state to be connected with
      *     this stream.
      * @return The {@link BroadcastConnectedStream}.
@@ -284,7 +289,8 @@ public class DataStream<T> {
     /**
      * It creates a new {@link KeyedStream} that uses the provided key for partitioning its operator
      * states.
-     *
+     *  根据提供的 KeySelector 抽取键值，将数据流分区为KeyedStream。
+     *  同一键值的所有元素都会被发送到同一个并行任务中。这是执行有状态操作（如聚合、窗口计算）的前提
      * @param key The KeySelector to be used for extracting the key for partitioning
      * @return The {@link DataStream} with partitioned state (i.e. KeyedStream)
      */
@@ -296,6 +302,9 @@ public class DataStream<T> {
     /**
      * It creates a new {@link KeyedStream} that uses the provided key with explicit type
      * information for partitioning its operator states.
+     *
+     * 与上一个keyBy类似，但允许用户显式指定键的类型，
+     * 这在类型推断失败或不准确时非常有用
      *
      * @param key The KeySelector to be used for extracting the key for partitioning.
      * @param keyType The type information describing the key type.
@@ -309,7 +318,7 @@ public class DataStream<T> {
 
     /**
      * Partitions the operator state of a {@link DataStream} by the given key positions.
-     *
+     * 已弃用。根据元组（Tuple）或数组中指定位置的字段进行分组
      * @deprecated Use {@link DataStream#keyBy(KeySelector)}.
      * @param fields The position of the fields on which the {@link DataStream} will be grouped.
      * @return The {@link DataStream} with partitioned state (i.e. KeyedStream)
@@ -329,6 +338,8 @@ public class DataStream<T> {
      * expression is either the name of a public field or a getter method with parentheses of the
      * {@link DataStream}'s underlying type. A dot can be used to drill down into objects, as in
      * {@code "field1.getInnerField2()" }.
+     *
+     * 已弃用。根据POJO类型中指定字段名称进行分组
      *
      * @deprecated Use {@link DataStream#keyBy(KeySelector)}.
      * @param fields One or more field expressions on which the state of the {@link DataStream}
@@ -351,7 +362,7 @@ public class DataStream<T> {
      * method takes the key position to partition on, and a partitioner that accepts the key type.
      *
      * <p>Note: This method works only on single field keys.
-     *
+     * 使用自定义分区器和键选择器来控制元素的分区方式。这允许用户完全自定义数据流的物理分布
      * @deprecated use {@link DataStream#partitionCustom(Partitioner, KeySelector)}.
      * @param partitioner The partitioner to assign partitions to keys.
      * @param field The field index on which the DataStream is partitioned.
@@ -414,7 +425,7 @@ public class DataStream<T> {
     /**
      * Sets the partitioning of the {@link DataStream} so that the output elements are broadcasted
      * to every parallel instance of the next operation.
-     *
+     * 将数据流中的每个元素都发送到下游算子的所有并行实例中，实现一对多的广播模式
      * @return The DataStream with broadcast partitioning set.
      */
     public DataStream<T> broadcast() {
@@ -426,6 +437,8 @@ public class DataStream<T> {
      * to every parallel instance of the next operation. In addition, it implicitly as many {@link
      * org.apache.flink.api.common.state.BroadcastState broadcast states} as the specified
      * descriptors which can be used to store the element of the stream.
+     *
+     * 将数据流广播，并创建一个带有广播状态的BroadcastStream。这用于在连接时，向主流提供广播状态
      *
      * @param broadcastStateDescriptors the descriptors of the broadcast states to create.
      * @return A {@link BroadcastStream} which can be used in the {@link #connect(BroadcastStream)}
@@ -442,7 +455,7 @@ public class DataStream<T> {
     /**
      * Sets the partitioning of the {@link DataStream} so that the output elements are shuffled
      * uniformly randomly to the next operation.
-     *
+     * 以随机、均匀的方式将数据流元素分发到下游算子的所有并行实例
      * @return The DataStream with shuffle partitioning set.
      */
     @PublicEvolving
@@ -453,7 +466,7 @@ public class DataStream<T> {
     /**
      * Sets the partitioning of the {@link DataStream} so that the output elements are forwarded to
      * the local subtask of the next operation.
-     *
+     * 将数据流元素发送到下游算子的本地（或同一槽位）实例，如果下游算子与上游算子具有相同的并行度，则不发生网络传输
      * @return The DataStream with forward partitioning set.
      */
     public DataStream<T> forward() {
@@ -463,7 +476,7 @@ public class DataStream<T> {
     /**
      * Sets the partitioning of the {@link DataStream} so that the output elements are distributed
      * evenly to instances of the next operation in a round-robin fashion.
-     *
+     *  以循环（round-robin）的方式将数据流元素均匀地分发到下游算子的所有并行实例，以平衡负载
      * @return The DataStream with rebalance partitioning set.
      */
     public DataStream<T> rebalance() {
@@ -486,6 +499,8 @@ public class DataStream<T> {
      * <p>In cases where the different parallelisms are not multiples of each other one or several
      * downstream operations will have a differing number of inputs from upstream operations.
      *
+     * 将数据流元素以循环的方式分发到下游算子的一个子集，相比rebalance可以减少网络连接数量，适用于并行度呈倍数关系的情况
+     *
      * @return The DataStream with rescale partitioning set.
      */
     @PublicEvolving
@@ -497,7 +512,7 @@ public class DataStream<T> {
      * Sets the partitioning of the {@link DataStream} so that the output values all go to the first
      * instance of the next processing operator. Use this setting with care since it might cause a
      * serious performance bottleneck in the application.
-     *
+     *  将数据流中的所有元素都发送到下游算子的第一个并行实例。这可能导致严重的性能瓶颈
      * @return The DataStream with shuffle partitioning set.
      */
     @PublicEvolving
@@ -536,6 +551,7 @@ public class DataStream<T> {
      *     FLIP-357: Deprecate Iteration API of DataStream </a>
      * @see <a href="https://nightlies.apache.org/flink/flink-ml-docs-stable/">Flink ML </a>
      */
+    //已弃用。启动一个流式迭代，允许将数据流的一部分结果反馈回迭代的头部
     @Deprecated
     public IterativeStream<T> iterate() {
         return new IterativeStream<>(this, 0);
@@ -573,6 +589,7 @@ public class DataStream<T> {
      *     FLIP-357: Deprecate Iteration API of DataStream </a>
      * @see <a href="https://nightlies.apache.org/flink/flink-ml-docs-stable/">Flink ML </a>
      */
+    //已弃用。与上一个方法类似，但允许设置最大等待时间，超时后迭代将终止
     @Deprecated
     public IterativeStream<T> iterate(long maxWaitTimeMillis) {
         return new IterativeStream<>(this, maxWaitTimeMillis);
@@ -583,6 +600,9 @@ public class DataStream<T> {
      * MapFunction} for each element of the DataStream. Each MapFunction call returns exactly one
      * element. The user can also extend {@link RichMapFunction} to gain access to other features
      * provided by the {@link org.apache.flink.api.common.functions.RichFunction} interface.
+     *
+     * 应用 Map 转换。
+     * 对流中每个元素调用MapFunction，并返回一个新元素。输入和输出元素是一对一的关系
      *
      * @param mapper The MapFunction that is called for each element of the DataStream.
      * @param <R> output type
@@ -603,6 +623,9 @@ public class DataStream<T> {
      * element. The user can also extend {@link RichMapFunction} to gain access to other features
      * provided by the {@link org.apache.flink.api.common.functions.RichFunction} interface.
      *
+     * 与上一个方法类似，
+     * 但允许指定输出类型，避免类型推断问题
+     *
      * @param mapper The MapFunction that is called for each element of the DataStream.
      * @param outputType {@link TypeInformation} for the result type of the function.
      * @param <R> output type
@@ -619,6 +642,9 @@ public class DataStream<T> {
      * number of elements including none. The user can also extend {@link RichFlatMapFunction} to
      * gain access to other features provided by the {@link
      * org.apache.flink.api.common.functions.RichFunction} interface.
+     *
+     * 应用 FlatMap 转换。
+     * 对流中每个元素调用FlatMapFunction，可以返回零个、一个或多个元素。输入和输出是一对多或一对零的关系
      *
      * @param flatMapper The FlatMapFunction that is called for each element of the DataStream
      * @param <R> output type
@@ -640,6 +666,8 @@ public class DataStream<T> {
      * gain access to other features provided by the {@link
      * org.apache.flink.api.common.functions.RichFunction} interface.
      *
+     * 与上一个方法类似，但允许指定输出类型
+     *
      * @param flatMapper The FlatMapFunction that is called for each element of the DataStream
      * @param outputType {@link TypeInformation} for the result type of the function.
      * @param <R> output type
@@ -656,6 +684,10 @@ public class DataStream<T> {
      *
      * <p>The function will be called for every element in the input streams and can produce zero or
      * more output elements.
+     *
+     *  应用 Process 转换。
+     *  这是一个底层、功能强大的转换，可以访问事件的时间戳、处理时间，并设置定时器。
+     *  它对流中的每个元素调用ProcessFunction，可以产生零个、一个或多个元素
      *
      * @param processFunction The {@link ProcessFunction} that is called for each element in the
      *     stream.
@@ -686,6 +718,12 @@ public class DataStream<T> {
      * <p>The function will be called for every element in the input streams and can produce zero or
      * more output elements.
      *
+     * 应用一个Process 转换。
+     * ProcessFunction 是一个功能强大的底层 API，它提供了对时间和状态的细粒度控制。
+     * 你可以使用它来访问事件时间戳、处理时间，并注册定时器。
+     * 该方法会为流中的每个元素调用 ProcessFunction，并可以产生零个、一个或多个输出元素。
+     * outputType 参数显式指定了输出元素的类型
+     *
      * @param processFunction The {@link ProcessFunction} that is called for each element in the
      *     stream.
      * @param outputType {@link TypeInformation} for the result type of the function.
@@ -708,6 +746,8 @@ public class DataStream<T> {
      * user can also extend {@link RichFilterFunction} to gain access to other features provided by
      * the {@link org.apache.flink.api.common.functions.RichFunction} interface.
      *
+     * 为流中的每个元素调用一个 FilterFunction，并只保留那些函数返回 true 的元素。返回 false 的元素将被丢弃
+     *
      * @param filter The FilterFunction that is called for each element of the DataStream.
      * @return The filtered DataStream.
      */
@@ -720,6 +760,10 @@ public class DataStream<T> {
      * <b>Note: Only Tuple DataStreams can be projected.</b>
      *
      * <p>The transformation projects each Tuple of the DataSet onto a (sub)set of fields.
+     *
+     * 对元组类型的 DataStream 应用 Project 转换。
+     * 这个方法允许你从一个元组中提取一个或多个字段，并按照指定的顺序创建一个新的元组。
+     * 例如，你可以从一个包含三个字段的元组中提取第一个和第三个字段。注意：此方法仅适用于 Tuple 类型的数据流
      *
      * @param fieldIndexes The field indexes of the input tuples that are retained. The order of
      *     fields in the output tuple corresponds to the order of field indexes.
@@ -735,12 +779,14 @@ public class DataStream<T> {
     /**
      * Creates a join operation. See {@link CoGroupedStreams} for an example of how the keys and
      * window can be specified.
+     * coGroup 操作类似于 SQL 中的 GROUP BY，
+     * 它在两个数据流上执行，根据指定的键和窗口将它们的分组。这个方法返回一个 CoGroupedStreams 对象，你可以用它来进一步配置键和窗口
      */
     public <T2> CoGroupedStreams<T, T2> coGroup(DataStream<T2> otherStream) {
         return new CoGroupedStreams<>(this, otherStream);
     }
 
-    /**
+    /**  两个数据流上执行，根据指定的键和窗口将它们连接起来。这个方法返回一个 JoinedStreams 对象，用于后续的键和窗口配置
      * Creates a join operation. See {@link JoinedStreams} for an example of how the keys and window
      * can be specified.
      */
@@ -757,7 +803,9 @@ public class DataStream<T> {
      *
      * <p>Note: This operation is inherently non-parallel since all elements have to pass through
      * the same operator instance.
-     *
+     *  所有 windowAll 相关的方法都处理非键控（non-keyed）流。
+     *  这意味着所有元素都会被发送到同一个操作实例进行处理，因此并行度为 1，可能会成为性能瓶颈。
+     *  对于大多数用例，都应使用键控的窗口
      * <p>{@link
      * org.apache.flink.streaming.api.environment.StreamExecutionEnvironment#setStreamTimeCharacteristic(org.apache.flink.streaming.api.TimeCharacteristic)}
      *
@@ -766,6 +814,7 @@ public class DataStream<T> {
      *     TumblingEventTimeWindows} or {@link TumblingProcessingTimeWindows}. For more information,
      *     see the deprecation notice on {@link TimeCharacteristic}
      */
+    //将非键控流划分为滚动时间窗口
     @Deprecated
     public AllWindowedStream<T, TimeWindow> timeWindowAll(Time size) {
         if (environment.getStreamTimeCharacteristic() == TimeCharacteristic.ProcessingTime) {
@@ -791,6 +840,7 @@ public class DataStream<T> {
      *     SlidingEventTimeWindows} or {@link SlidingProcessingTimeWindows}. For more information,
      *     see the deprecation notice on {@link TimeCharacteristic}
      */
+    //将非键控流划分为滑动时间窗口。它同样根据时间特性自动选择窗口分配器，并允许你指定窗口大小和滑动间隔
     @Deprecated
     public AllWindowedStream<T, TimeWindow> timeWindowAll(Time size, Time slide) {
         if (environment.getStreamTimeCharacteristic() == TimeCharacteristic.ProcessingTime) {
@@ -808,6 +858,7 @@ public class DataStream<T> {
      *
      * @param size The size of the windows in number of elements.
      */
+    //将非键控流划分为滚动计数窗口。当收集到的元素数量达到 size 时，窗口会触发计算
     public AllWindowedStream<T, GlobalWindow> countWindowAll(long size) {
         return windowAll(GlobalWindows.create()).trigger(PurgingTrigger.of(CountTrigger.of(size)));
     }
@@ -821,6 +872,7 @@ public class DataStream<T> {
      * @param size The size of the windows in number of elements.
      * @param slide The slide interval in number of elements.
      */
+    //将非键控流划分为滑动计数窗口。当收集到的元素数量达到 size 时，窗口会触发计算，但每隔 slide 个元素就会滑动一次
     public AllWindowedStream<T, GlobalWindow> countWindowAll(long size, long slide) {
         return windowAll(GlobalWindows.create())
                 .evictor(CountEvictor.of(size))
@@ -843,6 +895,8 @@ public class DataStream<T> {
      * @param assigner The {@code WindowAssigner} that assigns elements to windows.
      * @return The trigger windows data stream.
      */
+    //将非键控流泛化为 AllWindowedStream。
+    // 这是所有 windowAll 方法的底层通用方法，它接受一个 WindowAssigner 来定义如何将元素分配到窗口中
     @PublicEvolving
     public <W extends Window> AllWindowedStream<T, W> windowAll(
             WindowAssigner<? super T, W> assigner) {
@@ -873,6 +927,7 @@ public class DataStream<T> {
      * @param watermarkStrategy The strategy to generate watermarks based on event timestamps.
      * @return The stream after the transformation, with assigned timestamps and watermarks.
      */
+    //为数据流分配时间戳和生成水位线。这是在 Flink 中启用事件时间处理的推荐方法
     public SingleOutputStreamOperator<T> assignTimestampsAndWatermarks(
             WatermarkStrategy<T> watermarkStrategy) {
         final WatermarkStrategy<T> cleanedStrategy = clean(watermarkStrategy);
@@ -901,6 +956,7 @@ public class DataStream<T> {
      *
      * @deprecated Please use {@link #assignTimestampsAndWatermarks(WatermarkStrategy)} instead.
      */
+    //已弃用。这是旧版本的 API，用于定期生成水位线
     @Deprecated
     public SingleOutputStreamOperator<T> assignTimestampsAndWatermarks(
             AssignerWithPeriodicWatermarks<T> timestampAndWatermarkAssigner) {
@@ -924,6 +980,7 @@ public class DataStream<T> {
      *
      * @deprecated Please use {@link #assignTimestampsAndWatermarks(WatermarkStrategy)} instead.
      */
+    //已弃用。这是旧版本的 API，用于基于事件生成水位线
     @Deprecated
     public SingleOutputStreamOperator<T> assignTimestampsAndWatermarks(
             AssignerWithPunctuatedWatermarks<T> timestampAndWatermarkAssigner) {
@@ -947,7 +1004,8 @@ public class DataStream<T> {
      *
      * <p>NOTE: This will print to stdout on the machine where the code is executed, i.e. the Flink
      * worker.
-     *
+     *  将数据流中的每个元素转换成字符串，并写入标准输出流 (stdout)。
+     *  打印操作会在执行 Flink 任务的工作节点上进行
      * @return The closed DataStream.
      */
     @PublicEvolving
@@ -963,7 +1021,7 @@ public class DataStream<T> {
      *
      * <p>NOTE: This will print to stderr on the machine where the code is executed, i.e. the Flink
      * worker.
-     *
+     * 类似 print()，但将输出写入标准错误流 (stderr)
      * @return The closed DataStream.
      */
     @PublicEvolving
@@ -979,7 +1037,7 @@ public class DataStream<T> {
      *
      * <p>NOTE: This will print to stdout on the machine where the code is executed, i.e. the Flink
      * worker.
-     *
+     * 类似 print()，但允许您指定一个标识符作为输出的前缀，这在调试时区分不同数据流的输出很有用
      * @param sinkIdentifier The string to prefix the output with.
      * @return The closed DataStream.
      */
@@ -996,7 +1054,7 @@ public class DataStream<T> {
      *
      * <p>NOTE: This will print to stderr on the machine where the code is executed, i.e. the Flink
      * worker.
-     *
+     * 类似 printToErr()，并允许您指定一个标识符作为输出的前缀
      * @param sinkIdentifier The string to prefix the output with.
      * @return The closed DataStream.
      */
@@ -1010,7 +1068,7 @@ public class DataStream<T> {
      * Writes a DataStream to the file specified by path in text format.
      *
      * <p>For every element of the DataStream the result of {@link Object#toString()} is written.
-     *
+     *  已弃用。将数据流写入指定路径的文本文件。每个元素都会调用 toString() 方法后写入。推荐使用 StreamingFileSink
      * @param path The path pointing to the location the text file is written to.
      * @return The closed DataStream.
      * @deprecated Please use the {@link
@@ -1027,7 +1085,7 @@ public class DataStream<T> {
      * Writes a DataStream to the file specified by path in text format.
      *
      * <p>For every element of the DataStream the result of {@link Object#toString()} is written.
-     *
+     * 已弃用。将数据流写入文本文件，并允许指定写入模式（如覆盖或不覆盖）
      * @param path The path pointing to the location the text file is written to
      * @param writeMode Controls the behavior for existing files. Options are NO_OVERWRITE and
      *     OVERWRITE.
@@ -1049,7 +1107,7 @@ public class DataStream<T> {
      *
      * <p>For every field of an element of the DataStream the result of {@link Object#toString()} is
      * written. This method can only be used on data streams of tuples.
-     *
+     * 已弃用。将元组类型的数据流写入 CSV 文件
      * @param path the path pointing to the location the text file is written to
      * @return the closed DataStream
      * @deprecated Please use the {@link
@@ -1071,7 +1129,7 @@ public class DataStream<T> {
      *
      * <p>For every field of an element of the DataStream the result of {@link Object#toString()} is
      * written. This method can only be used on data streams of tuples.
-     *
+     * 已弃用。将元组数据流写入 CSV 文件，并指定写入模式
      * @param path the path pointing to the location the text file is written to
      * @param writeMode Controls the behavior for existing files. Options are NO_OVERWRITE and
      *     OVERWRITE.
@@ -1128,7 +1186,7 @@ public class DataStream<T> {
     /**
      * Writes the DataStream to a socket as a byte array. The format of the output is specified by a
      * {@link SerializationSchema}.
-     *
+     *  将数据流中的元素序列化后，作为字节数组写入指定的网络套接字。此操作的并行度固定为1，以避免多个实例同时连接到同一个端口
      * @param hostName host of the socket
      * @param port port of the socket
      * @param schema schema for serialization
@@ -1150,7 +1208,7 @@ public class DataStream<T> {
      *
      * <p>For writing to a file system periodically, the use of the {@link
      * org.apache.flink.streaming.api.functions.sink.filesystem.StreamingFileSink} is recommended.
-     *
+     * 使用自定义的 OutputFormat 将数据流写入外部系统。不参与 Flink 的检查点机制，因此不推荐使用
      * @param format The output format
      * @return The closed DataStream
      * @deprecated Please use the {@link
@@ -1189,7 +1247,9 @@ public class DataStream<T> {
      *
      * <p>This method uses the rather new operator factories and should only be used when custom
      * factories are needed.
-     *
+     *  这是 DataStream API 的底层通用转换方法。
+     *  它允许您使用自定义的 OneInputStreamOperator 或 OneInputStreamOperatorFactory 来实现任何一对一的流转换。
+     *  这通常用于实现 Flink API 本身，普通用户很少直接调用此方法
      * @param operatorName name of the operator, for logging purposes
      * @param outTypeInfo the output type of the operator
      * @param operatorFactory the factory for the operator.
@@ -1204,7 +1264,7 @@ public class DataStream<T> {
 
         return doTransform(operatorName, outTypeInfo, operatorFactory);
     }
-
+    //内部方法，用于实际创建 OneInputTransformation 并将其添加到执行环境中
     protected <R> SingleOutputStreamOperator<R> doTransform(
             String operatorName,
             TypeInformation<R> outTypeInfo,
@@ -1233,7 +1293,7 @@ public class DataStream<T> {
 
     /**
      * Internal function for setting the partitioner for the DataStream.
-     *
+     *  内部方法，用于设置数据流的分区策略（如 rebalance, forward, shuffle 等）。它创建了一个 PartitionTransformation
      * @param partitioner Partitioner to set.
      * @return The modified DataStream.
      */
@@ -1246,7 +1306,7 @@ public class DataStream<T> {
     /**
      * Adds the given sink to this DataStream. Only streams with sinks added will be executed once
      * the {@link StreamExecutionEnvironment#execute()} method is called.
-     *
+     * 向数据流添加一个用户自定义的 SinkFunction。这是将数据流写入外部系统的最常用方法
      * @param sinkFunction The object containing the sink's invoke function.
      * @return The closed DataStream.
      */
@@ -1266,7 +1326,7 @@ public class DataStream<T> {
     /**
      * Adds the given {@link Sink} to this DataStream. Only streams with sinks added will be
      * executed once the {@link StreamExecutionEnvironment#execute()} method is called.
-     *
+     * 使用 新的 Sink API (v2) 将数据流写入外部系统。这是 Flink 1.15+ 中推荐的 Sink 实现方式，提供了更丰富的语义和功能
      * @param sink The user defined sink.
      * @return The closed DataStream.
      */
@@ -1281,7 +1341,7 @@ public class DataStream<T> {
      *
      * <p>This method is intended to be used only to recover a snapshot where no uids have been set
      * before taking the snapshot.
-     *
+     *  这是 sinkTo 方法的一个重载，用于新的 Sink API
      * @param sink The user defined sink.
      * @return The closed DataStream.
      */
@@ -1334,7 +1394,9 @@ public class DataStream<T> {
      * <p>The DataStream application is executed in the regular distributed manner on the target
      * environment, and the events from the stream are polled back to this application process and
      * thread through Flink's REST API.
-     *
+     *  执行 Flink 作业并返回一个迭代器，
+     *  通过该迭代器可以收集数据流中的所有元素。
+     *  这在本地测试和调试时非常方便。重要提示：必须关闭此迭代器以释放集群资源
      * <p><b>IMPORTANT</b> The returned iterator must be closed to free all cluster resources.
      */
     public CloseableIterator<T> executeAndCollect() throws Exception {
@@ -1358,7 +1420,7 @@ public class DataStream<T> {
     /**
      * Triggers the distributed execution of the streaming dataflow and returns an iterator over the
      * elements of the given DataStream.
-     *
+     *  执行作业并收集前 limit 个元素到一个列表中
      * <p>The DataStream application is executed in the regular distributed manner on the target
      * environment, and the events from the stream are polled back to this application process and
      * thread through Flink's REST API.

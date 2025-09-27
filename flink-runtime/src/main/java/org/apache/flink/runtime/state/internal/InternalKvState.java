@@ -61,8 +61,12 @@ import java.util.Collection;
  * @param <N> The type of the namespace
  * @param <V> The type of values kept internally in state
  */
+//主要作用是为 Flink 的运行时和状态后端（State Backend）提供一个统一的接口，用于更底层、更精细地操作状态
+    //提供序列化器访问：允许访问键、命名空间和值的序列化器（TypeSerializer），这对于状态后端在存储、读取和网络传输时处理原始字节数据至关重要
+    //管理命名空间：支持设置和获取当前处理的命名空间（namespace），这是 Flink 窗口（Window）机制等高级功能的基础
+    //支持低级操作：提供了获取序列化后的原始值 (getSerializedValue) 和状态增量访问 (getStateIncrementalVisitor) 等方法。这些方法是**状态后端实现和检查点（Checkpointing）**等核心功能所必需的
 public interface InternalKvState<K, N, V> extends State {
-
+    //分别返回用于序列化和反序列化键（Key）、**命名空间（Namespace）和值（Value）**的类型序列化器
     /** Returns the {@link TypeSerializer} for the type of key this state is associated to. */
     TypeSerializer<K> getKeySerializer();
 
@@ -77,6 +81,7 @@ public interface InternalKvState<K, N, V> extends State {
      *
      * @param namespace The namespace.
      */
+    //在执行状态操作之前，设置当前的命名空间
     void setCurrentNamespace(N namespace);
 
     /**
@@ -99,6 +104,7 @@ public interface InternalKvState<K, N, V> extends State {
      *     namespace.
      * @throws Exception Exceptions during serialization are forwarded
      */
+    //根据序列化后的键和命名空间，返回序列化后的原始值
     byte[] getSerializedValue(
             final byte[] serializedKeyAndNamespace,
             final TypeSerializer<K> safeKeySerializer,
@@ -114,6 +120,8 @@ public interface InternalKvState<K, N, V> extends State {
      *     constant.
      * @return global iterator over state entries
      */
+    //返回一个增量状态访问器
+    //允许状态后端分批次（即增量地）遍历和访问状态中的所有键/值对，而不是一次性加载所有状态，从而降低了检查点时的内存和I/O开销
     StateIncrementalVisitor<K, N, V> getStateIncrementalVisitor(
             int recommendedMaxNumberOfReturnedRecords);
 
@@ -129,6 +137,7 @@ public interface InternalKvState<K, N, V> extends State {
          * Whether the visitor potentially has some next entries to return from {@code
          * nextEntries()}.
          */
+        //检查是否还有更多状态条目可以访问
         boolean hasNext();
 
         /**
@@ -143,8 +152,9 @@ public interface InternalKvState<K, N, V> extends State {
          * be no defensive copies in {@code nextEntries()} for performance). It has to be deeply
          * copied if it is to modify, e.g. with the {@code update()} method.
          */
+        //返回下一批状态条目
         Collection<StateEntry<K, N, V>> nextEntries();
-
+        //允许在遍历时对状态条目进行删除和更新。这对于状态后端的高级优化（如合并状态）非常重要
         void remove(StateEntry<K, N, V> stateEntry);
 
         /**

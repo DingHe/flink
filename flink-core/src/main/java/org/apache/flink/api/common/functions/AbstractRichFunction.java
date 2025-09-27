@@ -28,6 +28,8 @@ import java.io.Serializable;
  * methods for initialization ({@link #open(OpenContext)}) and teardown ({@link #close()}), as well
  * as access to their runtime execution context via {@link #getRuntimeContext()}.
  */
+//主要作用是提供一个默认实现和样板代码，简化了开发者编写 Rich UDF 的过程
+//实现了 RichFunction 接口，并提供了 open()、close()、getRuntimeContext() 等方法的默认实现。这意味着如果你继承这个抽象类，你就不必自己实现这些方法的全部逻辑
 @Public
 public abstract class AbstractRichFunction implements RichFunction, Serializable {
 

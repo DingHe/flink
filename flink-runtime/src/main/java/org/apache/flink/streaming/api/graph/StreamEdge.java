@@ -42,7 +42,7 @@ public class StreamEdge implements Serializable {
 
     private final String edgeId;
 
-    private final int sourceId;
+    private final int sourceId;  //引用的streamnode的id
     private final int targetId;
 
     /**
@@ -71,7 +71,7 @@ public class StreamEdge implements Serializable {
     private final StreamExchangeMode exchangeMode;
 
     private long bufferTimeout;
-
+    //是否支持未对齐的检查点
     private boolean supportsUnalignedCheckpoints = true;
 
     private final IntermediateDataSetID intermediateDatasetIdToProduce;

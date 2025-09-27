@@ -25,6 +25,10 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.table.data.StringData;
 
+// Flink TypeInformation 抽象类的具体实现，
+// 专门用于描述 Flink Table API 内部的**StringData** 类型。
+// 它的核心作用是为 Flink 内部的高性能字符串数据结构 StringData 提供完整的类型元信息，
+// 以便于 Flink 的运行时引擎正确地处理、序列化、比较和优化这类数据
 /** TypeInformation for {@link StringData}. */
 @Internal
 public class StringDataTypeInfo extends TypeInformation<StringData> {

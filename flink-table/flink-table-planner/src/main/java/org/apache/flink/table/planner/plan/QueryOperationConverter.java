@@ -349,7 +349,7 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
                     null);
         }
 
-        @Override
+        @Override //这个针对SourceQueryOperation的转换
         public RelNode visit(SourceQueryOperation queryOperation) {
             ContextResolvedTable contextResolvedTable = queryOperation.getContextResolvedTable();
             if (contextResolvedTable.isAnonymous()) {
@@ -357,7 +357,7 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
                                 relBuilder, contextResolvedTable, isBatchMode)
                         .toRel(ViewExpanders.simpleContext(relBuilder.getCluster()));
             }
-            Map<String, String> dynamicOptions = queryOperation.getDynamicOptions();
+            Map<String, String> dynamicOptions = queryOperation.getDynamicOptions(); //获取源表的配置参数
             if (dynamicOptions != null) {
                 return relBuilder
                         .scan(contextResolvedTable.getIdentifier(), dynamicOptions)
@@ -443,7 +443,7 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
         @Override
         public RelNode visit(QueryOperation other) {
             if (other instanceof PlannerQueryOperation) {
-                return ((PlannerQueryOperation) other).getCalciteTree();
+                return ((PlannerQueryOperation) other).getCalciteTree(); //直接返回之前记录的RelNode
             } else if (other instanceof PlannerExternalQueryOperation) {
                 return ((PlannerExternalQueryOperation) other).getCalciteTree();
             } else if (other instanceof InternalDataStreamQueryOperation) {

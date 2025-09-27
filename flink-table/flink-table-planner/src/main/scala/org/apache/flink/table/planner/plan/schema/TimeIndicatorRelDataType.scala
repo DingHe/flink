@@ -23,15 +23,15 @@ import org.apache.calcite.sql.`type`.SqlTypeName.TIMESTAMP
 
 import java.lang
 
-/**
+/** 表示时间指示符：它标识时间戳字段是事件时间（ROWTIME）还是处理时间（PROCTIME），作为 BasicSqlType 的子类，它可以与 SQL 类型系统进行交互，允许 Flink 在内部进行时间类型的处理和优化
  * Creates a time indicator type for event-time or processing-time, but with similar properties as a
- * basic SQL type.
+ * basic SQL type.  支持类型的序列化和比较：通过重写 toString() 和 hashCode() 方法，该类确保时间指示符类型在 Flink 的查询计划中有独特的标识，并支持类型的比较与序列化
  */
 class TimeIndicatorRelDataType(
-    val typeSystemField: RelDataTypeSystem,
-    val originalType: BasicSqlType,
+    val typeSystemField: RelDataTypeSystem, //该字段表示所使用的类型系统，通常是 Calcite SQL 类型系统
+    val originalType: BasicSqlType, //该字段表示原始的 SQL 类型，用于从基础的 SQL 类型（如 TIMESTAMP）初始化该类型
     val nullable: Boolean,
-    val isEventTime: Boolean)
+    val isEventTime: Boolean) //该字段指示当前时间指示符是否为事件时间。如果为 true，表示是事件时间（ROWTIME），否则为处理时间（PROCTIME）
   extends BasicSqlType(typeSystemField, originalType.getSqlTypeName, originalType.getPrecision) {
 
   this.isNullable = nullable

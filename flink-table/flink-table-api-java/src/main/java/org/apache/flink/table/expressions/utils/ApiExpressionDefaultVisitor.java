@@ -34,7 +34,7 @@ import org.apache.flink.table.expressions.UnresolvedCallExpression;
 import org.apache.flink.table.expressions.UnresolvedReferenceExpression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
 
-/**
+/** 默认都是只重写defaultMethod方法即可
  * A utility {@link ApiExpressionVisitor} that calls {@link #defaultMethod(Expression)} by default,
  * unless other methods are overridden explicitly.
  */

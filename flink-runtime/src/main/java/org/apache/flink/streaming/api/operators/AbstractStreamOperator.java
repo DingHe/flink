@@ -92,13 +92,14 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * @param <OUT> The output type of the operator.
  */
+//Flink 所有流式算子（StreamOperator）实现的基类
 @PublicEvolving
 public abstract class AbstractStreamOperator<OUT>
         implements StreamOperator<OUT>,
-                SetupableStreamOperator<OUT>,
-                YieldingOperator<OUT>,
-                CheckpointedStreamOperator,
-                KeyContextHandler,
+                SetupableStreamOperator<OUT>, //提供setup方法、设置ChainingStrategy等
+                YieldingOperator<OUT>,  //设置MailboxExecutor
+                CheckpointedStreamOperator,  //检查点的接口
+                KeyContextHandler, //hasKeyContext
                 Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -108,20 +109,23 @@ public abstract class AbstractStreamOperator<OUT>
     // ----------- configuration properties -------------
 
     // A sane default for most operators
+    //定义算子链接策略。ChainingStrategy.HEAD 表示该算子是链的起点，ChainingStrategy.ALWAYS 表示它可以与前一个算子链接
     protected ChainingStrategy chainingStrategy = ChainingStrategy.HEAD;
 
     // ---------------- runtime fields ------------------
 
     /** The task that contains this operator (and other operators in the same chain). */
+    //指向包含该算子的流任务（StreamTask）。StreamTask 是 Flink 运行时中的一个执行单元，一个 StreamTask 可能包含一个或多个链接在一起的算子
     private transient StreamTask<?, ?> container;
-
+    //算子配置。包含了关于该算子的所有配置信息，如输入输出类型、算子 ID、并行度、状态分区器等
     protected transient StreamConfig config;
-
+    //输出接口。用于将处理后的数据或控制消息（如水印）发送到下游算子
     protected transient Output<StreamRecord<OUT>> output;
 
     private transient IndexedCombinedWatermarkStatus combinedWatermark;
 
     /** The runtime context for UDFs. */
+    //运行时上下文。这是用户函数（UDF）访问 Flink 运行时信息的接口，如获取任务信息、配置、累加器、状态和定时器服务等
     private transient StreamingRuntimeContext runtimeContext;
 
     private transient @Nullable MailboxExecutor mailboxExecutor;
@@ -136,6 +140,7 @@ public abstract class AbstractStreamOperator<OUT>
      *
      * <p>This is for elements from the first input.
      */
+    //键选择器。用于从输入元素中提取键，以便将状态操作（如访问键控状态）限定在特定键的范围内。对于非键控算子，这些属性为 null
     protected transient KeySelector<?, ?> stateKeySelector1;
 
     /**
@@ -145,9 +150,9 @@ public abstract class AbstractStreamOperator<OUT>
      * <p>This is for elements from the second input.
      */
     protected transient KeySelector<?, ?> stateKeySelector2;
-
+    //状态处理器。这是管理算子所有状态（键控状态和算子状态）的内部组件，它处理状态的初始化、快照和恢复
     protected transient StreamOperatorStateHandler stateHandler;
-
+    //时间服务管理器。负责管理算子的事件时间和处理时间定时器
     protected transient InternalTimeServiceManager<?> timeServiceManager;
 
     // --------------- Metrics ---------------------------
@@ -167,7 +172,8 @@ public abstract class AbstractStreamOperator<OUT>
     // ------------------------------------------------------------------------
     //  Life Cycle
     // ------------------------------------------------------------------------
-
+    //算子的初始化。在算子生命周期中最早被调用，用于将算子与运行时环境绑定。
+    // 它会设置 container、config、output、metrics、runtimeContext 等关键属性，并初始化延迟统计等
     @Override
     public void setup(
             StreamTask<?, ?> containingTask,
@@ -684,7 +690,7 @@ public abstract class AbstractStreamOperator<OUT>
             processWatermark(new Watermark(combinedWatermark.getCombinedWatermark()));
         }
     }
-
+   //watermark 通过 processWatermark() 来处理
     public void processWatermark1(Watermark mark) throws Exception {
         processWatermark(mark, 0);
     }

@@ -20,7 +20,7 @@ package org.apache.flink.sql.parser;
 
 import org.apache.flink.sql.parser.error.SqlValidateException;
 
-/**
+/**  用来扩展或自定义那些 Calcite 解析器默认不支持的 SQL 节点。这些节点可能是 Flink 特有的、用于特殊需求的 SQL 扩展
  * An remark interface which should be inherited by extended sql nodes which are not supported by
  * Calcite core parser.
  *

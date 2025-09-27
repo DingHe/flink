@@ -44,9 +44,13 @@ import static org.apache.flink.table.types.utils.DataTypeUtils.removeTimeAttribu
 
 /**
  * Schema of a table or view consisting of columns, constraints, and watermark specifications.
- *
+ * 一个表或者视图的schema由列、约束和watermark说明组成，这个代表已经验证过的schema
  * <p>This class is the result of resolving a {@link Schema} into a final validated representation.
- *
+ *  验证内容：
+ *  数据类型和返回已经展开为全限定标识
+ *  时间属性以列的数据类型表示
+ *  表达式也已经解析
+ *  抽象数据类型解析为数据类型
  * <ul>
  *   <li>Data types and functions have been expanded to fully qualified identifiers.
  *   <li>Time attributes are represented in the column's data type.
@@ -60,9 +64,9 @@ import static org.apache.flink.table.types.utils.DataTypeUtils.removeTimeAttribu
 @PublicEvolving
 public final class ResolvedSchema {
 
-    private final List<Column> columns;
-    private final List<WatermarkSpec> watermarkSpecs;
-    private final @Nullable UniqueConstraint primaryKey;
+    private final List<Column> columns; //列的集合
+    private final List<WatermarkSpec> watermarkSpecs; //watermark说明的集合
+    private final @Nullable UniqueConstraint primaryKey; //主键
 
     public ResolvedSchema(
             List<Column> columns,
@@ -83,7 +87,7 @@ public final class ResolvedSchema {
     public static ResolvedSchema of(Column... columns) {
         return ResolvedSchema.of(Arrays.asList(columns));
     }
-
+    //仅包含物理列
     /** Shortcut for a resolved schema of only physical columns. */
     public static ResolvedSchema physical(
             List<String> columnNames, List<DataType> columnDataTypes) {
@@ -101,7 +105,7 @@ public final class ResolvedSchema {
     public static ResolvedSchema physical(String[] columnNames, DataType[] columnDataTypes) {
         return physical(Arrays.asList(columnNames), Arrays.asList(columnDataTypes));
     }
-
+    //返回列的数量
     /** Returns the number of {@link Column}s of this schema. */
     public int getColumnCount() {
         return columns.size();

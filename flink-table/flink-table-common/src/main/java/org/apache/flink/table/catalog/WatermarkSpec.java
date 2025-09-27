@@ -34,9 +34,9 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  */
 @PublicEvolving
 public final class WatermarkSpec {
-
+    //事件时间属性
     private final String rowtimeAttribute;
-
+    //watermark的表达式
     private final ResolvedExpression watermarkExpression;
 
     private WatermarkSpec(String rowtimeAttribute, ResolvedExpression watermarkExpression) {
@@ -53,7 +53,7 @@ public final class WatermarkSpec {
 
     /**
      * Returns the name of a rowtime attribute.
-     *
+     *  返回事件事时间属性
      * <p>The referenced attribute must be present in the {@link ResolvedSchema} and must be of
      * {@link TimestampType}.
      */

@@ -29,7 +29,7 @@ import java.util.List;
  * needed to do operator fusion codegen.
  */
 public interface OpFusionContext {
-
+    //输出数据类型
     /** Return the output type of current {@link OpFusionCodegenSpecGenerator}. */
     RowType getOutputType();
 
@@ -38,7 +38,7 @@ public interface OpFusionContext {
      * all fusion operators.
      */
     double getManagedMemoryFraction();
-
+    //
     /** Return the input {@link OpFusionContext} of this {@link OpFusionCodegenSpecGenerator}. */
     List<OpFusionContext> getInputFusionContexts();
 

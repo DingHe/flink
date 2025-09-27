@@ -43,6 +43,8 @@ import java.util.Collection;
  *     FLIP-357: Deprecate Iteration API of DataStream </a>
  * @see <a href="https://nightlies.apache.org/flink/flink-ml-docs-stable/">Flink ML </a>
  */
+//用于创建流式迭代作业的特殊数据流。它允许你定义一个循环处理逻辑，其中一部分数据流（反馈流）会重新作为输入，进入到循环的起点
+    //这种机制非常适合需要多次循环处理数据的场景，例如图计算中的 PageRank 算法，或者机器学习中的一些迭代优化算法
 @Deprecated
 public class IterativeStream<T> extends SingleOutputStreamOperator<T> {
 

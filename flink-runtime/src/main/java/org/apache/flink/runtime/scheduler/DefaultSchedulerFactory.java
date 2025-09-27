@@ -80,7 +80,7 @@ public class DefaultSchedulerFactory implements SchedulerNGFactory {
             final Collection<FailureEnricher> failureEnrichers,
             final BlocklistOperations blocklistOperations)
             throws Exception {
-
+        //连接resourceManager，请求资源
         final SlotPool slotPool =
                 slotPoolService
                         .castInto(SlotPool.class)
@@ -96,7 +96,7 @@ public class DefaultSchedulerFactory implements SchedulerNGFactory {
                         jobMasterConfiguration,
                         slotPool,
                         slotRequestTimeout);
-        final RestartBackoffTimeStrategy restartBackoffTimeStrategy =
+        final RestartBackoffTimeStrategy restartBackoffTimeStrategy = //失败重启的策略
                 RestartBackoffTimeStrategyFactoryLoader.createRestartBackoffTimeStrategyFactory(
                                 jobGraph.getSerializedExecutionConfig()
                                         .deserializeValue(userCodeLoader)
@@ -110,7 +110,7 @@ public class DefaultSchedulerFactory implements SchedulerNGFactory {
                 restartBackoffTimeStrategy,
                 jobGraph.getName(),
                 jobGraph.getJobID());
-
+        //创建构建执行图（ExecutionGraph）的工厂
         final ExecutionGraphFactory executionGraphFactory =
                 new DefaultExecutionGraphFactory(
                         jobMasterConfiguration,
@@ -123,7 +123,7 @@ public class DefaultSchedulerFactory implements SchedulerNGFactory {
                         blobWriter,
                         shuffleMaster,
                         partitionTracker);
-
+        //检查点清理器
         final CheckpointsCleaner checkpointsCleaner =
                 new CheckpointsCleaner(
                         jobMasterConfiguration.get(CheckpointingOptions.CLEANER_PARALLEL_MODE));

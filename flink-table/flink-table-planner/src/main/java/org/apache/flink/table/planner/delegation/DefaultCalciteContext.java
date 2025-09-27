@@ -36,8 +36,8 @@ import org.apache.calcite.tools.RelBuilder;
 @Internal
 public class DefaultCalciteContext implements CalciteContext {
 
-    private final CatalogManager catalogManager;
-    private final PlannerContext plannerContext;
+    private final CatalogManager catalogManager;  //FLINK的元数据管理器
+    private final PlannerContext plannerContext; //FLINK规划器上下文
 
     public DefaultCalciteContext(CatalogManager catalogManager, PlannerContext plannerContext) {
         this.catalogManager = catalogManager;

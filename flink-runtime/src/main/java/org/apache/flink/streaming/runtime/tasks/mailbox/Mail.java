@@ -31,9 +31,9 @@ import java.util.concurrent.Future;
  * downstream mailbox.
  */
 @Internal
-public class Mail {
+public class Mail { //通常用于一些控制类的消息处理，例如 checkpoint 触发
     private final MailOptionsImpl mailOptions;
-    /** The action to execute. */
+    /** The action to execute. 实际要执行的任务。是一个ThrowingRunnable接口，表示这个任务可能抛出异常*/
     private final ThrowingRunnable<? extends Exception> runnable;
     /**
      * The priority of the mail. The priority does not determine the order, but helps to hide
@@ -44,7 +44,7 @@ public class Mail {
     private final String descriptionFormat;
 
     private final Object[] descriptionArgs;
-
+    //定义了如何执行runnable，是否需要同步执行
     private final StreamTaskActionExecutor actionExecutor;
 
     public Mail(

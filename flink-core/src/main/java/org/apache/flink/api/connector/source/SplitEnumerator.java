@@ -47,7 +47,7 @@ public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
      *
      * @param subtaskId the subtask id of the source reader who sent the source event.
      * @param requesterHostname Optional, the hostname where the requesting task is running. This
-     *     can be used to make split assignments locality-aware.
+     *     can be used to make split assignments locality-aware.当一个源读取器通过 SourceReaderContext#sendSplitRequest() 请求分片时，这个方法会被调用。subtaskId 表示请求分片的读取器的子任务 ID，requesterHostname 是请求的源读取器所在的主机名（可选），可以根据主机名做本地化分配
      */
     void handleSplitRequest(int subtaskId, @Nullable String requesterHostname);
 
@@ -56,14 +56,14 @@ public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
      * fails and there are splits assigned to it after the last successful checkpoint.
      *
      * @param splits The splits to add back to the enumerator for reassignment.
-     * @param subtaskId The id of the subtask to which the returned splits belong.
+     * @param subtaskId The id of the subtask to which the returned splits belong.将失败的源切分重新添加回分片枚举器
      */
     void addSplitsBack(List<SplitT> splits, int subtaskId);
 
     /**
      * Add a new source reader with the given subtask ID.
      *
-     * @param subtaskId the subtask ID of the new source reader.
+     * @param subtaskId the subtask ID of the new source reader. 添加新的源读取器
      */
     void addReader(int subtaskId);
 
@@ -85,7 +85,7 @@ public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
      *
      * @param checkpointId The ID of the checkpoint for which the snapshot is created.
      * @return an object containing the state of the split enumerator.
-     * @throws Exception when the snapshot cannot be taken.
+     * @throws Exception when the snapshot cannot be taken.  该方法是 Flink 的容错机制的一部分，当作业触发检查点时，它会调用该方法来持久化分片枚举器的状态，以便恢复操作能够从失败或重启中恢复
      */
     CheckpointT snapshotState(long checkpointId) throws Exception;
 
@@ -99,7 +99,7 @@ public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
     /**
      * We have an empty default implementation here because most source readers do not have to
      * implement the method.
-     *
+     * 这是 CheckpointListener 接口的一部分，默认实现为空。大多数分片枚举器不需要处理此方法，但如果分片枚举器依赖于外部系统或资源进行检查点的通知（例如外部存储或数据库），则可以覆盖此方法来实现自定义逻辑
      * @see CheckpointListener#notifyCheckpointComplete(long)
      */
     @Override

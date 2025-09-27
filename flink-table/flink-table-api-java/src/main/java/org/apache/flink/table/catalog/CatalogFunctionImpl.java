@@ -79,7 +79,7 @@ public class CatalogFunctionImpl implements CatalogFunction {
 
     @Override
     public boolean isGeneric() {
-        if (functionLanguage == FunctionLanguage.PYTHON) {
+        if (functionLanguage == FunctionLanguage.PYTHON) { //为啥python语言就是true
             return true;
         }
         try {

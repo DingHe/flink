@@ -24,7 +24,7 @@ import org.apache.flink.runtime.jobmaster.JobMasterService;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-/** Factory for the {@link JobMasterService}. */
+/** Factory for the {@link JobMasterService}. JobMasterService持有JobMaster的gatway*/
 public interface JobMasterServiceFactory {
 
     /**

@@ -46,13 +46,13 @@ public final class WorkerResourceSpec implements Serializable {
 
     private final CPUResource cpuCores;
 
-    private final MemorySize taskHeapSize;
+    private final MemorySize taskHeapSize;  //堆内存
 
-    private final MemorySize taskOffHeapSize;
+    private final MemorySize taskOffHeapSize; //堆外内存
 
-    private final MemorySize networkMemSize;
+    private final MemorySize networkMemSize;  //网络内存
 
-    private final MemorySize managedMemSize;
+    private final MemorySize managedMemSize; //托管内存，用于 RocksDB State Backend，排序、哈希表及缓存中间结果，Python 进程中执行用户自定义函数。
 
     private final int numSlots;
 

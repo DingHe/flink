@@ -39,15 +39,15 @@ public class SavepointRestoreSettings implements Serializable {
     private static final SavepointRestoreSettings NONE =
             new SavepointRestoreSettings(null, false, RecoveryClaimMode.NO_CLAIM);
 
-    /** Savepoint restore path. */
+    /** Savepoint restore path. 指定Savepoint路径: 指明从哪个Savepoint恢复作业*/
     private final String restorePath;
 
     /**
      * Flag indicating whether non restored state is allowed if the savepoint contains state for an
-     * operator that is not part of the job.
+     * operator that is not part of the job.许恢复时忽略部分无法恢复的状态
      */
     private final boolean allowNonRestoredState;
-
+    //它定义了当Flink作业从保存点（savepoint）恢复时，JobManager如何声明对保存点的所有权
     private final @Nonnull RecoveryClaimMode recoveryClaimMode;
 
     /**

@@ -52,6 +52,7 @@ import java.io.Serializable;
  * @param <T> The type of elements on which this {@code Trigger} works.
  * @param <W> The type of {@link Window Windows} on which this {@code Trigger} can operate.
  */
+//决定了何时对一个窗口（Window）进行计算和发出结果
 @PublicEvolving
 public abstract class Trigger<T, W extends Window> implements Serializable {
 
@@ -66,6 +67,7 @@ public abstract class Trigger<T, W extends Window> implements Serializable {
      * @param window The window to which the element is being added.
      * @param ctx A context object that can be used to register timer callbacks.
      */
+    //当有新元素被添加到窗口时，此方法会被调用
     public abstract TriggerResult onElement(T element, long timestamp, W window, TriggerContext ctx)
             throws Exception;
 
@@ -76,6 +78,7 @@ public abstract class Trigger<T, W extends Window> implements Serializable {
      * @param window The window for which the timer fired.
      * @param ctx A context object that can be used to register timer callbacks.
      */
+    //当一个处理时间计时器（Processing Time Timer）被触发时，此方法会被调用
     public abstract TriggerResult onProcessingTime(long time, W window, TriggerContext ctx)
             throws Exception;
 
@@ -86,6 +89,7 @@ public abstract class Trigger<T, W extends Window> implements Serializable {
      * @param window The window for which the timer fired.
      * @param ctx A context object that can be used to register timer callbacks.
      */
+    //当一个事件时间计时器（Event Time Timer）被触发时，此方法会被调用
     public abstract TriggerResult onEventTime(long time, W window, TriggerContext ctx)
             throws Exception;
 
@@ -96,6 +100,7 @@ public abstract class Trigger<T, W extends Window> implements Serializable {
      * <p>If this returns {@code true} you must properly implement {@link #onMerge(Window,
      * OnMergeContext)}
      */
+    //判断此触发器是否支持合并触发器状态
     public boolean canMerge() {
         return false;
     }
@@ -107,6 +112,7 @@ public abstract class Trigger<T, W extends Window> implements Serializable {
      * @param window The new window that results from the merge.
      * @param ctx A context object that can be used to register timer callbacks and access state.
      */
+    //当多个窗口被 MergingWindowAssigner 合并成一个新窗口时，此方法会被调用
     public void onMerge(W window, OnMergeContext ctx) throws Exception {
         throw new UnsupportedOperationException("This trigger does not support merging.");
     }
@@ -117,6 +123,7 @@ public abstract class Trigger<T, W extends Window> implements Serializable {
      * {@link TriggerContext#registerProcessingTimeTimer(long)} should be deleted here as well as
      * state acquired using {@link TriggerContext#getPartitionedState(StateDescriptor)}.
      */
+    //清除触发器为给定窗口可能持有的任何状态和已注册的计时器
     public abstract void clear(W window, TriggerContext ctx) throws Exception;
 
     // ------------------------------------------------------------------------

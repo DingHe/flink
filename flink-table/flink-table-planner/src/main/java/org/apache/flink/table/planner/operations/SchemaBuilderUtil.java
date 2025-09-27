@@ -191,7 +191,7 @@ public class SchemaBuilderUtil {
             }
         }
     }
-
+    //把SqlNode类型的列转为flink sql中的列表示
     /** Converts a {@link SqlRegularColumn} to an {@link UnresolvedPhysicalColumn} object. */
     UnresolvedPhysicalColumn toUnresolvedPhysicalColumn(SqlRegularColumn column) {
         final String name = column.getName().getSimple();
@@ -270,7 +270,7 @@ public class SchemaBuilderUtil {
     Optional<String> getComment(SqlTableColumn column) {
         return column.getComment().map(c -> ((SqlLiteral) c).getValueAs(String.class));
     }
-
+    //把SqlDataTypeSpec转为RelDataType
     RelDataType toRelDataType(SqlDataTypeSpec type) {
         boolean nullable = type.getNullable() == null || type.getNullable();
         return type.deriveType(sqlValidator, nullable);

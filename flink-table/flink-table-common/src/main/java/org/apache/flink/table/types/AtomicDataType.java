@@ -33,9 +33,10 @@ import java.util.List;
  *
  * @see DataTypes for a list of supported data types
  */
+//Flink 表生态系统中用于表示原子数据类型（即不包含其他数据类型的数据类型）的具体实现类
 @PublicEvolving
 public final class AtomicDataType extends DataType {
-
+    //这个构造函数允许在创建时同时指定逻辑类型（如 INT）和物理表示（如 Integer.class）
     public AtomicDataType(LogicalType logicalType, @Nullable Class<?> conversionClass) {
         super(logicalType, conversionClass);
     }
@@ -53,7 +54,7 @@ public final class AtomicDataType extends DataType {
     public DataType nullable() {
         return new AtomicDataType(logicalType.copy(true), conversionClass);
     }
-
+    //返回一个新的 AtomicDataType 实例，其物理转换类被修改为 newConversionClass
     @Override
     public DataType bridgedTo(Class<?> newConversionClass) {
         return new AtomicDataType(
@@ -61,7 +62,7 @@ public final class AtomicDataType extends DataType {
                 Preconditions.checkNotNull(
                         newConversionClass, "New conversion class must not be null."));
     }
-
+    //返回一个空的列表
     @Override
     public List<DataType> getChildren() {
         return Collections.emptyList();

@@ -32,7 +32,7 @@ import org.apache.flink.table.types.inference.TypeInference;
 /**
  * Base class for a user-defined scalar function. A user-defined scalar function maps zero, one, or
  * multiple scalar values to a new scalar value.
- *
+ * 用户定义scalar function 是把0个、1个或者多个scalar值映射成一个新的scalar值
  * <p>The behavior of a {@link ScalarFunction} can be defined by implementing a custom evaluation
  * method. An evaluation method must be declared publicly and named <code>eval</code>. Evaluation
  * methods can also be overloaded by implementing multiple methods named <code>eval</code>.

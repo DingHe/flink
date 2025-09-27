@@ -33,10 +33,10 @@ import java.util.Map;
 /** Operation to describe a CREATE TABLE statement. */
 @Internal
 public class CreateTableOperation implements CreateOperation {
-    private final ObjectIdentifier tableIdentifier;
-    private final CatalogTable catalogTable;
-    private final boolean ignoreIfExists;
-    private final boolean isTemporary;
+    private final ObjectIdentifier tableIdentifier; //表名
+    private final CatalogTable catalogTable; //未解析的表
+    private final boolean ignoreIfExists; //是否要判断是否存在
+    private final boolean isTemporary; //是否临时表
 
     public CreateTableOperation(
             ObjectIdentifier tableIdentifier,
@@ -77,7 +77,7 @@ public class CreateTableOperation implements CreateOperation {
                 "CREATE TABLE", params, Collections.emptyList(), Operation::asSummaryString);
     }
 
-    @Override
+    @Override //执行的作用就是把表存入catalog中
     public TableResultInternal execute(Context ctx) {
         if (isTemporary) {
             ctx.getCatalogManager()

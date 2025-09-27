@@ -34,6 +34,7 @@ import java.lang.invoke.MethodHandle;
 
 import static org.apache.flink.table.api.Expressions.$;
 
+
 /** Implementation of {@link BuiltInFunctionDefinitions#ARRAY_CONTAINS}. */
 @Internal
 public class ArrayContainsFunction extends BuiltInScalarFunction {

@@ -56,6 +56,9 @@ import java.util.Set;
  *       using '#' as the placeholder symbol. For example, use {@code fields.#.min}.
  * </ul>
  */
+//Flink 的 Table & SQL API 中用于从键值对列表创建对象实例的所有类型工厂的基础接口。
+//让 Flink 能够发现、识别和创建各种组件，如连接器（Connector）、格式（Format）、函数（Function）等。
+// 通过这种方式，Flink 实现了可插拔和可扩展的架构，允许开发者通过实现这个接口来添加新的组件，而无需修改 Flink 核心代码
 @PublicEvolving
 public interface Factory {
 
@@ -66,6 +69,10 @@ public interface Factory {
      * kafka}). If multiple factories exist for different versions, a version should be appended
      * using "-" (e.g. {@code elasticsearch-7}).
      */
+    //返回一个字符串，用于唯一标识该工厂
+    //Flink 使用这个标识符来查找和加载对应的工厂。
+    // 例如，当你在 SQL 中写 CREATE TABLE ... WITH ('connector' = 'kafka', ...) 时，
+    // Flink 就会根据 'kafka' 这个标识符去找到对应的 Kafka 连接器工厂
     String factoryIdentifier();
 
     /**
@@ -74,6 +81,7 @@ public interface Factory {
      *
      * <p>See the documentation of {@link Factory} for more information.
      */
+    //包含了该工厂必须提供的配置选项（ConfigOption）
     Set<ConfigOption<?>> requiredOptions();
 
     /**
@@ -82,5 +90,6 @@ public interface Factory {
      *
      * <p>See the documentation of {@link Factory} for more information.
      */
+    //包含了该工厂可选的配置选项（ConfigOption）
     Set<ConfigOption<?>> optionalOptions();
 }

@@ -26,24 +26,30 @@ package org.apache.flink.streaming.api.windowing.triggers;
  * contain any data the window function will not be invoked, i.e. no data will be produced for the
  * window.
  */
+//TriggerResult 是一个枚举类型，它定义了 Flink 触发器（Trigger）的 onElement()、onProcessingTime() 和 onEventTime() 方法的返回值。
+// 这个返回值告诉 Flink 运行时，当触发器被调用时应该对相应的窗口执行什么操作。它控制了窗口的计算和状态清理行为
 public enum TriggerResult {
 
     /** No action is taken on the window. */
+    //指示 Flink 不做任何操作
     CONTINUE(false, false),
 
     /** {@code FIRE_AND_PURGE} evaluates the window function and emits the window result. */
+    //指示 Flink 触发计算并清除窗口
     FIRE_AND_PURGE(true, true),
 
     /**
      * On {@code FIRE}, the window is evaluated and results are emitted. The window is not purged,
      * though, all elements are retained.
      */
+    //指示 Flink 触发计算但保留窗口
     FIRE(true, false),
 
     /**
      * All elements in the window are cleared and the window is discarded, without evaluating the
      * window function or emitting any elements.
      */
+    //指示 Flink 清除窗口但不触发计算
     PURGE(false, true);
 
     // ------------------------------------------------------------------------

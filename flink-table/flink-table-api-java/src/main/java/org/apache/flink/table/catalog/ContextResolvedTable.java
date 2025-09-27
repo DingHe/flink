@@ -33,9 +33,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * This class contains information about a table, its {@link ResolvedSchema}, its options and its
  * relationship with a {@link Catalog}, if any.
- *
+ * 能够感知当前的执行上下文，比如当前的 Catalog、Database 和 Schema。这使得 Flink 能够正确地解析和定位表
  * <p>There can be 3 kinds of {@link ContextResolvedTable}:
- *
+ *  永久表：放在catalog，临时表，匿名表
  * <ul>
  *   <li>A permanent table: a table which is stored in a {@link Catalog} and has an associated
  *       unique {@link ObjectIdentifier}.

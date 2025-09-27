@@ -32,7 +32,7 @@ public class StandaloneSessionClusterEntrypoint extends SessionClusterEntrypoint
         super(configuration);
     }
 
-    @Override
+    @Override  //用于构建 Dispatcher 和 ResourceManager 组件，
     protected DefaultDispatcherResourceManagerComponentFactory
             createDispatcherResourceManagerComponentFactory(Configuration configuration) {
         return DefaultDispatcherResourceManagerComponentFactory.createSessionComponentFactory(
@@ -52,7 +52,7 @@ public class StandaloneSessionClusterEntrypoint extends SessionClusterEntrypoint
                         new EntrypointClusterConfigurationParserFactory(),
                         StandaloneSessionClusterEntrypoint.class);
         Configuration configuration = loadConfiguration(entrypointClusterConfiguration);
-
+        //创建启动对象
         StandaloneSessionClusterEntrypoint entrypoint =
                 new StandaloneSessionClusterEntrypoint(configuration);
 

@@ -54,7 +54,7 @@ class TablePipelineImpl implements TablePipeline {
         return tableEnvironment.compilePlan(singletonList(operation));
     }
 
-    @Override
+    @Override //通过ENV的函数来执行Operation
     public TableResult execute() {
         return tableEnvironment.executeInternal(operation);
     }

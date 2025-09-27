@@ -46,7 +46,7 @@ import static org.apache.flink.api.common.BatchShuffleMode.ALL_EXCHANGES_HYBRID_
 import static org.apache.flink.configuration.ExecutionOptions.BATCH_SHUFFLE_MODE;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
-
+//适用于 Netty 和本地文件的 shuffle 环境
 /** Default {@link ShuffleMaster} for netty and local file based shuffle implementation. */
 public class NettyShuffleMaster implements ShuffleMaster<NettyShuffleDescriptor> {
 
@@ -55,13 +55,13 @@ public class NettyShuffleMaster implements ShuffleMaster<NettyShuffleDescriptor>
     private final int floatingBuffersPerGate;
 
     private final Optional<Integer> maxRequiredBuffersPerGate;
-
+    //对于基于排序的 shuffle 操作，要求的最小并行度
     private final int sortShuffleMinParallelism;
 
     private final int sortShuffleMinBuffers;
 
     private final int networkBufferSize;
-
+    //处理混合 shuffle 机制的实例，仅在启用混合 shuffle 时初始化
     @Nullable private final TieredInternalShuffleMaster tieredInternalShuffleMaster;
 
     private final Map<JobID, JobShuffleContext> jobShuffleContexts = new HashMap<>();

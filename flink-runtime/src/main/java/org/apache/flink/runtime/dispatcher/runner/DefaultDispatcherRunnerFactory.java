@@ -34,7 +34,7 @@ import java.util.concurrent.Executor;
  */
 public class DefaultDispatcherRunnerFactory implements DispatcherRunnerFactory {
     private final DispatcherLeaderProcessFactoryFactory dispatcherLeaderProcessFactoryFactory;
-
+    //DispatcherLeaderProcess负责管理Dispatcher的生命周期
     public DefaultDispatcherRunnerFactory(
             DispatcherLeaderProcessFactoryFactory dispatcherLeaderProcessFactoryFactory) {
         this.dispatcherLeaderProcessFactoryFactory = dispatcherLeaderProcessFactoryFactory;

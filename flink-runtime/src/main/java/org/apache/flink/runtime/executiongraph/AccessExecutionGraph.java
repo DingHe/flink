@@ -35,7 +35,7 @@ import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Optional;
 
-/**
+/** 归档执行图和执行图的公共接口
  * Common interface for the runtime {@link DefaultExecutionGraph} and {@link
  * ArchivedExecutionGraph}.
  */
@@ -96,7 +96,7 @@ public interface AccessExecutionGraph extends JobStatusProvider {
 
     /**
      * Returns a map containing all job vertices for this execution graph.
-     *
+     * 获取所有的执行顶点
      * @return map containing all job vertices for this execution graph
      */
     Map<JobVertexID, ? extends AccessExecutionJobVertex> getAllVertices();
@@ -104,7 +104,7 @@ public interface AccessExecutionGraph extends JobStatusProvider {
     /**
      * Returns an iterable containing all job vertices for this execution graph in the order they
      * were created.
-     *
+     * 获取执行顶点的迭代器（创建的顺序）
      * @return iterable containing all job vertices for this execution graph in the order they were
      *     created
      */
@@ -128,7 +128,7 @@ public interface AccessExecutionGraph extends JobStatusProvider {
     /**
      * Returns the {@link CheckpointCoordinatorConfiguration} or <code>null</code> if checkpointing
      * is disabled.
-     *
+     * 检查点协调器的配置
      * @return JobCheckpointingConfiguration for this execution graph
      */
     @Nullable

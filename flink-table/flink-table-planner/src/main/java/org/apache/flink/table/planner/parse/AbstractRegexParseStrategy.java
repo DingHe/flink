@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
 
 /** Strategy to parse statement to {@link Operation} by regex. */
 public abstract class AbstractRegexParseStrategy implements ExtendedParseStrategy {
-
+    //忽略大小写   点号（.）将匹配包括换行符（\n）在内的所有字符
     protected static final int DEFAULT_PATTERN_FLAGS = Pattern.CASE_INSENSITIVE | Pattern.DOTALL;
 
     protected Pattern pattern;

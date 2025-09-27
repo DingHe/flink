@@ -52,7 +52,7 @@ public interface TaskInvokable {
      * <p>This method is called by the task manager when the actual execution of the task starts.
      *
      * <p>All resources should be cleaned up by calling {@link #cleanUp(Throwable)} after the method
-     * returns.
+     * returns. 启动任务的执行
      */
     void invoke() throws Exception;
 
@@ -62,7 +62,7 @@ public interface TaskInvokable {
      *
      * <p>If {@link #invoke()} is not called after this method for some reason (e.g. task
      * cancellation); then all resources should be cleaned up by calling {@link #cleanUp(Throwable)}
-     * ()} after the method returns.
+     * ()} after the method returns. 从检查点恢复任务的状态
      */
     void restore() throws Exception;
 
@@ -73,19 +73,19 @@ public interface TaskInvokable {
      * @param throwable iff failure happened during the execution of {@link #restore()} or {@link
      *     #invoke()}, null otherwise.
      *     <p>ATTENTION: {@link org.apache.flink.runtime.execution.CancelTaskException
-     *     CancelTaskException} should not be treated as a failure.
+     *     CancelTaskException} should not be treated as a failure. 清理任务使用的资源、关闭输入输出通道、释放获取的资源、处理invoke()或restore()期间发生的异常
      */
     void cleanUp(@Nullable Throwable throwable) throws Exception;
 
     /**
      * This method is called when a task is canceled either as a result of a user abort or an
-     * execution failure. It can be overwritten to respond to shut down the user code properly.
+     * execution failure. It can be overwritten to respond to shut down the user code properly.取消任务
      */
     void cancel() throws Exception;
 
     /**
      * @return true if blocking input such as {@link InputGate#getNext()} is used (as opposed to
-     *     {@link InputGate#pollNext()}. To be removed together with the DataSet API.
+     *     {@link InputGate#pollNext()}. To be removed together with the DataSet API.判断任务是否使用阻塞式输入
      */
     boolean isUsingNonBlockingInput();
 
@@ -95,7 +95,7 @@ public interface TaskInvokable {
      *
      * @param toInterrupt
      * @param taskName optional taskName to log stack trace
-     * @param timeout optional timeout to log stack trace
+     * @param timeout optional timeout to log stack trace在取消任务时，中断指定的线程
      */
     void maybeInterruptOnCancel(
             Thread toInterrupt, @Nullable String taskName, @Nullable Long timeout);

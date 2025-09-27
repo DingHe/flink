@@ -80,11 +80,11 @@ public class SystemProcessingTimeService implements TimerService {
         }
 
         // tasks should be removed if the future is canceled
-        this.timerService.setRemoveOnCancelPolicy(true);
+        this.timerService.setRemoveOnCancelPolicy(true); //取消时立刻删除任务
 
         // make sure shutdown removes all pending tasks
-        this.timerService.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-        this.timerService.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        this.timerService.setContinueExistingPeriodicTasksAfterShutdownPolicy(false); //关闭时是否还要执行周期任务
+        this.timerService.setExecuteExistingDelayedTasksAfterShutdownPolicy(false); //关闭时是否还要执行延迟任务
     }
 
     @Override
@@ -101,17 +101,17 @@ public class SystemProcessingTimeService implements TimerService {
      * @return The future that represents the scheduled task. This always returns some future, even
      *     if the timer was shut down
      */
-    @Override
+    @Override                   //timestamp，任务执行的时间
     public ScheduledFuture<?> registerTimer(long timestamp, ProcessingTimeCallback callback) {
 
         long delay =
                 ProcessingTimeServiceUtil.getProcessingTimeDelay(
-                        timestamp, getCurrentProcessingTime());
+                        timestamp, getCurrentProcessingTime()); //根据任务执行的时间和当前时间计算出延迟执行的时间
 
         // we directly try to register the timer and only react to the status on exception
         // that way we save unnecessary volatile accesses for each timer
         try {
-            return timerService.schedule(
+            return timerService.schedule( //延迟delay毫秒后调度
                     wrapOnTimerCallback(callback, timestamp), delay, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException e) {
             final int status = this.status.get();
@@ -288,7 +288,7 @@ public class SystemProcessingTimeService implements TimerService {
             ProcessingTimeCallback callback, long nextTimestamp, long period) {
         return new ScheduledTask(status, exceptionHandler, callback, nextTimestamp, period);
     }
-
+    //调度的任务
     private static final class ScheduledTask implements Runnable {
         private final AtomicInteger serviceStatus;
         private final ExceptionHandler exceptionHandler;

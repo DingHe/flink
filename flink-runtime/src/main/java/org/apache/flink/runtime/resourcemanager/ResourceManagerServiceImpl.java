@@ -52,9 +52,9 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public class ResourceManagerServiceImpl implements ResourceManagerService, LeaderContender {
 
     private static final Logger LOG = LoggerFactory.getLogger(ResourceManagerServiceImpl.class);
-
+    //用于创建 ResourceManager 对象
     private final ResourceManagerFactory<?> resourceManagerFactory;
-    private final ResourceManagerProcessContext rmProcessContext;
+    private final ResourceManagerProcessContext rmProcessContext;//包含与 ResourceManager 相关的上下文信息
 
     private final LeaderElection leaderElection;
 
@@ -71,7 +71,7 @@ public class ResourceManagerServiceImpl implements ResourceManagerService, Leade
 
     @Nullable
     @GuardedBy("lock")
-    private ResourceManager<?> leaderResourceManager;
+    private ResourceManager<?> leaderResourceManager;  //当前的领导 ResourceManager 实例
 
     @Nullable
     @GuardedBy("lock")
@@ -105,7 +105,7 @@ public class ResourceManagerServiceImpl implements ResourceManagerService, Leade
     //  ResourceManagerService
     // ------------------------------------------------------------------------
 
-    @Override
+    @Override  //start就是从领导选举开始
     public void start() throws Exception {
         synchronized (lock) {
             if (running) {
@@ -125,7 +125,7 @@ public class ResourceManagerServiceImpl implements ResourceManagerService, Leade
         return serviceTerminationFuture;
     }
 
-    @Override
+    @Override  //注销应用程序并清理资源。通过 ResourceManager 的网关发送注销请求
     public CompletableFuture<Void> deregisterApplication(
             final ApplicationStatus applicationStatus, final @Nullable String diagnostics) {
 

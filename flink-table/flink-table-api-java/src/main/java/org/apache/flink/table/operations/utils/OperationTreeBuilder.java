@@ -77,17 +77,17 @@ import static org.apache.flink.table.operations.SetQueryOperation.SetQueryOperat
 import static org.apache.flink.table.operations.SetQueryOperation.SetQueryOperationType.UNION;
 import static org.apache.flink.table.types.logical.LogicalTypeRoot.BOOLEAN;
 import static org.apache.flink.table.types.logical.LogicalTypeRoot.ROW;
-
+//主要是构建QueryOperation树
 /** A builder for constructing validated {@link QueryOperation}s. */
 @Internal
 public final class OperationTreeBuilder {
 
     private final TableConfig tableConfig;
     private final ClassLoader userClassLoader;
-    private final FunctionLookup functionCatalog;
+    private final FunctionLookup functionCatalog; //负责函数的查找
     private final DataTypeFactory typeFactory;
-    private final TableReferenceLookup tableReferenceLookup;
-    private final LookupCallResolver lookupResolver;
+    private final TableReferenceLookup tableReferenceLookup; //查找表，生成表的Operation，返回TableReferenceExpression
+    private final LookupCallResolver lookupResolver; //利用FunctionLookup查找未解析的函数，返回未解析的函数调用表达式
     private final SqlExpressionResolver sqlExpressionResolver;
 
     /** Utility classes for constructing a validated operation of certain type. */

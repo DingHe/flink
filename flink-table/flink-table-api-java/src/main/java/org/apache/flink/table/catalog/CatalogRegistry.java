@@ -26,14 +26,14 @@ import java.util.Optional;
 /** A catalog registry for dealing with catalogs. */
 @PublicEvolving
 public interface CatalogRegistry {
-
+    //获取当前数据库
     /** Get the name of the current database. */
     String getCurrentDatabase();
-
+    //获取当前catalog
     /** Gets the name of the current catalog. */
     String getCurrentCatalog();
 
-    /**
+    /** 获取全限定标识
      * Returns the full name of the given table path, this name may be padded with current
      * catalog/database name based on the {@code identifier's} length.
      *
@@ -44,7 +44,7 @@ public interface CatalogRegistry {
 
     /**
      * Gets a catalog by name.
-     *
+     * 根据名称获取catalog
      * @param catalogName name of the catalog to retrieve
      * @return the requested catalog
      * @throws CatalogNotExistException if the catalog does not exist
@@ -62,7 +62,7 @@ public interface CatalogRegistry {
 
     /**
      * Return whether the table with a fully qualified table path is temporary or not.
-     *
+     * 是否临时表
      * @param objectIdentifier full path of the table
      * @return the table is temporary or not.
      */

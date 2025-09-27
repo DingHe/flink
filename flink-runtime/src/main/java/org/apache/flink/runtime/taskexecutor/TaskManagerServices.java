@@ -80,27 +80,27 @@ public class TaskManagerServices {
     /** TaskManager services. */
     private final UnresolvedTaskManagerLocation unresolvedTaskManagerLocation;
 
-    private final long managedMemorySize;
-    private final IOManager ioManager;
-    private final ShuffleEnvironment<?, ?> shuffleEnvironment;
-    private final KvStateService kvStateService;
+    private final long managedMemorySize;//表示 TaskManager 管理的内存大小
+    private final IOManager ioManager; //用于管理任务的 IO 操作（特别是磁盘 IO），包括中间结果的溢出、读取和写入操作
+    private final ShuffleEnvironment<?, ?> shuffleEnvironment; //负责管理 TaskManager 上的 Shuffle 操作，包括数据的分发和传输。
+    private final KvStateService kvStateService;//管理和提供键值状态（Keyed State）的服务，用于在 TaskManager 内处理有状态任务。
     private final BroadcastVariableManager broadcastVariableManager;
-    private final TaskSlotTable<Task> taskSlotTable;
-    private final JobTable jobTable;
-    private final JobLeaderService jobLeaderService;
-    private final TaskExecutorLocalStateStoresManager taskManagerStateStore;
-    private final TaskExecutorFileMergingManager taskManagerFileMergingManager;
-    private final TaskExecutorStateChangelogStoragesManager taskManagerChangelogManager;
-    private final TaskExecutorChannelStateExecutorFactoryManager taskManagerChannelStateManager;
-    private final TaskEventDispatcher taskEventDispatcher;
+    private final TaskSlotTable<Task> taskSlotTable;//管理 TaskManager 的任务插槽（Slots），包括任务的分配、释放以及插槽状态的维护
+    private final JobTable jobTable;//管理 TaskManager 上正在运行的所有作业信息
+    private final JobLeaderService jobLeaderService; //跟踪每个作业的 JobManager 的领导者信息
+    private final TaskExecutorLocalStateStoresManager taskManagerStateStore;//管理 TaskManager 本地的状态存储，用于任务的故障恢复
+    private final TaskExecutorFileMergingManager taskManagerFileMergingManager;//负责管理 TaskManager 上文件的合并操作，减少文件碎片
+    private final TaskExecutorStateChangelogStoragesManager taskManagerChangelogManager;//管理状态的 Changelog 存储，用于记录状态变化
+    private final TaskExecutorChannelStateExecutorFactoryManager taskManagerChannelStateManager; //管理通道状态（Channel State），支持流处理的高效状态恢复
+    private final TaskEventDispatcher taskEventDispatcher; //负责分发任务事件，例如状态更新、生命周期通知等
     private final ExecutorService ioExecutor;
-    private final LibraryCacheManager libraryCacheManager;
-    private final SlotAllocationSnapshotPersistenceService slotAllocationSnapshotPersistenceService;
-    private final SharedResources sharedResources;
+    private final LibraryCacheManager libraryCacheManager;//管理作业的依赖库缓存
+    private final SlotAllocationSnapshotPersistenceService slotAllocationSnapshotPersistenceService;//负责管理插槽分配的快照持久化。
+    private final SharedResources sharedResources; //管理 TaskManager 内的共享资源，例如线程池、网络连接等
     private final GroupCache<JobID, PermanentBlobKey, JobInformation> jobInformationCache;
     private final GroupCache<JobID, PermanentBlobKey, TaskInformation> taskInformationCache;
     private final GroupCache<JobID, PermanentBlobKey, ShuffleDescriptorGroup>
-            shuffleDescriptorsCache;
+            shuffleDescriptorsCache; //缓存任务之间 Shuffle 操作的描述信息
 
     TaskManagerServices(
             UnresolvedTaskManagerLocation unresolvedTaskManagerLocation,

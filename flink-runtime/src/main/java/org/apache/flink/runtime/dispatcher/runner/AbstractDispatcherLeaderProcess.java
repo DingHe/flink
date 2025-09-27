@@ -47,7 +47,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-/** A base {@link DispatcherLeaderProcess}. */
+/** A base {@link DispatcherLeaderProcess}.它负责封装 Flink 中 Dispatcher 的生命周期管理逻辑，包括初始化、运行、关闭等操作。定义了 State 枚举（CREATED, RUNNING, STOPPED），用于表示 DispatcherLeaderProcess 的生命周期状态，管理 DispatcherGatewayService，DispatcherGatewayService 是 Dispatcher 的主要访问入口，负责与外部组件的交互 */
 @Internal
 public abstract class AbstractDispatcherLeaderProcess implements DispatcherLeaderProcess {
 
@@ -58,17 +58,17 @@ public abstract class AbstractDispatcherLeaderProcess implements DispatcherLeade
     private final UUID leaderSessionId;
 
     private final FatalErrorHandler fatalErrorHandler;
-
+    //Dispatcher的Gateway
     private final CompletableFuture<DispatcherGateway> dispatcherGatewayFuture;
-
+    //Dispatcher的地址
     private final CompletableFuture<String> leaderAddressFuture;
-
+    //终止的Future
     private final CompletableFuture<Void> terminationFuture;
-
+    //
     private final CompletableFuture<ApplicationStatus> shutDownFuture;
 
     private State state;
-
+    //持有的Gateway
     @Nullable private DispatcherGatewayService dispatcherService;
 
     AbstractDispatcherLeaderProcess(UUID leaderSessionId, FatalErrorHandler fatalErrorHandler) {
@@ -168,8 +168,8 @@ public abstract class AbstractDispatcherLeaderProcess implements DispatcherLeade
         Preconditions.checkState(
                 dispatcherService == null, "The DispatcherGatewayService can only be set once.");
         dispatcherService = createdDispatcherService;
-        dispatcherGatewayFuture.complete(createdDispatcherService.getGateway());
-        FutureUtils.forward(createdDispatcherService.getShutDownFuture(), shutDownFuture);
+        dispatcherGatewayFuture.complete(createdDispatcherService.getGateway()); //启动完成后就可以获取Gateway了
+        FutureUtils.forward(createdDispatcherService.getShutDownFuture(), shutDownFuture); //Gateway的停止Future关联到shutDownFuture
         handleUnexpectedDispatcherServiceTermination(createdDispatcherService);
     }
 
@@ -215,7 +215,7 @@ public abstract class AbstractDispatcherLeaderProcess implements DispatcherLeade
     private void runIfStateIsNot(State notExpectedState, Runnable action) {
         runIfState(state -> !notExpectedState.equals(state), action);
     }
-
+    //谓词判断，再运行
     private void runIfState(Predicate<State> actionPredicate, Runnable action) {
         synchronized (lock) {
             if (actionPredicate.test(state)) {
@@ -223,7 +223,7 @@ public abstract class AbstractDispatcherLeaderProcess implements DispatcherLeade
             }
         }
     }
-
+    //处理运行状态时的错误
     final <T> Void onErrorIfRunning(T ignored, Throwable throwable) {
         synchronized (lock) {
             if (state != State.RUNNING) {

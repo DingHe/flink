@@ -250,7 +250,7 @@ public class ActorSystemBootstrapTools {
     private static ActorSystem startActorSystem(
             Config config, String actorSystemName, Logger logger) {
         logger.debug("Using pekko configuration\n {}", config);
-        ActorSystem actorSystem = PekkoUtils.createActorSystem(actorSystemName, config);
+        ActorSystem actorSystem = PekkoUtils.createActorSystem(actorSystemName, config);//创建actorSystem
 
         logger.info("Actor system started at {}", PekkoUtils.getAddress(actorSystem));
         return actorSystem;

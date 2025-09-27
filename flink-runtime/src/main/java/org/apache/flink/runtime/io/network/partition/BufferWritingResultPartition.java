@@ -50,19 +50,19 @@ import static org.apache.flink.util.Preconditions.checkState;
  * transported through the network.
  */
 public abstract class BufferWritingResultPartition extends ResultPartition {
-
-    /** The subpartitions of this partition. At least one. */
+    //ResultSubpartition 的数量由下游消费 Task 数和 DistributionPattern 来决定
+    /** The subpartitions of this partition. At least one. 一个 ResultSubpartition 对象的数组，表示该结果分区的所有子分区*/
     protected final ResultSubpartition[] subpartitions;
 
     /**
      * For non-broadcast mode, each subpartition maintains a separate BufferBuilder which might be
-     * null.
+     * null.每个子分区一个，在单播模式下（即数据发送到指定子分区时）用于构建缓冲区
      */
     private final BufferBuilder[] unicastBufferBuilders;
-
+    //用于广播数据到所有子分区的 BufferBuilder，仅在广播模式下使用。所有子分区共享一个缓冲区构建器
     /** For broadcast mode, a single BufferBuilder is shared by all subpartitions. */
     private BufferBuilder broadcastBufferBuilder;
-
+    //用于跟踪在“硬回压”状态下的时间。背压通常意味着系统由于资源不足（例如缓冲区满）而无法继续处理数据
     private TimerGauge hardBackPressuredTimeMsPerSecond = new TimerGauge();
 
     private long totalWrittenBytes;
@@ -101,7 +101,7 @@ public abstract class BufferWritingResultPartition extends ResultPartition {
                         + " this result partition.");
     }
 
-    @Override
+    @Override //返回当前分区中已排队的缓冲区数量以及已排队缓冲区的字节数
     public int getNumberOfQueuedBuffers() {
         int totalBuffers = 0;
 
@@ -128,7 +128,7 @@ public abstract class BufferWritingResultPartition extends ResultPartition {
         checkArgument(targetSubpartition >= 0 && targetSubpartition < numSubpartitions);
         return subpartitions[targetSubpartition].unsynchronizedGetNumberOfQueuedBuffers();
     }
-
+   //用于刷新指定子分区或所有子分区的缓冲区，将数据提交给下游操作
     protected void flushSubpartition(int targetSubpartition, boolean finishProducers) {
         if (finishProducers) {
             finishBroadcastBufferBuilder();
@@ -149,7 +149,7 @@ public abstract class BufferWritingResultPartition extends ResultPartition {
         }
     }
 
-    @Override
+    @Override //用于向特定子分区写入一条记录。如果缓冲区满，方法会处理写入续接和缓冲区切换
     public void emitRecord(ByteBuffer record, int targetSubpartition) throws IOException {
         totalWrittenBytes += record.remaining();
 

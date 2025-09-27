@@ -26,10 +26,10 @@ import org.apache.flink.table.operations.Operation;
  * key and value.
  */
 public interface ExtendedParseStrategy {
-
+     //正则表达式匹配
     /** Determine whether the input statement is satisfied the strategy. */
     boolean match(String statement);
-
+    //把input statement转为Operation
     /** Convert the input statement to the {@link Operation}. */
     Operation convert(String statement);
 

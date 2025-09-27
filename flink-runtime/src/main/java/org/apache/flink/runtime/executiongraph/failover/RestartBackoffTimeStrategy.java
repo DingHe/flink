@@ -16,27 +16,27 @@
  */
 
 package org.apache.flink.runtime.executiongraph.failover;
-
+//确定是否应该重新启动失败的任务以及重启的延迟时间的策略接口。它决定了任务失败后是否进行重启以及如何控制重启的延迟
 /** Strategy to decide whether to restart failed tasks and the delay to do the restarting. */
 public interface RestartBackoffTimeStrategy {
 
     /**
      * Returns whether a restart should be conducted.
-     *
+     * 判断任务是否应该被重启
      * @return whether a restart should be conducted
      */
     boolean canRestart();
 
     /**
      * Returns the delay to do the restarting.
-     *
+     *  返回重启任务所需的延迟时间
      * @return the delay to do the restarting
      */
     long getBackoffTime();
 
     /**
-     * Notify the strategy about the task failure cause.
-     *
+     * Notify  the strategy about the task failure cause.
+     * 通知策略任务失败的原因
      * @param cause of the task failure
      * @return True means that the current failure is the first one after the most-recent failure
      *     handling happened, false means that there has been a failure before that was not handled,

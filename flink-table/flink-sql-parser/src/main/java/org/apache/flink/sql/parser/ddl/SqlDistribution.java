@@ -34,7 +34,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Optional;
 
-/**
+/** sql语句的distributed by 语句
  * Distribution statement in CREATE TABLE DDL, e.g. {@code DISTRIBUTED BY HASH(column1, column2)
  * INTO BUCKETS 10}.
  */

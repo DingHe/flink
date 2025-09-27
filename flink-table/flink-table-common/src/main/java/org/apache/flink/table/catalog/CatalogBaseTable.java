@@ -28,7 +28,7 @@ import java.util.Optional;
 
 /**
  * A common parent that describes the <i>unresolved</i> metadata of a table or view in a catalog.
- *
+ * 未解析的表、物化表或者视图
  * @see CatalogTable
  * @see CatalogView
  */
@@ -48,7 +48,7 @@ public interface CatalogBaseTable {
 
     /**
      * Returns a map of string-based options.
-     *
+     * 表的配置参数
      * <p>In case of {@link CatalogTable}, these options may determine the kind of connector and its
      * configuration for accessing the data in the external system. See {@link DynamicTableFactory}
      * for more information. If a {@link CatalogTable} should not be serializable, an implementation

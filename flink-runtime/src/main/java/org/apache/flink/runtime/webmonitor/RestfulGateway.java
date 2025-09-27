@@ -61,7 +61,7 @@ public interface RestfulGateway extends RpcGateway {
 
     /**
      * Cancel the given job.
-     *
+     *  取消指定作业（通过 jobId 标识）。返回一个 CompletableFuture<Acknowledge>，表示作业取消是否成功
      * @param jobId identifying the job to cancel
      * @param timeout of the operation
      * @return A future acknowledge if the cancellation succeeded
@@ -71,7 +71,7 @@ public interface RestfulGateway extends RpcGateway {
     /**
      * Requests the {@link ArchivedExecutionGraph} for the given jobId. If there is no such graph,
      * then the future is completed with a {@link FlinkJobNotFoundException}.
-     *
+     * 请求获取指定作业的 ArchivedExecutionGraph（归档执行图）。如果没有该图，则返回 FlinkJobNotFoundException
      * @param jobId identifying the job whose {@link ArchivedExecutionGraph} is requested
      * @param timeout for the asynchronous operation
      * @return Future containing the {@link ArchivedExecutionGraph} for the given jobId, otherwise
@@ -87,7 +87,7 @@ public interface RestfulGateway extends RpcGateway {
      * Requests the {@link ExecutionGraphInfo} containing additional information besides the {@link
      * ArchivedExecutionGraph}. If there is no such graph, then the future is completed with a
      * {@link FlinkJobNotFoundException}.
-     *
+     * 请求作业的详细执行图信息（不仅仅是归档执行图，可能包括其他有用的诊断信息）
      * @param jobId identifying the job whose {@link ExecutionGraphInfo} is requested
      * @param timeout for the asynchronous operation
      * @return Future containing the {@link ExecutionGraphInfo} for the given jobId, otherwise
@@ -98,7 +98,7 @@ public interface RestfulGateway extends RpcGateway {
 
     /**
      * Requests the {@link CheckpointStatsSnapshot} containing checkpointing information.
-     *
+     * 请求指定作业的检查点统计信息，例如检查点的持续时间、成功率等
      * @param jobId identifying the job whose {@link CheckpointStatsSnapshot} is requested
      * @param timeout for the asynchronous operation
      * @return Future containing the {@link CheckpointStatsSnapshot} for the given jobId
@@ -108,7 +108,7 @@ public interface RestfulGateway extends RpcGateway {
 
     /**
      * Requests the {@link JobResult} of a job specified by the given jobId.
-     *
+     * 请求指定作业的最终结果，通常作业完成后返回
      * @param jobId identifying the job for which to retrieve the {@link JobResult}.
      * @param timeout for the asynchronous operation
      * @return Future which is completed with the job's {@link JobResult} once the job has finished
@@ -117,7 +117,7 @@ public interface RestfulGateway extends RpcGateway {
 
     /**
      * Requests job details currently being executed on the Flink cluster.
-     *
+     * 请求集群中多个作业的详细信息
      * @param timeout for the asynchronous operation
      * @return Future containing the job details
      */
@@ -125,7 +125,7 @@ public interface RestfulGateway extends RpcGateway {
 
     /**
      * Requests the cluster status overview.
-     *
+     * 请求集群状态概览，包括可用资源、活跃作业和作业状态等
      * @param timeout for the asynchronous operation
      * @return Future containing the status overview
      */
@@ -133,7 +133,7 @@ public interface RestfulGateway extends RpcGateway {
 
     /**
      * Requests the addresses of the {@link MetricQueryService} to query.
-     *
+     * 请求度量查询服务的地址，用于查询作业执行和集群健康状况的指标
      * @param timeout for the asynchronous operation
      * @return Future containing the collection of metric query service addresses to query
      */
@@ -142,7 +142,7 @@ public interface RestfulGateway extends RpcGateway {
 
     /**
      * Requests the addresses for the TaskManagers' {@link MetricQueryService} to query.
-     *
+     * 请求 TaskManager 的度量查询服务地址
      * @param timeout for the asynchronous operation
      * @return Future containing the collection of instance ids and the corresponding metric query
      *     service address
@@ -152,7 +152,7 @@ public interface RestfulGateway extends RpcGateway {
 
     /**
      * Requests the thread dump from the JobManager.
-     *
+     * 请求 JobManager 的线程转储信息，帮助诊断和分析线程的执行状态
      * @param timeout timeout of the asynchronous operation
      * @return Future containing the thread dump information
      */
@@ -160,7 +160,7 @@ public interface RestfulGateway extends RpcGateway {
 
     /**
      * Triggers a checkpoint with the given savepoint directory as a target.
-     *
+     * 触发作业的检查点操作，可以保存作业的状态
      * @param operationKey the key of the operation, for deduplication purposes
      * @param checkpointType checkpoint backup type (configured / full / incremental)
      * @param timeout Timeout for the asynchronous operation
@@ -176,7 +176,7 @@ public interface RestfulGateway extends RpcGateway {
 
     /**
      * Get the status of a checkpoint triggered under the specified operation key.
-     *
+     * 获取之前触发的检查点的状态
      * @param operationKey key of the operation
      * @return Future which completes immediately with the status, or fails if no operation is
      *     registered for the key
@@ -189,7 +189,7 @@ public interface RestfulGateway extends RpcGateway {
     /**
      * Triggers a savepoint with the given savepoint directory as a target, returning a future that
      * completes when the operation is started.
-     *
+     * 触发一个保存点操作，保存作业的状态快照，通常用于故障恢复或作业迁移
      * @param operationKey the key of the operation, for deduplication purposes
      * @param targetDirectory Target directory for the savepoint.
      * @param formatType Binary format of the savepoint.
@@ -209,7 +209,7 @@ public interface RestfulGateway extends RpcGateway {
     /**
      * Stops the job with a savepoint, returning a future that completes when the operation is
      * started.
-     *
+     * 停止作业并创建一个保存点，通常用于恢复作业的状态
      * @param operationKey key of the operation, for deduplication
      * @param targetDirectory Target directory for the savepoint.
      * @param formatType Binary format of the savepoint.

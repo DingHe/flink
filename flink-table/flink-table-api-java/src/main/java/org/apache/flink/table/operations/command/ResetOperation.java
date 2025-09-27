@@ -31,7 +31,7 @@ import java.util.Optional;
  */
 @Internal
 public class ResetOperation implements Operation {
-
+    //reset是删除参数，所以只要key即可
     @Nullable private final String key;
 
     public ResetOperation(@Nullable String key) {

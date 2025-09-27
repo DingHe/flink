@@ -32,6 +32,9 @@ import java.io.IOException;
  * The default window into which all data is placed (via {@link
  * org.apache.flink.streaming.api.windowing.assigners.GlobalWindows}).
  */
+//表示全局窗口的特殊窗口类型
+//是一种无限窗口，所有到达的数据都会被分配到这个窗口中。它本身并没有任何时间或数量上的边界
+//GlobalWindow 的作用就是将所有元素放入一个单一的、永不关闭的逻辑容器中，为需要手动控制计算时机的场景提供基础
 @PublicEvolving
 public class GlobalWindow extends Window {
 

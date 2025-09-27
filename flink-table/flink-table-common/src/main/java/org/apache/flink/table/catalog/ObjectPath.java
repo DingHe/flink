@@ -29,8 +29,8 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 /** A database name and object (table/view/function) name combo in a catalog. */
 @PublicEvolving
 public class ObjectPath implements Serializable {
-    private final String databaseName;
-    private final String objectName;
+    private final String databaseName; //数据库名称
+    private final String objectName; //表、视图等名称
 
     public ObjectPath(String databaseName, String objectName) {
         checkArgument(

@@ -56,15 +56,18 @@ import java.util.Objects;
  *
  * @param <T> internal data structure
  */
+//Flink Table API & SQL 内部的一个特殊 TypeInformation 实现，其核心作用是作为适配器，
+// 将 Table API & SQL 新的逻辑类型（LogicalType）系统
+// 与 Flink DataStream API 遗留的类型信息（TypeInformation）系统桥接起来
 @Internal
 public final class InternalTypeInfo<T> extends TypeInformation<T> implements DataTypeQueryable {
 
     private static final String FORMAT = "%s(%s, %s)";
-
+    //存储 Flink Table API & SQL 的逻辑类型
     private final LogicalType type;
-
+    //存储内部数据结构对应的 Java 类
     private final Class<T> typeClass;
-
+    //存储该类型对应的序列化器
     private final TypeSerializer<T> typeSerializer;
 
     private InternalTypeInfo(
@@ -78,13 +81,14 @@ public final class InternalTypeInfo<T> extends TypeInformation<T> implements Dat
      * Creates type information for a {@link LogicalType} that is represented by internal data
      * structures.
      */
+    //为任意 LogicalType 创建 InternalTypeInfo 实例
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static <T> InternalTypeInfo<T> of(LogicalType type) {
         final Class<?> typeClass = LogicalTypeUtils.toInternalConversionClass(type);
         final TypeSerializer<?> serializer = InternalSerializers.create(type);
         return (InternalTypeInfo<T>) new InternalTypeInfo(type, typeClass, serializer);
     }
-
+    //提供用于创建 RowType 类型信息的便利方法
     /** Creates type information for a {@link RowType} represented by internal data structures. */
     public static InternalTypeInfo<RowData> of(RowType type) {
         return of((LogicalType) type);

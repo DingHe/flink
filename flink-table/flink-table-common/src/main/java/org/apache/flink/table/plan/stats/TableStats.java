@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** Table statistics. */
+/** Table statistics. 统计每个列的唯一值、最大值、平均值、最小值等*/
 @PublicEvolving
 public final class TableStats {
 

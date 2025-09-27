@@ -63,7 +63,7 @@ public class ShutdownHookUtil {
         checkNotNull(shutdownHook);
         checkNotNull(logger);
 
-        try {
+        try {//程序正常退出（调用 System.exit(0)）  接收到终止信号（例如，在 Linux 或 Mac 上按 Ctrl+C，触发 SIGINT 信号  JVM 被关闭，例如操作系统关闭进程
             // Add JVM shutdown hook to call shutdown of service
             Runtime.getRuntime().addShutdownHook(shutdownHook);
             return true;

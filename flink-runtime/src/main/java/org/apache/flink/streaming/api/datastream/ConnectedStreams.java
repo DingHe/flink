@@ -59,11 +59,16 @@ import static java.util.Objects.requireNonNull;
  * @param <IN1> Type of the first input data steam.
  * @param <IN2> Type of the second input data stream.
  */
+//将两个数据类型可能不同但逻辑上相关的流连接在一起，形成一个单一的逻辑流
+//从概念上讲，ConnectedStreams 可以被看作是一个联合（Union）流，但它保留了两个输入流的类型信息，
+// 以便在处理时区分来自哪个流的元素，而不是简单地将它们合并成一个单一类型的流
 @Public
 public class ConnectedStreams<IN1, IN2> {
 
     protected final StreamExecutionEnvironment environment;
+    //连接的第一个输入数据流
     protected final DataStream<IN1> inputStream1;
+    //连接的第二个输入数据流
     protected final DataStream<IN2> inputStream2;
 
     protected ConnectedStreams(
@@ -123,6 +128,7 @@ public class ConnectedStreams<IN1, IN2> {
      *     input stream.
      * @return The grouped {@link ConnectedStreams}
      */
+    //用于在 ConnectedStreams 上执行 keyBy 操作，以确保两个流中相同键的元素被路由到同一个算子实例，这是实现键控状态（keyed state）和时间处理的前提
     public ConnectedStreams<IN1, IN2> keyBy(int keyPosition1, int keyPosition2) {
         return new ConnectedStreams<>(
                 this.environment,
@@ -215,6 +221,7 @@ public class ConnectedStreams<IN1, IN2> {
      * @param coMapper The CoMapFunction used to jointly transform the two input DataStreams
      * @return The transformed {@link DataStream}
      */
+    //应用一个 CoMapFunction。CoMapFunction 包含两个 map 方法 (map1 和 map2)，分别用于处理来自第一个流和第二个流的元素。每个元素处理后，返回恰好一个新元素
     public <R> SingleOutputStreamOperator<R> map(CoMapFunction<IN1, IN2, R> coMapper) {
 
         TypeInformation<R> outTypeInfo =
@@ -305,6 +312,9 @@ public class ConnectedStreams<IN1, IN2> {
      * @param <R> The type of elements emitted by the {@code CoProcessFunction}.
      * @return The transformed {@link DataStream}.
      */
+    //应用一个 CoProcessFunction。这是一个功能强大的转换，
+    // 它允许用户访问状态（State）、**计时器（Timers）以及时间（Time）**信息，从而实现复杂的、时间驱动的逻辑。
+    // 此方法不要求输入流是 KeyedStream，因此无法访问键控状态
     @PublicEvolving
     public <R> SingleOutputStreamOperator<R> process(
             CoProcessFunction<IN1, IN2, R> coProcessFunction) {
@@ -419,7 +429,7 @@ public class ConnectedStreams<IN1, IN2> {
 
         return transform("Co-Keyed-Process", outputType, operator);
     }
-
+    //内部调用的方法，用于将一个 TwoInputStreamOperator（双输入算子）或 TwoInputStreamOperatorFactory 封装到 SingleOutputStreamOperator 中
     @PublicEvolving
     public <R> SingleOutputStreamOperator<R> transform(
             String functionName,

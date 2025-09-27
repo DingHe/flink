@@ -28,7 +28,7 @@ import java.util.Set;
  * Represents the storage where persists all {@link Catalog}s.
  *
  * <p>All catalogs can be lazy initialized with the {@link CatalogStore}.
- *
+ *  catalog存储
  * <p>It can be used in {@code CatalogManager} to retrieve, save and remove catalog in {@link
  * CatalogDescriptor} format at the external storage system.
  */

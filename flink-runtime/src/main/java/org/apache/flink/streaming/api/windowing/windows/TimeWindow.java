@@ -41,10 +41,13 @@ import java.util.Set;
  * A {@link Window} that represents a time interval from {@code start} (inclusive) to {@code end}
  * (exclusive).
  */
+//Flink 中用于表示基于时间的窗口的具体实现
+//定义了一个具有开始时间和结束时间的时间区间。这个时间区间是左闭右开的
 @PublicEvolving
 public class TimeWindow extends Window {
-
+    //表示窗口的开始时间戳，类型为 long。这个时间戳是包含在窗口内的，即 [start, end) 区间中的起始点
     private final long start;
+    //表示窗口的结束时间戳，类型为 long。这个时间戳是不包含在窗口内的，即 [start, end) 区间中的结束点
     private final long end;
 
     public TimeWindow(long start, long end) {
@@ -80,6 +83,7 @@ public class TimeWindow extends Window {
      * @return The largest timestamp that still belongs to this window.
      * @see #getEnd()
      */
+    //返回窗口内所能包含的最大时间戳。由于窗口是 [start, end)，因此最大时间戳是 end - 1。
     @Override
     public long maxTimestamp() {
         return end - 1;
@@ -113,10 +117,11 @@ public class TimeWindow extends Window {
      * Returns {@code true} if this window intersects the given window or if this window is just
      * after or before the given window.
      */
+    //判断当前窗口是否与另一个 TimeWindow 对象有时间上的重叠或紧邻
     public boolean intersects(TimeWindow other) {
         return this.start <= other.end && this.end >= other.start;
     }
-
+    //返回一个能够覆盖当前窗口和另一个给定窗口的最小时间窗口
     /** Returns the minimal window covers both this window and the given window. */
     public TimeWindow cover(TimeWindow other) {
         return new TimeWindow(Math.min(start, other.start), Math.max(end, other.end));
@@ -127,6 +132,7 @@ public class TimeWindow extends Window {
     // ------------------------------------------------------------------------
 
     /** The serializer used to write the TimeWindow type. */
+    //TimeWindow 类的序列化器
     public static class Serializer extends TypeSerializerSingleton<TimeWindow> {
         private static final long serialVersionUID = 1L;
 
@@ -205,6 +211,8 @@ public class TimeWindow extends Window {
      * Merge overlapping {@link TimeWindow}s. For use by merging {@link
      * org.apache.flink.streaming.api.windowing.assigners.WindowAssigner WindowAssigners}.
      */
+    //用于合并重叠的 TimeWindow 集合
+    //首先按开始时间对窗口进行排序，然后遍历并合并所有重叠或相交的窗口，最后通过 MergeCallback 通知 Flink 运行时合并结果
     public static void mergeWindows(
             Collection<TimeWindow> windows, MergingWindowAssigner.MergeCallback<TimeWindow> c) {
 
@@ -261,10 +269,15 @@ public class TimeWindow extends Window {
      * @param windowSize The size of the generated windows.
      * @return window start
      */
+    //用于根据给定的时间戳、偏移量和窗口大小来计算窗口的开始时间
     public static long getWindowStartWithOffset(long timestamp, long offset, long windowSize) {
+        //把时间轴平移到以 offset 为“零点”，所以先算 timestamp - offset
+        //再取模 windowSize，得到“距离最近一个窗口起点”的余数
         final long remainder = (timestamp - offset) % windowSize;
         // handle both positive and negative cases
         if (remainder < 0) {
+            //如果余数是负数，就把它“修正”为等价的非负余数：remainder + windowSize。
+            //再用 timestamp - (非负余数) 得到窗口起点
             return timestamp - (remainder + windowSize);
         } else {
             return timestamp - remainder;

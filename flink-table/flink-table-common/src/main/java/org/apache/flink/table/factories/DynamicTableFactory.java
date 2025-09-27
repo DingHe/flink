@@ -51,13 +51,15 @@ import java.util.Set;
  * <p>The options {@link FactoryUtil#PROPERTY_VERSION} and {@link FactoryUtil#CONNECTOR} are
  * implicitly added and must not be declared.
  */
+//用于创建动态表连接器的基础接口，它负责从目录和会话信息中配置外部存储系统的连接器
+//核心作用是衔接 Flink 的 Table & SQL API 和外部存储系统
 @PublicEvolving
 public interface DynamicTableFactory extends Factory {
 
     /**
      * Returns a set of {@link ConfigOption} that are directly forwarded to the runtime
      * implementation but don't affect the final execution topology.
-     *
+     * 运行时可以直接传递的参数，此处的参数不影响最终的执行拓扑图
      * <p>Options declared here can override options of the persisted plan during an enrichment
      * phase. Since a restored topology is static, an implementer has to ensure that the declared
      * options don't affect fundamental abilities such as {@link SupportsProjectionPushDown} or
@@ -72,11 +74,13 @@ public interface DynamicTableFactory extends Factory {
      * @see TableFactoryHelper#getOptions()
      * @see FormatFactory#forwardOptions()
      */
+    //包含那些可以直接传递给运行时实现，但不影响最终执行拓扑图的配置选项
     default Set<ConfigOption<?>> forwardOptions() {
         return Collections.emptySet();
     }
 
     /** Provides catalog and session information describing the dynamic table to be accessed. */
+    //提供创建实例所需的所有上下文信息。它封装了来自 Catalog 和会话的元数据和配置
     @PublicEvolving
     interface Context {
 
@@ -99,6 +103,7 @@ public interface DynamicTableFactory extends Factory {
          * fail, so we suggest to use {@link ObjectIdentifier#asSummaryString()} for generating
          * strings.
          */
+        //返回该表在 Catalog 中的唯一标识符
         ObjectIdentifier getObjectIdentifier();
 
         /**
@@ -132,6 +137,7 @@ public interface DynamicTableFactory extends Factory {
          * which requires considering {@link #getEnrichmentOptions()}. It enables to enrich the plan
          * information with frequently changing options (e.g. connection information or timeouts).
          */
+        //返回从 Catalog 或已保存计划中获取的已解析的表信息
         ResolvedCatalogTable getCatalogTable();
 
         /**
@@ -154,11 +160,13 @@ public interface DynamicTableFactory extends Factory {
          *
          * @see TableFactoryHelper
          */
+        //包含在恢复计划时可以丰富原始表选项的配置
         default Map<String, String> getEnrichmentOptions() {
             return Collections.emptyMap();
         }
 
         /** Gives read-only access to the configuration of the current session. */
+        //提供对当前会话配置的只读访问
         ReadableConfig getConfiguration();
 
         /**
@@ -166,9 +174,11 @@ public interface DynamicTableFactory extends Factory {
          *
          * <p>The class loader is in particular useful for discovering further (nested) factories.
          */
+        //返回当前会话的类加载器
         ClassLoader getClassLoader();
 
         /** Whether the table is temporary. */
+        //指示该表是否为临时表
         boolean isTemporary();
 
         /**
@@ -198,6 +208,7 @@ public interface DynamicTableFactory extends Factory {
          *
          * @see ResolvedSchema#toPhysicalRowDataType()
          */
+        //返回用于编码和解码记录的物理行数据类型
         default DataType getPhysicalRowDataType() {
             return getCatalogTable().getResolvedSchema().toPhysicalRowDataType();
         }
@@ -211,6 +222,7 @@ public interface DynamicTableFactory extends Factory {
          *
          * @see ResolvedSchema#getPrimaryKeyIndexes()
          */
+        //返回主键列的索引数组
         default int[] getPrimaryKeyIndexes() {
             return getCatalogTable().getResolvedSchema().getPrimaryKeyIndexes();
         }

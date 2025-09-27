@@ -32,6 +32,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
+
 /** Implementation of {@link BuiltInFunctionDefinitions#ARRAY_CONCAT}. */
 @Internal
 public class ArrayConcatFunction extends BuiltInScalarFunction {

@@ -83,7 +83,7 @@ public class DefaultExecutor implements Executor {
         final RuntimeExecutionMode mode = getConfiguration().get(ExecutionOptions.RUNTIME_MODE);
         switch (mode) {
             case BATCH:
-                configureBatchSpecificProperties();
+                configureBatchSpecificProperties(); //batch模式特有的配置
                 break;
             case STREAMING:
                 break;
@@ -91,7 +91,7 @@ public class DefaultExecutor implements Executor {
             default:
                 throw new TableException(String.format("Unsupported runtime mode: %s", mode));
         }
-
+        //根据transformation生成streamGraph
         final StreamGraph streamGraph = executionEnvironment.generateStreamGraph(transformations);
         setJobName(streamGraph, defaultJobName);
         for (JobStatusHook hook : jobStatusHookList) {

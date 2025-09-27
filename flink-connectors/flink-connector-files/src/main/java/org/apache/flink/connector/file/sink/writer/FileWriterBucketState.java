@@ -43,7 +43,7 @@ public class FileWriterBucketState {
      * The creation time of the currently open part file, or {@code Long.MAX_VALUE} if there is no
      * open part file.
      */
-    private final long inProgressFileCreationTime;
+    private final long inProgressFileCreationTime; //文件的创建时间
 
     /**
      * A {@link InProgressFileRecoverable} for the currently open part file, or null if there is no

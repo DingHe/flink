@@ -47,7 +47,7 @@ public interface CheckpointableTask {
      * @param checkpointMetaData Meta data for about this checkpoint
      * @param checkpointOptions Options for performing this checkpoint
      * @return future with value of {@code false} if the checkpoint was not carried out, {@code
-     *     true} otherwise
+     *     true} otherwise异步触发一个检查点
      */
     CompletableFuture<Boolean> triggerCheckpointAsync(
             CheckpointMetaData checkpointMetaData, CheckpointOptions checkpointOptions);
@@ -58,7 +58,7 @@ public interface CheckpointableTask {
      *
      * @param checkpointMetaData Meta data for about this checkpoint
      * @param checkpointOptions Options for performing this checkpoint
-     * @param checkpointMetrics Metrics about this checkpoint
+     * @param checkpointMetrics Metrics about this checkpoint 当接收到所有输入流的检查点屏障 (checkpoint barrier) 时触发检查点
      * @throws IOException Exceptions thrown as the result of triggering a checkpoint are forwarded.
      */
     void triggerCheckpointOnBarrier(

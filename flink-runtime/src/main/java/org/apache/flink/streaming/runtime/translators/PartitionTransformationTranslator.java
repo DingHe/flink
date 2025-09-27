@@ -79,7 +79,7 @@ public class PartitionTransformationTranslator<OUT>
         if (!supportsBatchExchange && exchangeMode == StreamExchangeMode.BATCH) {
             exchangeMode = StreamExchangeMode.UNDEFINED;
         }
-
+        //添加虚拟节点
         for (Integer inputId : context.getStreamNodeIds(input)) {
             final int virtualId = Transformation.getNewNodeId();
             streamGraph.addVirtualPartitionNode(

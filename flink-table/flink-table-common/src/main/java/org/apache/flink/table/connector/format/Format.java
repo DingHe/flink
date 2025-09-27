@@ -46,6 +46,10 @@ import org.apache.flink.table.factories.DynamicTableFactory;
  * @see DecodingFormat
  * @see EncodingFormat
  */
+// Flink Table API 中连接器格式的基础接口。
+// 它的主要作用是作为一种中间表示，用于在 Flink 的 Table 模块中描述外部系统的数据编码和解码方式
+//将数据格式的定义与具体的运行时实现（如 DeserializationSchema 或 SerializationSchema）分离，使得 Flink 的连接器工厂（DynamicTableFactory）能够更灵活地配置和构造不同格式的连接器。
+// 例如，一个 Kafka 连接器可能支持 JSON、CSV 等多种格式，而 Format 接口就用来抽象这些格式的共同行为
 @PublicEvolving
 public interface Format {
 

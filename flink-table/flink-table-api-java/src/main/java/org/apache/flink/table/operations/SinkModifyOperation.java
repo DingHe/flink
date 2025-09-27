@@ -40,12 +40,12 @@ import java.util.Map;
 @Internal
 public class SinkModifyOperation implements ModifyOperation {
 
-    protected final ContextResolvedTable contextResolvedTable;
-    private final Map<String, String> staticPartitions;
+    protected final ContextResolvedTable contextResolvedTable; //包含上下文的ResolvedTable
+    private final Map<String, String> staticPartitions; //静态分区
     private final QueryOperation child;
     private final boolean overwrite;
     private final Map<String, String> dynamicOptions;
-    private final ModifyType modifyType;
+    private final ModifyType modifyType; //插入、更新、删除
     @Nullable private final int[][] targetColumns;
 
     public SinkModifyOperation(ContextResolvedTable contextResolvedTable, QueryOperation child) {

@@ -34,6 +34,8 @@ import java.time.Duration;
  * generated, which can be configured via {@link
  * org.apache.flink.api.common.ExecutionConfig#setAutoWatermarkInterval(long)}.
  */
+//专门用于处理时间戳严格递增的数据流
+    //作用是基于这个假设，周期性地生成水印，从而几乎没有引入额外的延迟
 @Public
 public class AscendingTimestampsWatermarks<T> extends BoundedOutOfOrdernessWatermarks<T> {
 

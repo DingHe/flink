@@ -83,20 +83,20 @@ public class ParserImpl implements Parser {
      * When parsing statement, it first uses {@link ExtendedParser} to parse statements. If {@link
      * ExtendedParser} fails to parse statement, it uses the {@link CalciteParser} to parse
      * statements.
-     *
+     *  Planner 的主要任务是基于 Parser 生成的 AST，生成一个高效的可执行的执行计划。Parser 的主要任务是将用户输入的 SQL 字符串解析成抽象语法树 (Abstract Syntax Tree, AST)。AST 是一种树形数据结构，每个节点代表 SQL 语句中的一个语法元素，如 SELECT、FROM、WHERE 等
      * @param statement input statement.
      * @return parsed operations.
      */
     @Override
     public List<Operation> parse(String statement) {
         CalciteParser parser = calciteParserSupplier.get();
-        FlinkPlannerImpl planner = validatorSupplier.get();
-
+        FlinkPlannerImpl planner = validatorSupplier.get(); //负责SqlNode节点的校验
+        //用正则表达式匹配一些简单的语句，然后转为Operation
         Optional<Operation> command = EXTENDED_PARSER.parse(statement);
         if (command.isPresent()) {
             return Collections.singletonList(command.get());
         }
-
+        //再用CalciteParser解析
         // parse the sql query
         // use parseSqlList here because we need to support statement end with ';' in sql client.
         SqlNodeList sqlNodeList = parser.parseSqlList(statement);
@@ -107,7 +107,7 @@ public class ParserImpl implements Parser {
                         .orElseThrow(() -> new TableException("Unsupported query: " + statement)));
     }
 
-    @Override
+    @Override  //也是获取CalciteParser
     public UnresolvedIdentifier parseIdentifier(String identifier) {
         CalciteParser parser = calciteParserSupplier.get();
         SqlIdentifier sqlIdentifier = parser.parseIdentifier(identifier);

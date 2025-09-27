@@ -131,7 +131,7 @@ public class TaskManagerRunner implements FatalErrorHandler {
 
     private final CompletableFuture<Result> terminationFuture;
 
-    @GuardedBy("lock")
+    @GuardedBy("lock") //只是标注访问这几个字段要枷锁
     private DeterminismEnvelope<ResourceID> resourceId;
 
     /** Executor used to run future callbacks. */
@@ -156,7 +156,7 @@ public class TaskManagerRunner implements FatalErrorHandler {
     @GuardedBy("lock")
     private DeterminismEnvelope<WorkingDirectory> workingDirectory;
 
-    @GuardedBy("lock")
+    @GuardedBy("lock")  //封装TaskExecutor
     private TaskExecutorService taskExecutorService;
 
     @GuardedBy("lock")
@@ -199,7 +199,7 @@ public class TaskManagerRunner implements FatalErrorHandler {
                             AddressResolution.NO_ADDRESS_RESOLUTION,
                             rpcSystem,
                             this);
-
+            //JMX 是 Java 提供的标准化监控和管理框架，允许开发者通过 MBeans（管理 Bean）来暴露应用程序内部状态
             JMXService.startInstance(configuration.get(JMXServerOptions.JMX_SERVER_PORT));
 
             rpcService = createRpcService(configuration, highAvailabilityServices, rpcSystem);
@@ -216,7 +216,7 @@ public class TaskManagerRunner implements FatalErrorHandler {
 
             HeartbeatServices heartbeatServices =
                     HeartbeatServices.fromConfiguration(configuration);
-
+            //监控指标注册
             metricRegistry =
                     new MetricRegistryImpl(
                             MetricRegistryConfiguration.fromConfiguration(
@@ -224,7 +224,7 @@ public class TaskManagerRunner implements FatalErrorHandler {
                                     rpcSystem.getMaximumMessageSizeInBytes(configuration)),
                             ReporterSetup.fromConfiguration(configuration, pluginManager),
                             TraceReporterSetup.fromConfiguration(configuration, pluginManager));
-
+            //监控指标查询
             final RpcService metricQueryServiceRpcService =
                     MetricUtils.startRemoteMetricsRpcService(
                             configuration,
@@ -232,14 +232,14 @@ public class TaskManagerRunner implements FatalErrorHandler {
                             configuration.get(TaskManagerOptions.BIND_HOST),
                             rpcSystem);
             metricRegistry.startQueryService(metricQueryServiceRpcService, resourceId.unwrap());
-
+            //块缓存服务
             blobCacheService =
                     BlobUtils.createBlobCacheService(
                             configuration,
                             Reference.borrowed(workingDirectory.unwrap().getBlobStorageDirectory()),
                             highAvailabilityServices.createBlobStore(),
                             null);
-
+            //外部资源
             final ExternalResourceInfoProvider externalResourceInfoProvider =
                     ExternalResourceUtils.createStaticExternalResourceInfoProviderFromConfig(
                             configuration, pluginManager);
@@ -611,7 +611,7 @@ public class TaskManagerRunner implements FatalErrorHandler {
         SystemOutRedirectionUtils.redirectSystemOutAndError(configuration);
 
         String externalAddress = rpcService.getAddress();
-
+        //TaskExecutor资源说明
         final TaskExecutorResourceSpec taskExecutorResourceSpec =
                 TaskExecutorResourceUtils.resourceSpecFromConfig(configuration);
 
@@ -635,7 +635,7 @@ public class TaskManagerRunner implements FatalErrorHandler {
                 Executors.newFixedThreadPool(
                         taskManagerServicesConfiguration.getNumIoThreads(),
                         new ExecutorThreadFactory("flink-taskexecutor-io"));
-
+        //在里面创建各种服务
         TaskManagerServices taskManagerServices =
                 TaskManagerServices.fromConfiguration(
                         taskManagerServicesConfiguration,
@@ -690,7 +690,7 @@ public class TaskManagerRunner implements FatalErrorHandler {
 
         checkNotNull(configuration);
         checkNotNull(haServices);
-
+        //创建actor system，并加入监控actor和dead leter actor，然后创建PekkoRpcService服务
         return RpcUtils.createRemoteRpcService(
                 rpcSystem,
                 configuration,
@@ -699,7 +699,7 @@ public class TaskManagerRunner implements FatalErrorHandler {
                 configuration.get(TaskManagerOptions.BIND_HOST),
                 configuration.getOptional(TaskManagerOptions.RPC_BIND_PORT));
     }
-
+    //确定TaskManager绑定的地址
     private static String determineTaskManagerBindAddress(
             final Configuration configuration,
             final HighAvailabilityServices haServices,

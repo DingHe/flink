@@ -51,18 +51,18 @@ public class TaskMailboxImpl implements TaskMailbox {
 
     /** Internal queue of mails. */
     @GuardedBy("lock")
-    private final Deque<Mail> queue = new ArrayDeque<>();
+    private final Deque<Mail> queue = new ArrayDeque<>();  //邮件队列
 
     /** Condition that is triggered when the mailbox is no longer empty. */
     @GuardedBy("lock")
-    private final Condition notEmpty = lock.newCondition();
+    private final Condition notEmpty = lock.newCondition(); //锁等待条件
 
     /** The state of the mailbox in the lifecycle of open, quiesced, and closed. */
     @GuardedBy("lock")
     private State state = OPEN;
 
     /** Reference to the thread that executes the mailbox mails. */
-    @Nonnull private final Thread taskMailboxThread;
+    @Nonnull private final Thread taskMailboxThread; //引用执行mailbox邮件的线程
 
     /**
      * The current batch of mails. A new batch can be created with {@link #createBatch()} and
@@ -87,7 +87,7 @@ public class TaskMailboxImpl implements TaskMailbox {
 
     @Override
     public boolean isMailboxThread() {
-        return Thread.currentThread() == taskMailboxThread;
+        return Thread.currentThread() == taskMailboxThread; //当前线程和mailbox线程相等
     }
 
     @Override
@@ -194,10 +194,10 @@ public class TaskMailboxImpl implements TaskMailbox {
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
-            checkPutStateConditions();
+            checkPutStateConditions(); //mailbox要处在OPEN状态
             queue.addLast(mail);
-            hasNewMail = true;
-            notEmpty.signal();
+            hasNewMail = true;  //有先邮件
+            notEmpty.signal(); //通知等待的线程
         } finally {
             lock.unlock();
         }
@@ -290,7 +290,7 @@ public class TaskMailboxImpl implements TaskMailbox {
 
     @Override
     public void quiesce() {
-        checkIsMailboxThread();
+        checkIsMailboxThread();  //检查当前线程是否在mailbox的线程
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
@@ -337,7 +337,7 @@ public class TaskMailboxImpl implements TaskMailbox {
         }
     }
 
-    @Override
+    @Override //上锁，执行Runnable接口
     public void runExclusively(Runnable runnable) {
         lock.lock();
         try {

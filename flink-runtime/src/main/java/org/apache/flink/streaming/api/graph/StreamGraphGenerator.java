@@ -140,16 +140,16 @@ public class StreamGraphGenerator {
 
     public static final int DEFAULT_LOWER_BOUND_MAX_PARALLELISM =
             KeyGroupRangeAssignment.DEFAULT_LOWER_BOUND_MAX_PARALLELISM;
-
+     //默认处理时间
     public static final TimeCharacteristic DEFAULT_TIME_CHARACTERISTIC =
             TimeCharacteristic.ProcessingTime;
-
+     //默认流任务名称
     public static final String DEFAULT_STREAMING_JOB_NAME = "Flink Streaming Job";
-
+     //默认批任务名称
     public static final String DEFAULT_BATCH_JOB_NAME = "Flink Batch Job";
-
+   //默认共享组名称
     public static final String DEFAULT_SLOT_SHARING_GROUP = "default";
-
+    //从env传进来的
     private final List<Transformation<?>> transformations;
 
     private final ExecutionConfig executionConfig;
@@ -160,23 +160,23 @@ public class StreamGraphGenerator {
 
     // Records the slot sharing groups and their corresponding fine-grained ResourceProfile
     private final Map<String, ResourceProfile> slotSharingGroupResources = new HashMap<>();
-
+    //状态后端
     private StateBackend stateBackend;
-
+   //用于指定Flink检查点（Checkpoint）的存储位置和方式。检查点是Flink容错机制的核心，它通过周期性地将任务的状态保存到外部存储，从而实现故障恢复
     private CheckpointStorage checkpointStorage;
 
     private TimeCharacteristic timeCharacteristic = DEFAULT_TIME_CHARACTERISTIC;
-
+     //savepoint的配置
     private SavepointRestoreSettings savepointRestoreSettings;
 
     private boolean shouldExecuteInBatchMode;
-
+    //TransformationTranslator，是一个接口，定义了如何将Flink算子转化为StreamGraph中的Operator节点，每个OperatorTranslator负责将特定类型的算子转化为对应的Operator，并设置Operator的属性、输入输出等信息
     @SuppressWarnings("rawtypes")
     private static final Map<
                     Class<? extends Transformation>,
                     TransformationTranslator<?, ? extends Transformation>>
             translatorMap;
-
+    //形象地说，translatorMap就像一个翻译官，它将用户用DataStream API写成的"代码"翻译成Flink执行引擎能够理解的"图"
     static {
         @SuppressWarnings("rawtypes")
         Map<Class<? extends Transformation>, TransformationTranslator<?, ? extends Transformation>>
@@ -237,12 +237,12 @@ public class StreamGraphGenerator {
         this.checkpointStorage = this.checkpointConfig.getCheckpointStorage();
         this.savepointRestoreSettings = SavepointRestoreSettings.fromConfiguration(configuration);
     }
-
+    //设置状态后端
     public StreamGraphGenerator setStateBackend(StateBackend stateBackend) {
         this.stateBackend = stateBackend;
         return this;
     }
-
+    //设置时间属性
     public StreamGraphGenerator setTimeCharacteristic(TimeCharacteristic timeCharacteristic) {
         this.timeCharacteristic = timeCharacteristic;
         return this;
@@ -277,7 +277,7 @@ public class StreamGraphGenerator {
                         configuration, executionConfig, checkpointConfig, savepointRestoreSettings);
         shouldExecuteInBatchMode = shouldExecuteInBatchMode();
         configureStreamGraph(streamGraph);
-
+        //记录已经转换的tranformation
         alreadyTransformed = new IdentityHashMap<>();
 
         for (Transformation<?> transformation : transformations) {
@@ -286,10 +286,10 @@ public class StreamGraphGenerator {
         streamGraph.setSlotSharingGroupResource(slotSharingGroupResources);
 
         setFineGrainedGlobalStreamExchangeMode(streamGraph);
-
+        //转换到血缘图
         LineageGraph lineageGraph = LineageGraphUtils.convertToLineageGraph(transformations);
         streamGraph.setLineageGraph(lineageGraph);
-
+        //设置是否支持未对齐检查点
         for (StreamNode node : streamGraph.getStreamNodes()) {
             if (node.getInEdges().stream().anyMatch(this::shouldDisableUnalignedCheckpointing)) {
                 for (StreamEdge edge : node.getInEdges()) {
@@ -326,12 +326,12 @@ public class StreamGraphGenerator {
     private void configureStreamGraph(final StreamGraph graph) {
         checkNotNull(graph);
 
-        graph.setTimeCharacteristic(timeCharacteristic);
-        graph.setVertexDescriptionMode(configuration.get(PipelineOptions.VERTEX_DESCRIPTION_MODE));
+        graph.setTimeCharacteristic(timeCharacteristic); //时间特性
+        graph.setVertexDescriptionMode(configuration.get(PipelineOptions.VERTEX_DESCRIPTION_MODE)); //默认为TREE
         graph.setVertexNameIncludeIndexPrefix(
                 configuration.get(PipelineOptions.VERTEX_NAME_INCLUDE_INDEX_PREFIX));
         graph.setAutoParallelismEnabled(
-                configuration.get(BatchExecutionOptions.ADAPTIVE_AUTO_PARALLELISM_ENABLED));
+                configuration.get(BatchExecutionOptions.ADAPTIVE_AUTO_PARALLELISM_ENABLED)); //配置批模式的自适应配置
         graph.setEnableCheckpointsAfterTasksFinish(
                 configuration.get(CheckpointingOptions.ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH));
         setDynamic(graph);
@@ -443,8 +443,8 @@ public class StreamGraphGenerator {
 
     private boolean shouldExecuteInBatchMode() {
         final RuntimeExecutionMode configuredMode =
-                configuration.get(ExecutionOptions.RUNTIME_MODE);
-
+                configuration.get(ExecutionOptions.RUNTIME_MODE); //设置流执行还是批执行
+        //是否存在无届源
         final boolean existsUnboundedSource = existsUnboundedSource();
 
         checkState(
@@ -489,7 +489,7 @@ public class StreamGraphGenerator {
         }
 
         LOG.debug("Transforming " + transform);
-
+        //设置最大并行度
         if (transform.getMaxParallelism() <= 0) {
 
             // if the max parallelism hasn't been set, then first use the job wide max parallelism
@@ -534,7 +534,7 @@ public class StreamGraphGenerator {
         final TransformationTranslator<?, Transformation<?>> translator =
                 (TransformationTranslator<?, Transformation<?>>)
                         translatorMap.get(transform.getClass());
-
+        //translator开始转换
         Collection<Integer> transformedIds;
         if (translator != null) {
             transformedIds = translate(translator, transform);
@@ -793,14 +793,14 @@ public class StreamGraphGenerator {
             final Transformation<?> transform) {
         checkNotNull(translator);
         checkNotNull(transform);
-
+        //找到父transformation,如果父节点还没处理，就先处理父节点
         final List<Collection<Integer>> allInputIds = getParentInputIds(transform.getInputs());
 
         // the recursive call might have already transformed this
         if (alreadyTransformed.containsKey(transform)) {
             return alreadyTransformed.get(transform);
         }
-
+        //确定slot的共享组
         final String slotSharingGroup =
                 determineSlotSharingGroup(
                         transform.getSlotSharingGroup().isPresent()
@@ -812,7 +812,7 @@ public class StreamGraphGenerator {
 
         final TransformationTranslator.Context context =
                 new ContextImpl(this, streamGraph, slotSharingGroup, configuration);
-
+        //开始转换，调用translator
         return shouldExecuteInBatchMode
                 ? translator.translateForBatch(transform, context)
                 : translator.translateForStreaming(transform, context);
@@ -895,7 +895,7 @@ public class StreamGraphGenerator {
             return streamGraph;
         }
 
-        @Override
+        @Override  //获取已经转换的streamnode的id
         public Collection<Integer> getStreamNodeIds(final Transformation<?> transformation) {
             checkNotNull(transformation);
             final Collection<Integer> ids =

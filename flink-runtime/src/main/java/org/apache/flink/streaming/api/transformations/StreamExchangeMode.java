@@ -28,32 +28,32 @@ public enum StreamExchangeMode {
      * Producer and consumer are online at the same time. Produced data is received by consumer
      * immediately.
      */
-    PIPELINED,
+    PIPELINED, //数据源源不断地产生数据，并立即发送给下游算子进行处理
 
     /**
      * The producer first produces its entire result and finishes. After that, the consumer is
      * started and may consume the data.
      */
-    BATCH,
+    BATCH, //数据被分成批次进行处理
 
     /**
      * The consumer can start consuming data anytime as long as the producer has started producing.
      *
      * <p>This exchange mode is re-consumable.
      */
-    HYBRID_FULL,
+    HYBRID_FULL, //结合了管道式和批量处理的特点，下游算子可以多次消费相同的数据
 
     /**
      * The consumer can start consuming data anytime as long as the producer has started producing.
      *
      * <p>This exchange mode is not re-consumable.
      */
-    HYBRID_SELECTIVE,
+    HYBRID_SELECTIVE,//与HYBRID_FULL类似，但不能完全重消费数据，下游算子只能重消费部分数据
 
     /**
      * The exchange mode is undefined. It leaves it up to the framework to decide the exchange mode.
      * The framework will pick one of {@link StreamExchangeMode#BATCH} or {@link
      * StreamExchangeMode#PIPELINED} in the end.
      */
-    UNDEFINED
+    UNDEFINED //由Flink框架根据具体情况决定交换模式
 }

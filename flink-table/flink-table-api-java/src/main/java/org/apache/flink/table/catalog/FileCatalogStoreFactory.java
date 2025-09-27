@@ -36,7 +36,7 @@ import static org.apache.flink.table.factories.FactoryUtil.createCatalogStoreFac
 @Internal
 public class FileCatalogStoreFactory implements CatalogStoreFactory {
 
-    private String path;
+    private String path; //catalog的存储路径
 
     @Override
     public CatalogStore createCatalogStore() {

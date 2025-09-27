@@ -54,39 +54,39 @@ import static org.apache.flink.util.Preconditions.checkState;
 @Internal
 public class StreamNode {
 
-    private final int id;
-    private int parallelism;
+    private final int id;  //id
+    private int parallelism;  //并行度
     /**
      * Maximum parallelism for this stream node. The maximum parallelism is the upper limit for
      * dynamic scaling and the number of key groups used for partitioned state.
      */
-    private int maxParallelism;
+    private int maxParallelism; //最大并行度
 
     private ResourceSpec minResources = ResourceSpec.DEFAULT;
     private ResourceSpec preferredResources = ResourceSpec.DEFAULT;
     private final Map<ManagedMemoryUseCase, Integer> managedMemoryOperatorScopeUseCaseWeights =
-            new HashMap<>();
-    private final Set<ManagedMemoryUseCase> managedMemorySlotScopeUseCases = new HashSet<>();
+            new HashMap<>(); //管理内存分配
+    private final Set<ManagedMemoryUseCase> managedMemorySlotScopeUseCases = new HashSet<>(); //管理内存类型
     private long bufferTimeout;
-    private final String operatorName;
-    private String operatorDescription;
-    private @Nullable String slotSharingGroup;
+    private final String operatorName;  //操作名称
+    private String operatorDescription;  //操作描述
+    private @Nullable String slotSharingGroup;  //slot共享组
     private @Nullable String coLocationGroup;
-    private KeySelector<?, ?>[] statePartitioners = new KeySelector[0];
+    private KeySelector<?, ?>[] statePartitioners = new KeySelector[0]; //key函数
     private TypeSerializer<?> stateKeySerializer;
 
     private @Nullable StreamOperatorFactory<?> operatorFactory;
     private TypeSerializer<?>[] typeSerializersIn = new TypeSerializer[0];
     private TypeSerializer<?> typeSerializerOut;
 
-    private List<StreamEdge> inEdges = new ArrayList<StreamEdge>();
-    private List<StreamEdge> outEdges = new ArrayList<StreamEdge>();
+    private List<StreamEdge> inEdges = new ArrayList<StreamEdge>();//入边
+    private List<StreamEdge> outEdges = new ArrayList<StreamEdge>();//出边
 
-    private final Class<? extends TaskInvokable> jobVertexClass;
+    private final Class<? extends TaskInvokable> jobVertexClass;//指定了该节点在TaskManager上运行时的具体任务类，这个类在TaskManager上被实例化，负责执行具体的算子逻辑
 
     private InputFormat<?, ?> inputFormat;
     private OutputFormat<?> outputFormat;
-
+    //用户定义的hash值
     private String transformationUID;
     private String userHash;
 
@@ -94,7 +94,7 @@ public class StreamNode {
 
     private @Nullable IntermediateDataSetID consumeClusterDatasetId;
 
-    private boolean supportsConcurrentExecutionAttempts = true;
+    private boolean supportsConcurrentExecutionAttempts = true; //支持并发执行尝试
 
     private boolean parallelismConfigured = false;
 
@@ -297,7 +297,7 @@ public class StreamNode {
     public TypeSerializer<?> getTypeSerializerOut() {
         return typeSerializerOut;
     }
-
+    //反序列化
     public void setSerializerOut(TypeSerializer<?> typeSerializerOut) {
         this.typeSerializerOut = typeSerializerOut;
     }
@@ -353,7 +353,7 @@ public class StreamNode {
     public KeySelector<?, ?>[] getStatePartitioners() {
         return statePartitioners;
     }
-
+    //设置分区器
     public void setStatePartitioners(KeySelector<?, ?>... statePartitioners) {
         checkArgument(statePartitioners.length > 0);
         this.statePartitioners = statePartitioners;

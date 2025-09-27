@@ -41,7 +41,7 @@ public class SqlWatermark extends SqlCall {
     private static final SqlSpecialOperator OPERATOR =
             new SqlSpecialOperator("WATERMARK", SqlKind.OTHER);
 
-    private final SqlIdentifier eventTimeColumnName;
+    private final SqlIdentifier eventTimeColumnName; //事件时间列
     private final SqlNode watermarkStrategy;
 
     public SqlWatermark(

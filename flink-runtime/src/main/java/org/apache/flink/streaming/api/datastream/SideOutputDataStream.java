@@ -25,7 +25,7 @@ import org.apache.flink.streaming.api.transformations.SideOutputTransformation;
 /**
  * A {@link SideOutputDataStream} represents a {@link DataStream} that contains elements that are
  * emitted from upstream into a side output with some tag.
- *
+ *  主要作用是表示一个从上游算子**侧输出（side output）**的数据流
  * @param <T> The type of the elements in this stream.
  */
 @Public
@@ -49,6 +49,7 @@ public class SideOutputDataStream<T> extends DataStream<T> {
      *
      * @return CachedDataStream that can use in later job to reuse the cached intermediate result.
      */
+    //将此数据流的中间结果缓存起来
     @PublicEvolving
     public CachedDataStream<T> cache() {
         return new CachedDataStream<>(this.environment, this.transformation);

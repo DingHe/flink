@@ -52,13 +52,13 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultLeaderElectionService.class);
 
-    private static final String LEADER_ACQUISITION_EVENT_LOG_NAME = "Leader Acquisition";
-    private static final String LEADER_REVOCATION_EVENT_LOG_NAME = "Leader Revocation";
+    private static final String LEADER_ACQUISITION_EVENT_LOG_NAME = "Leader Acquisition"; //领导者获取
+    private static final String LEADER_REVOCATION_EVENT_LOG_NAME = "Leader Revocation"; //领导者撤销
     private final Object lock = new Object();
-
+    //一个工厂，用于创建 LeaderElectionDriver 实例，该实例负责底层的领导者选举机制
     private final LeaderElectionDriverFactory leaderElectionDriverFactory;
 
-    @GuardedBy("lock")
+    @GuardedBy("lock") //一个注册表，用于保存已注册的 LeaderContender（候选者）。每个候选者由其组件ID（componentId）作为键进行标识
     private final Map<String, LeaderContender> leaderContenderRegistry = new HashMap<>();
 
     /**
@@ -69,7 +69,7 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
      * leaderElectionDriver#hasLeadership()} returns).
      */
     @GuardedBy("lock")
-    @Nullable
+    @Nullable  //保存领导者会话ID。当此值为 null 时，表示当前服务尚未获取领导权
     private UUID issuedLeaderSessionID;
 
     /**
@@ -78,7 +78,7 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
      * being present at all here. Both mean that no confirmed {@code LeaderInformation} is available
      * for the corresponding {@code componentId}.
      */
-    @GuardedBy("lock")
+    @GuardedBy("lock") //一个注册表，保存每个组件的确认领导者信息
     private LeaderInformationRegister confirmedLeaderInformation;
 
     @GuardedBy("lock")
@@ -91,14 +91,14 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
      * then, a connection to the {@code DefaultLeaderElectionService} backend is established. The
      * service resets and closes the driver with the removal of the last contender.
      */
-    @GuardedBy("lock")
+    @GuardedBy("lock") //实际执行领导者选举的驱动程序。如果没有注册任何候选者，该值为 null
     private LeaderElectionDriver leaderElectionDriver;
 
     /**
      * This {@link ExecutorService} is used for running the leader event handling logic. Production
      * code should rely on a single-threaded executor to ensure the sequential execution of the
      * events.
-     *
+     *  一个用于运行领导事件处理逻辑的线程池。为了确保事件按顺序执行，通常使用单线程执行器
      * <p>The executor is guarded by this instance's {@link #running} state.
      */
     private final ExecutorService leadershipOperationExecutor;
@@ -145,7 +145,7 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
         this.running = true;
     }
 
-    @Override
+    @Override //创建并返回一个 LeaderElection 实例，用于特定组件ID的选举
     public LeaderElection createLeaderElection(String componentId) {
         synchronized (lock) {
             Preconditions.checkState(
@@ -159,7 +159,7 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
         }
     }
 
-    @GuardedBy("lock")
+    @GuardedBy("lock") //此方法确保驱动程序仅在第一次注册候选者时创建，并与后端建立连接
     private void createLeaderElectionDriver() throws Exception {
         Preconditions.checkState(
                 leaderContenderRegistry.isEmpty(),

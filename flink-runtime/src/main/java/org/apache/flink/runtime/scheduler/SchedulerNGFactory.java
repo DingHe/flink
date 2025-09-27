@@ -42,31 +42,31 @@ import java.util.Collection;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
-/** Factory for {@link SchedulerNG}. */
+/** Factory for {@link SchedulerNG}.Next Generation Schedule */
 public interface SchedulerNGFactory {
 
     SchedulerNG createInstance(
             Logger log,
-            JobGraph jobGraph,
-            Executor ioExecutor,
+            JobGraph jobGraph,  // 作业图
+            Executor ioExecutor,  // IO 线程池
             Configuration jobMasterConfiguration,
-            SlotPoolService slotPoolService,
-            ScheduledExecutorService futureExecutor,
+            SlotPoolService slotPoolService,  // Slot 池服务
+            ScheduledExecutorService futureExecutor,  // 调度任务的执行器
             ClassLoader userCodeLoader,
-            CheckpointRecoveryFactory checkpointRecoveryFactory,
+            CheckpointRecoveryFactory checkpointRecoveryFactory,  // 检查点恢复工厂
             Time rpcTimeout,
             BlobWriter blobWriter,
             JobManagerJobMetricGroup jobManagerJobMetricGroup,
             Time slotRequestTimeout,
-            ShuffleMaster<?> shuffleMaster,
-            JobMasterPartitionTracker partitionTracker,
-            ExecutionDeploymentTracker executionDeploymentTracker,
+            ShuffleMaster<?> shuffleMaster,  // Shuffle 服务的主节点
+            JobMasterPartitionTracker partitionTracker,  // 分区跟踪器
+            ExecutionDeploymentTracker executionDeploymentTracker, // 部署跟踪器
             long initializationTimestamp,
-            ComponentMainThreadExecutor mainThreadExecutor,
+            ComponentMainThreadExecutor mainThreadExecutor,  // 主线程执行器
             FatalErrorHandler fatalErrorHandler,
             JobStatusListener jobStatusListener,
             Collection<FailureEnricher> failureEnrichers,
-            BlocklistOperations blocklistOperations)
+            BlocklistOperations blocklistOperations)  // 黑名单操作接口
             throws Exception;
 
     JobManagerOptions.SchedulerType getSchedulerType();

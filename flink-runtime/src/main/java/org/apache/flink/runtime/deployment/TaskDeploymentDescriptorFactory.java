@@ -64,12 +64,12 @@ import static org.apache.flink.configuration.ConfigOptions.key;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/**
+/** 主要负责根据任务的执行信息创建任务部署描述符（TaskDeploymentDescriptor）。这个类包含了任务部署所需的各种信息，包括任务信息、分区描述符、Shuffle 描述符等
  * Factory of {@link TaskDeploymentDescriptor} to deploy {@link
  * org.apache.flink.runtime.taskmanager.Task} from {@link Execution}.
  */
 public class TaskDeploymentDescriptorFactory {
-    /**
+    /** 用于设置在何种情况下将 Shuffle 描述符转储到 Blob 服务器。如果 Shuffle 描述符的数量超过这个阈值（默认是 2048 * 2048），则会将其转储到 Blob 服务器
      * This is an expert option, that we do not want to expose in the documentation. The default
      * value is good enough for almost all cases
      */
@@ -83,12 +83,12 @@ public class TaskDeploymentDescriptorFactory {
                                     + " exceeds this value, we will offload the shuffle descriptors to blob server."
                                     + " This default value means JobManager need to serialize and transport"
                                     + " 2048 shuffle descriptors (almost 32KB) to 2048 consumers (64MB in total)");
-
+    //该属性存储序列化后的作业信息，MaybeOffloaded 类型表示作业信息可能已经转储到 Blob 服务器，也可能未转储，具体取决于数据的大小
     private final MaybeOffloaded<JobInformation> serializedJobInformation;
     private final JobID jobID;
-    private final PartitionLocationConstraint partitionDeploymentConstraint;
-    private final boolean nonFinishedHybridPartitionShouldBeUnknown;
-    private final ShuffleDescriptorSerializer shuffleDescriptorSerializer;
+    private final PartitionLocationConstraint partitionDeploymentConstraint; //该约束定义了分区的位置是否必须在部署时已知，或者可以稍后更新
+    private final boolean nonFinishedHybridPartitionShouldBeUnknown; //这个标志表示是否将未完成的混合分区标记为未知的 Shuffle 描述符
+    private final ShuffleDescriptorSerializer shuffleDescriptorSerializer; //用于序列化 Shuffle 描述符的序列化器
 
     public TaskDeploymentDescriptorFactory(
             Either<SerializedValue<JobInformation>, PermanentBlobKey> jobInformationOrBlobKey,
@@ -111,10 +111,10 @@ public class TaskDeploymentDescriptorFactory {
     }
 
     public TaskDeploymentDescriptor createDeploymentDescriptor(
-            Execution execution,
-            AllocationID allocationID,
-            @Nullable JobManagerTaskRestore taskRestore,
-            Collection<ResultPartitionDeploymentDescriptor> producedPartitions)
+            Execution execution, //表示任务的执行对象
+            AllocationID allocationID, //任务分配的 ID
+            @Nullable JobManagerTaskRestore taskRestore, //如果任务需要恢复（可选）
+            Collection<ResultPartitionDeploymentDescriptor> producedPartitions) //任务产生的分区
             throws IOException, ClusterDatasetCorruptedException {
         final ExecutionVertex executionVertex = execution.getVertex();
 
@@ -129,7 +129,7 @@ public class TaskDeploymentDescriptorFactory {
                 new ArrayList<>(producedPartitions),
                 createInputGateDeploymentDescriptors(executionVertex));
     }
-
+    //该方法为任务创建输入门（Input Gate）部署描述符
     private List<InputGateDeploymentDescriptor> createInputGateDeploymentDescriptors(
             ExecutionVertex executionVertex) throws IOException, ClusterDatasetCorruptedException {
 
@@ -197,7 +197,7 @@ public class TaskDeploymentDescriptorFactory {
 
         return inputGates;
     }
-
+   //该方法获取已消费分区的 Shuffle 描述符
     private List<MaybeOffloaded<ShuffleDescriptorGroup>> getConsumedPartitionShuffleDescriptors(
             IntermediateResult intermediateResult,
             ConsumedPartitionGroup consumedPartitionGroup,
@@ -403,8 +403,8 @@ public class TaskDeploymentDescriptorFactory {
      * and, therefore, updated later.
      */
     public enum PartitionLocationConstraint {
-        MUST_BE_KNOWN,
-        CAN_BE_UNKNOWN;
+        MUST_BE_KNOWN,  //部署时必须已知分区的位置
+        CAN_BE_UNKNOWN; //分区的位置可以是未知的，稍后再更新（适用于批处理作业）
 
         public static PartitionLocationConstraint fromJobType(JobType jobType) {
             switch (jobType) {

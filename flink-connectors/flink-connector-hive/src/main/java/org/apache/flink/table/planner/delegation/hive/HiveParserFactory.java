@@ -45,7 +45,7 @@ public class HiveParserFactory implements ParserFactory {
         return Collections.emptySet();
     }
 
-    @Override
+    @Override //使用HiveParser
     public Parser create(Context context) {
         // in here, we hard cast the context to CalciteContext for Hive parser will need
         // CalciteContext to build Calcite's RelNode.

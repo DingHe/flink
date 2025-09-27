@@ -45,17 +45,17 @@ import java.util.concurrent.Executor;
  * failure, respectively.
  */
 public interface SlotManager extends AutoCloseable {
-    int getNumberRegisteredSlots();
+    int getNumberRegisteredSlots(); //总的已注册slot
 
-    int getNumberRegisteredSlotsOf(InstanceID instanceId);
+    int getNumberRegisteredSlotsOf(InstanceID instanceId);//某个实例的slot
 
-    int getNumberFreeSlots();
+    int getNumberFreeSlots(); //空闲的slot
 
-    int getNumberFreeSlotsOf(InstanceID instanceId);
+    int getNumberFreeSlotsOf(InstanceID instanceId);//某个实例空闲的slot
 
-    ResourceProfile getRegisteredResource();
+    ResourceProfile getRegisteredResource(); //slotmanager总的资源
 
-    ResourceProfile getRegisteredResourceOf(InstanceID instanceID);
+    ResourceProfile getRegisteredResourceOf(InstanceID instanceID); //某个taskManager的资源
 
     ResourceProfile getFreeResource();
 

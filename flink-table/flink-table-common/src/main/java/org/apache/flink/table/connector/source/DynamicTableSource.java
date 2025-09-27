@@ -59,6 +59,10 @@ import java.io.Serializable;
  * {@link SupportsFilterPushDown}, the planner might apply changes to an instance and thus mutates
  * the produced runtime implementation.
  */
+//Flink 中用于描述从外部存储系统读取数据的能力的接口。它代表了一个抽象的数据源，是 Flink 动态表概念的核心组成部分
+//有两种主要类型
+//ScanTableSource：用于全量扫描或连续读取变更日志（changelog）的数据源，例如读取 Kafka 中的所有消息或 HDFS 中的文件
+//LookupTableSource：用于在必要时查询外部系统中的单个值，例如在 Join 操作中根据主键去查询一个数据库中的记录
 @PublicEvolving
 public interface DynamicTableSource {
 
@@ -66,9 +70,11 @@ public interface DynamicTableSource {
      * Creates a copy of this instance during planning. The copy should be a deep copy of all
      * mutable members.
      */
+    //创建当前 DynamicTableSource 实例的一个深拷贝
     DynamicTableSource copy();
 
     /** Returns a string that summarizes this source for printing to a console or log. */
+    //返回一个字符串，用于概括性地描述该数据源
     String asSummaryString();
 
     // --------------------------------------------------------------------------------------------
@@ -88,6 +94,7 @@ public interface DynamicTableSource {
      * instances are {@link Serializable} and can be directly passed into the runtime implementation
      * class.
      */
+    //创建运行时实现的上下文
     @PublicEvolving
     interface Context {
 
@@ -97,12 +104,14 @@ public interface DynamicTableSource {
          *
          * @see ResolvedSchema#toPhysicalRowDataType()
          */
+        //根据给定的 DataType 或 LogicalType，创建 Flink 内部数据结构所需的**TypeInformation**
         <T> TypeInformation<T> createTypeInformation(DataType producedDataType);
 
         /**
          * Creates type information describing the internal data structures of the given {@link
          * LogicalType}.
          */
+        //根据给定的 DataType 或 LogicalType，创建 Flink 内部数据结构所需的**TypeInformation**
         <T> TypeInformation<T> createTypeInformation(LogicalType producedLogicalType);
 
         /**
@@ -116,6 +125,7 @@ public interface DynamicTableSource {
          * @see LogicalType#supportsInputConversion(Class)
          * @see ResolvedSchema#toPhysicalRowDataType()
          */
+        //创建一个数据结构转换器（DataStructureConverter），用于在运行时将外部对象（如 org.apache.flink.types.Row）转换为 Flink 的内部数据结构（如 org.apache.flink.table.data.RowData）
         DataStructureConverter createDataStructureConverter(DataType producedDataType);
     }
 
@@ -131,10 +141,17 @@ public interface DynamicTableSource {
      *
      * @see LogicalType#supportsInputConversion(Class)
      */
+    // Flink Table API 中一个关键接口，
+    // 它的核心作用是在运行时将外部数据结构（如 Java 对象、POJO、Row 等）转换为 Flink 内部的高效数据结构（如 RowData、BinaryStringData 等）
+    // Flink 的 Table 模块为了追求极致的性能，使用了自己的一套紧凑、二进制格式的内部数据结构。然而，外部数据源和用户自定义函数（UDF）通常使用标准的 Java 对象。
+    // DataStructureConverter 就是负责处理这两种数据格式之间转换的桥梁
     @PublicEvolving
     interface DataStructureConverter extends RuntimeConverter {
 
         /** Converts the given object into an internal data structure. */
+        //将给定的外部数据结构转换为 Flink 内部的数据结构
+        //externalStructure: 这是一个输入参数，代表待转换的外部数据对象。这个对象可以是标准的 Java 对象，例如一个 Row、一个 POJO、一个 List 或其他任何外部数据格式。参数可以为 null
+
         @Nullable
         Object toInternal(@Nullable Object externalStructure);
     }

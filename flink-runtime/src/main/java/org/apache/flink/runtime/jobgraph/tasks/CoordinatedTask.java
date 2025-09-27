@@ -23,7 +23,7 @@ import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.util.FlinkException;
 import org.apache.flink.util.SerializedValue;
 
-/**
+/**它负责协调多个任务的执行，确保它们在正确的时间执行正确的操作。这种协调机制对于一些复杂的流处理场景，如窗口操作、事件时间处理、精确一次语义等，是非常重要的
  * An task that is coordinated, i.e. contains operators coordinated by {@link OperatorCoordinator}.
  */
 @Internal

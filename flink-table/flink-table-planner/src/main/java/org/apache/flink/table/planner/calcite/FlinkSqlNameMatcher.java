@@ -31,7 +31,7 @@ import java.util.Set;
 
 /**
  * A workaround for adjusting types of ROW nested fields.
- *
+ *  调整了SqlNameMatcher的行嵌套字段
  * <p>The {@link SqlNameMatcher} is used in {@link SqlValidatorImpl} when deriving a type of a
  * nested field of a Table. E.g {@code SELECT `row`.`nested` FROM table}. See {@link
  * #field(RelDataType, String)} for more information.

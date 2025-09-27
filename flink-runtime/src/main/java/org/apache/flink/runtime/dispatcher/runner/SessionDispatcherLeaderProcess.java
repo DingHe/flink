@@ -49,13 +49,13 @@ import java.util.stream.Collectors;
 
 /**
  * Process which encapsulates the job recovery logic and life cycle management of a {@link
- * Dispatcher}.
+ * Dispatcher}.主要用于支持 多作业模式（Session 模式）。它会管理多个作业的恢复、提交和调度。适合需要共享集群资源运行多个作业的场景
  */
 public class SessionDispatcherLeaderProcess extends AbstractDispatcherLeaderProcess
         implements JobGraphStore.JobGraphListener {
 
     private final DispatcherGatewayServiceFactory dispatcherGatewayServiceFactory;
-
+    //使用 JobGraphStore 持久化和管理多个作业的 JobGraph
     private final JobGraphStore jobGraphStore;
 
     private final JobResultStore jobResultStore;

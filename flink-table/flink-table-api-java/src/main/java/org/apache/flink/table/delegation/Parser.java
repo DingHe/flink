@@ -29,7 +29,7 @@ import org.apache.flink.table.types.logical.RowType;
 import javax.annotation.Nullable;
 
 import java.util.List;
-
+//sql解析器
 /** Provides methods for parsing SQL objects from a SQL string. */
 @PublicEvolving
 public interface Parser {

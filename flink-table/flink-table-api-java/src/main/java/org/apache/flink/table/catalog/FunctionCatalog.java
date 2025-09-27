@@ -72,9 +72,9 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 @Internal
 public final class FunctionCatalog {
     private final ReadableConfig config;
-    private final ResourceManager resourceManager;
+    private final ResourceManager resourceManager; //资源管理器
     private final CatalogManager catalogManager;
-    private final ModuleManager moduleManager;
+    private final ModuleManager moduleManager; //负责模块管理
 
     private final Map<String, CatalogFunction> tempSystemFunctions;
     private final Map<ObjectIdentifier, CatalogFunction> tempCatalogFunctions;
@@ -615,23 +615,23 @@ public final class FunctionCatalog {
             return resolvePreciseFunctionReference(oi);
         }
     }
-
+    //根据ObjectIdentifier查找函数
     private Optional<ContextResolvedFunction> resolvePreciseFunctionReference(ObjectIdentifier oi) {
         // resolve order:
         // 1. Temporary functions
         // 2. Catalog functions
-        ObjectIdentifier normalizedIdentifier = FunctionIdentifier.normalizeObjectIdentifier(oi);
-        CatalogFunction potentialResult = tempCatalogFunctions.get(normalizedIdentifier);
+        ObjectIdentifier normalizedIdentifier = FunctionIdentifier.normalizeObjectIdentifier(oi);//normalize实际就是转为小写
+        CatalogFunction potentialResult = tempCatalogFunctions.get(normalizedIdentifier); //先找临时函数
 
         if (potentialResult != null) {
-            registerFunctionJarResources(
+            registerFunctionJarResources(  //加载jar包
                     oi.asSummaryString(), potentialResult.getFunctionResources());
             return Optional.of(
                     ContextResolvedFunction.temporary(
                             FunctionIdentifier.of(oi),
                             getFunctionDefinition(oi.getObjectName(), potentialResult)));
         }
-
+        //找函数所在的catalog的函数
         Optional<Catalog> catalogOptional = catalogManager.getCatalog(oi.getCatalogName());
 
         if (catalogOptional.isPresent()) {
@@ -666,7 +666,7 @@ public final class FunctionCatalog {
 
         return Optional.empty();
     }
-
+    //根据函数名查找可能存在歧义，按照优先级查找
     private Optional<ContextResolvedFunction> resolveAmbiguousFunctionReference(String funcName) {
         // resolve order:
         // 1. Temporary system functions

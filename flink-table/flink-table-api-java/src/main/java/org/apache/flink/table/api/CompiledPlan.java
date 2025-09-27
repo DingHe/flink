@@ -52,7 +52,7 @@ import java.nio.file.Paths;
  * <p>Note: Plan restores assume a stable session context. Configuration, loaded modules and
  * catalogs, and temporary objects must not change. Schema evolution and changes of function
  * signatures are not supported.
- *
+ * 表示一个经过优化并可执行的 Fink 执行计划。它是从 Table API 或 SQL 查询管道编译而来，包含了 Flink 作业的所有必要信息
  * @see TableConfigOptions#PLAN_COMPILE_CATALOG_OBJECTS
  * @see TableConfigOptions#PLAN_RESTORE_CATALOG_OBJECTS
  * @see PlanReference

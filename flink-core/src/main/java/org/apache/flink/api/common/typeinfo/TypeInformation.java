@@ -78,6 +78,10 @@ import java.util.Map;
  *
  * @param <T> The type represented by this type information.
  */
+//Flink 类型系统的核心，它提供了关于数据类型的所有元信息
+//生成序列化器（Serializer）和比较器（Comparator）：Flink 运行时需要知道如何高效地序列化和反序列化数据，以及如何比较数据以进行分组、排序等操作。TypeInformation 就是生成这些工具的工厂
+//执行类型检查和语义分析：在规划阶段，TypeInformation 用于验证用户代码中的类型是否兼容，例如，检查用于连接（join）或分组（grouping）的字段是否存在并具有正确的类型
+//
 @Public
 public abstract class TypeInformation<T> implements Serializable {
 
@@ -89,6 +93,7 @@ public abstract class TypeInformation<T> implements Serializable {
      *
      * @return True, if this type information describes a basic type, false otherwise.
      */
+    //检查该类型信息是否代表一个基本类型
     @PublicEvolving
     public abstract boolean isBasicType();
 
@@ -98,6 +103,7 @@ public abstract class TypeInformation<T> implements Serializable {
      *
      * @return True, if this type information describes a tuple type, false otherwise.
      */
+    //检查该类型信息是否代表一个元组（Tuple）类型
     @PublicEvolving
     public abstract boolean isTupleType();
 
@@ -106,6 +112,8 @@ public abstract class TypeInformation<T> implements Serializable {
      *
      * @return Gets the number of fields in this type without nesting.
      */
+    //获取该类型直接包含的字段数量，不考虑嵌套类型
+    //例如，对于一个 Tuple3<String, Integer, MyPOJO>，它的 getArity() 返回 3
     @PublicEvolving
     public abstract int getArity();
 
@@ -118,6 +126,7 @@ public abstract class TypeInformation<T> implements Serializable {
      *
      * @return The number of fields in this type, including its sub-fields (for composite types)
      */
+    //获取该类型所有逻辑字段的总数，包括其嵌套和可传递的嵌套字段
     @PublicEvolving
     public abstract int getTotalFields();
 
@@ -126,6 +135,7 @@ public abstract class TypeInformation<T> implements Serializable {
      *
      * @return The class of the type represented by this type information.
      */
+    //返回该类型信息所代表的 Java 类
     @PublicEvolving
     public abstract Class<T> getTypeClass();
 
@@ -144,6 +154,7 @@ public abstract class TypeInformation<T> implements Serializable {
      * @return map of inferred subtypes; it does not have to contain all generic parameters as key;
      *     values may be null if type could not be inferred
      */
+    //用于提供泛型类型参数的类型信息映射
     @PublicEvolving
     public Map<String, TypeInformation<?>> getGenericParameters() {
         // return an empty map as the default implementation
@@ -156,6 +167,7 @@ public abstract class TypeInformation<T> implements Serializable {
      *
      * @return True, if the type can be used as a key, false otherwise.
      */
+    //检查该类型是否可以用作键（Key）
     @PublicEvolving
     public abstract boolean isKeyType();
 
@@ -163,6 +175,7 @@ public abstract class TypeInformation<T> implements Serializable {
      * Checks whether this type can be used as a key for sorting. The order produced by sorting this
      * type must be meaningful.
      */
+    //检查该类型是否可以用作排序键
     @PublicEvolving
     public boolean isSortKeyType() {
         return isKeyType();
@@ -175,6 +188,7 @@ public abstract class TypeInformation<T> implements Serializable {
      * @param config The config used to parameterize the serializer.
      * @return A serializer for this type.
      */
+    //创建该类型对应的序列化器
     @PublicEvolving
     public TypeSerializer<T> createSerializer(SerializerConfig config) {
         if (config != null) {
@@ -229,6 +243,7 @@ public abstract class TypeInformation<T> implements Serializable {
      * @param <T> The generic type.
      * @return The TypeInformation object for the type described by the hint.
      */
+    //为一个非泛型的 Java 类创建 TypeInformation
     public static <T> TypeInformation<T> of(Class<T> typeClass) {
         try {
             return TypeExtractor.createTypeInfo(typeClass);
@@ -253,6 +268,7 @@ public abstract class TypeInformation<T> implements Serializable {
      * @param <T> The generic type.
      * @return The TypeInformation object for the type described by the hint.
      */
+    //通过 TypeHint 为一个泛型类型创建 TypeInformation
     public static <T> TypeInformation<T> of(TypeHint<T> typeHint) {
         return typeHint.getTypeInfo();
     }

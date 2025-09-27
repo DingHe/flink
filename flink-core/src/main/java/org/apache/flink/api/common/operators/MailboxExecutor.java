@@ -82,7 +82,7 @@ import java.util.concurrent.RejectedExecutionException;
  * }</pre>
  */
 @PublicEvolving
-public interface MailboxExecutor {
+public interface MailboxExecutor { //主要作用是向 TaskMailbox 中投递 Mail
     /** A constant for empty args to save on object allocation. */
     Object[] EMPTY_ARGS = new Object[0];
 
@@ -95,7 +95,7 @@ public interface MailboxExecutor {
 
         /**
          * Mark this mail as deferrable.
-         *
+         * 是否可以延迟
          * <p>Runtime can decide to defer execution of deferrable mails. For example, to unblock
          * subtask thread as quickly as possible, deferrable mails are not executed during {@link
          * #yield()} or {@link #tryYield()}. This is done to speed up checkpointing, by skipping
@@ -190,7 +190,7 @@ public interface MailboxExecutor {
      * Submits the given command for execution in the future in the mailbox thread and returns a
      * Future representing that command. The Future's {@code get} method will return {@code null}
      * upon <em>successful</em> completion.
-     *
+     * 提交command在mailbox线程执行，并返回Futrue
      * <p>WARNING: Exception raised by the {@code command} will not fail the task but are stored in
      * the future. Thus, it's an anti-pattern to call {@code submit} without handling the returned
      * future and {@link #execute(ThrowingRunnable, String, Object...)} should be used instead.
@@ -212,7 +212,7 @@ public interface MailboxExecutor {
             String descriptionFormat,
             Object... descriptionArgs) {
         FutureTaskWithException<Void> future = new FutureTaskWithException<>(command);
-        execute(future, descriptionFormat, descriptionArgs);
+        execute(future, descriptionFormat, descriptionArgs); //执行FutureTask
         return future;
     }
 
@@ -303,7 +303,7 @@ public interface MailboxExecutor {
      * blocks until another command to run is available in the mailbox and must only be called from
      * the mailbox thread. Must only be called from the mailbox thread to not violate the
      * single-threaded execution model.
-     *
+     * 在mailThrea从头开始执行任务
      * @throws InterruptedException on interruption.
      * @throws IllegalStateException if the mailbox is closed and can no longer supply runnables for
      *     yielding.

@@ -75,12 +75,12 @@ public class SqlNodeConverters {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static Optional<Operation> convertSqlNode(
             SqlNode validatedSqlNode, ConvertContext context) {
-        // match by class first
+        // match by class first。首先根据类查找对应的Converter
         SqlNodeConverter classConverter = CLASS_CONVERTERS.get(validatedSqlNode.getClass());
         if (classConverter != null) {
             return Optional.of(classConverter.convertSqlNode(validatedSqlNode, context));
         }
-
+        //如果根据类找不到，则根据SqlKind查找
         // match by kind if no matching items in class converters
         SqlNodeConverter sqlKindConverter = SQLKIND_CONVERTERS.get(validatedSqlNode.getKind());
         if (sqlKindConverter != null) {

@@ -67,9 +67,9 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
      * index must within the range of [0, numberSlots). When generating slot report, we should
      * always generate slots with index in [0, numberSlots) even the slot does not exist.
      */
-    private final int numberSlots;
+    private final int numberSlots; //slot的数量
 
-    /** Slot resource profile for static slot allocation. */
+    /** Slot resource profile for static slot allocation. 默认每个slot的资源*/
     private final ResourceProfile defaultSlotResourceProfile;
 
     /** Page size for memory manager. */
@@ -79,7 +79,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
     private final TimerService<AllocationID> timerService;
 
     /** The list of all task slots. */
-    private final Map<Integer, TaskSlot<T>> taskSlots;
+    private final Map<Integer, TaskSlot<T>> taskSlots; //taskSlot列表
 
     /** Mapping from allocation id to task slot. */
     private final Map<AllocationID, TaskSlot<T>> allocatedSlots;
@@ -88,20 +88,20 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
     private final Map<ExecutionAttemptID, TaskSlotMapping<T>> taskSlotMappings;
 
     /** Mapping from job id to allocated slots for a job. */
-    private final Map<JobID, Set<AllocationID>> slotsPerJob;
+    private final Map<JobID, Set<AllocationID>> slotsPerJob; //某个job获取的分配集合
 
     /** Interface for slot actions, such as freeing them or timing them out. */
-    @Nullable private SlotActions slotActions;
+    @Nullable private SlotActions slotActions; //slot的操作动作
 
     /** The table state. */
     private volatile State state;
 
     /** Current index for dynamic slot, should always not less than numberSlots */
     private int dynamicSlotIndex;
-
+    //资源预算管理
     private final ResourceBudgetManager budgetManager;
 
-    /** The closing future is completed when all slot are freed and state is closed. */
+    /** The closing future is completed when all slot are freed and state is closed. 所有的slot都空闲时关闭*/
     private final CompletableFuture<Void> closingFuture;
 
     /** {@link ComponentMainThreadExecutor} to schedule internal calls to the main thread. */
@@ -115,7 +115,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
 
     public TaskSlotTableImpl(
             final int numberSlots,
-            final ResourceProfile totalAvailableResourceProfile,
+            final ResourceProfile totalAvailableResourceProfile, //总的资源
             final ResourceProfile defaultSlotResourceProfile,
             final int memoryPageSize,
             final TimerService<AllocationID> timerService,
@@ -194,7 +194,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
         return state == State.CLOSED;
     }
 
-    @Override
+    @Override //获取每个job分配的资源
     public Set<AllocationID> getAllocationIdsPerJob(JobID jobId) {
         final Set<AllocationID> allocationIds = slotsPerJob.get(jobId);
 
@@ -228,7 +228,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
     // Slot report methods
     // ---------------------------------------------------------------------
 
-    @Override
+    @Override  //SlotReport 中包含当前 TaskExecutor 中所有 slot 的状态以及它们的分配情况
     public SlotReport createSlotReport(ResourceID resourceId) {
         List<SlotStatus> slotStatuses = new ArrayList<>();
 
@@ -640,7 +640,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
     private int nextDynamicSlotIndex() {
         return dynamicSlotIndex++;
     }
-
+    //校验属于运行状态
     private void checkRunning() {
         Preconditions.checkState(
                 state == State.RUNNING,
@@ -680,7 +680,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
 
     /**
      * Iterator over {@link TaskSlot} which fulfill a given state condition and belong to the given
-     * job.
+     * job. 获取某个状态的slot分配任务的迭代器
      */
     private final class TaskSlotIterator implements Iterator<TaskSlot<T>> {
         private final Iterator<AllocationID> allSlots;

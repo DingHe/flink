@@ -25,7 +25,7 @@ import org.apache.flink.runtime.rpc.RpcService;
 
 import java.util.Collection;
 
-/** {@link DispatcherFactory} which creates a {@link StandaloneDispatcher}. */
+/** {@link DispatcherFactory} which creates a {@link StandaloneDispatcher}.创建也就是 new StandaloneDispatcher */
 public enum SessionDispatcherFactory implements DispatcherFactory {
     INSTANCE;
 

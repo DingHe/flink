@@ -31,7 +31,7 @@ public interface CommittingSinkWriter<InputT, CommittableT> extends SinkWriter<I
      *
      * <p>This method will be called after {@link #flush(boolean)} and before {@link
      * StatefulSinkWriter#snapshotState(long)}.
-     *
+     * 返回两阶段提交第二阶段要提交的数据
      * @return The data to commit as the second step of the two-phase commit protocol.
      * @throws IOException if fail to prepare for a commit.
      */

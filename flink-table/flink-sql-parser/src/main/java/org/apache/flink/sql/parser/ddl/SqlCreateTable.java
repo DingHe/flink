@@ -51,29 +51,29 @@ import static java.util.Objects.requireNonNull;
 
 /** CREATE TABLE DDL sql call. */
 public class SqlCreateTable extends SqlCreate implements ExtendedSqlNode {
-
+    //SqlSpecialOperator 代表一种特殊的 SQL 操作符。它用于表示那些不能用标准的 SQL 语法直接表达，或者需要特殊处理的操作，通过定义自定义的 SqlSpecialOperator，你可以扩展 Calcite 的 SQL 语法，支持特定的业务需求或数据源
     public static final SqlSpecialOperator OPERATOR =
             new SqlSpecialOperator("CREATE TABLE", SqlKind.CREATE_TABLE);
 
-    private final SqlIdentifier tableName;
+    private final SqlIdentifier tableName; //表名
 
-    private final SqlNodeList columnList;
+    private final SqlNodeList columnList; //列
 
-    private final SqlNodeList propertyList;
+    private final SqlNodeList propertyList; //属性，就是create table后面with语句中的属性，例如connector属性等
 
-    private final List<SqlTableConstraint> tableConstraints;
+    private final List<SqlTableConstraint> tableConstraints; //约束
 
     public SqlDistribution getDistribution() {
         return distribution;
     }
 
-    private final SqlDistribution distribution;
+    private final SqlDistribution distribution; //distributed by 语句
 
-    private final SqlNodeList partitionKeyList;
+    private final SqlNodeList partitionKeyList; //分区键
 
-    private final SqlWatermark watermark;
+    private final SqlWatermark watermark; //watermark语句
 
-    private final SqlCharStringLiteral comment;
+    private final SqlCharStringLiteral comment; //注释
 
     private final boolean isTemporary;
 

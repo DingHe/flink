@@ -42,6 +42,10 @@ import java.io.Serializable;
  * lookup are derived from a query by the planner and will be provided in the given {@link
  * LookupContext#getKeys()}. The values for those key fields are passed during runtime.
  */
+// Flink 中用于描述按键查找外部存储系统行的能力的数据源接口。它扩展了 DynamicTableSource 接口，
+// 但与 ScanTableSource 的全量扫描不同，LookupTableSource 专门用于按需、懒惰地查询单个或少量数据
+//支持维表 Join：它主要用于实现维表 Join（DIM JOIN）。在流处理中，当一条主数据流的记录到达时，LookupTableSource 可以根据记录中的键，从外部维表（例如 HBase, MySQL, Redis）中高效地查询出对应的维表数据
+
 @PublicEvolving
 public interface LookupTableSource extends DynamicTableSource {
 
@@ -61,6 +65,7 @@ public interface LookupTableSource extends DynamicTableSource {
      * @see LookupFunctionProvider
      * @see AsyncLookupFunctionProvider
      */
+    //返回一个运行时提供者（LookupRuntimeProvider），这个提供者包含了实际执行数据查找的逻辑
     LookupRuntimeProvider getLookupRuntimeProvider(LookupContext context);
 
     // --------------------------------------------------------------------------------------------
@@ -90,6 +95,8 @@ public interface LookupTableSource extends DynamicTableSource {
          *
          * @return array of key index paths
          */
+        //它返回一个二维数组，表示用于查找的键字段索引路径。这个路径由 Flink 规划器根据 SQL 查询语句中的 Join 条件自动推断并提供。
+        // 例如，对于一个嵌套的行类型，[[0], [2, 1]] 表示查找键是第一个字段（索引为0）和第三个字段中的第二个嵌套字段（索引为1）
         int[][] getKeys();
     }
 

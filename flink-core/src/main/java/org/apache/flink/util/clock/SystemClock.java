@@ -52,7 +52,7 @@ public final class SystemClock extends Clock {
     @Override
     public long relativeTimeNanos() {
         return System.nanoTime();
-    }
+    } //通过System获取时间
 
     // ------------------------------------------------------------------------
 

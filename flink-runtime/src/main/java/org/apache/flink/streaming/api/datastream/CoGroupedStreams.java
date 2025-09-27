@@ -77,13 +77,21 @@ import static java.util.Objects.requireNonNull;
  *     .apply(new MyCoGroupFunction());
  * }</pre>
  */
+//执行 窗口 co-group（分组联结）操作 的入口。
+// 它的核心作用是将两个类型可能不同的流基于一个共同的键，并在特定的窗口内进行分组，然后将每个窗口中来自两个流的元素集合作为输入，应用一个用户定义的函数进行处理
+    //双流联结：将两个独立的流根据键进行关联
+    //分组处理：不像 ConnectedStreams 那样逐个处理元素，CoGroupedStreams 会在每个窗口内，将两个流中所有键相同的元素收集成两个独立的集合，然后一起传递给用户函数。这非常适合需要对一组数据进行整体分析的场景
+    //强大的联结语义：它提供了比常规联结更灵活的语义。例如，如果一个窗口内某个键只在一个流中出现了元素，
+    // CoGroupFunction 依然会被调用，其中一个输入集合将为空，这使得它能够处理类似 Outer Join 的逻辑
 @Public
 public class CoGroupedStreams<T1, T2> {
 
     /** The first input stream. */
+    //表示 co-group 操作的第一个输入流
     private final DataStream<T1> input1;
 
     /** The second input stream. */
+    //表示 co-group 操作的第二个输入流
     private final DataStream<T2> input2;
 
     /**
@@ -104,6 +112,7 @@ public class CoGroupedStreams<T1, T2> {
      * @param keySelector The KeySelector to be used for extracting the first input's key for
      *     partitioning.
      */
+    //它为第一个输入流指定一个 KeySelector，用于从元素中提取键。它返回一个 Where 内部类的实例，进入下一步配置
     public <KEY> Where<KEY> where(KeySelector<T1, KEY> keySelector) {
         Preconditions.checkNotNull(keySelector);
         final TypeInformation<KEY> keyType =
@@ -132,9 +141,10 @@ public class CoGroupedStreams<T1, T2> {
      *
      * @param <KEY> The type of the key.
      */
+    //内部类代表了已经为第一个流指定了键的中间状态
     @Public
     public class Where<KEY> {
-
+        //保存为第一个流定义的键选择器
         private final KeySelector<T1, KEY> keySelector1;
         private final TypeInformation<KEY> keyType;
 
@@ -149,6 +159,7 @@ public class CoGroupedStreams<T1, T2> {
          * @param keySelector The KeySelector to be used for extracting the second input's key for
          *     partitioning.
          */
+        //链式调用的第二步。它为第二个输入流指定一个 KeySelector。它会自动推断键的类型，并验证两个流的键类型是否兼容
         public EqualTo equalTo(KeySelector<T2, KEY> keySelector) {
             Preconditions.checkNotNull(keySelector);
             final TypeInformation<KEY> otherKey =
@@ -184,15 +195,16 @@ public class CoGroupedStreams<T1, T2> {
         /**
          * A co-group operation that has {@link KeySelector KeySelectors} defined for both inputs.
          */
+        //内部类代表了两个流都已经指定了键的中间状态
         @Public
         public class EqualTo {
-
+            //保存为第二个流定义的键选择器
             private final KeySelector<T2, KEY> keySelector2;
 
             EqualTo(KeySelector<T2, KEY> keySelector2) {
                 this.keySelector2 = requireNonNull(keySelector2);
             }
-
+            //指定一个 WindowAssigner，定义了如何将元素分配到窗口中
             /** Specifies the window on which the co-group operation works. */
             @PublicEvolving
             public <W extends Window> WithWindow<T1, T2, KEY, W> window(

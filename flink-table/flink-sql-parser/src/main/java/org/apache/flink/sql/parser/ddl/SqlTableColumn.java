@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
-
+//create table语句中表的列
 /** Table column of a CREATE TABLE DDL. */
 public abstract class SqlTableColumn extends SqlCall {
 
@@ -83,10 +83,10 @@ public abstract class SqlTableColumn extends SqlCall {
     public Optional<SqlNode> getComment() {
         return Optional.ofNullable(comment);
     }
-
+    //create table 语句中的物理列，加上了列的类型
     /** A regular, physical column. */
     public static class SqlRegularColumn extends SqlTableColumn {
-
+        //sql的数据类型，calcite中sql数据类型的表示
         private SqlDataTypeSpec type;
 
         private final @Nullable SqlTableConstraint constraint;
@@ -131,7 +131,7 @@ public abstract class SqlTableColumn extends SqlCall {
             return ImmutableNullableList.of(name, type, constraint, comment);
         }
     }
-
+     //根据元数据衍生的列
     /** A column derived from metadata. */
     public static class SqlMetadataColumn extends SqlTableColumn {
 
@@ -189,7 +189,7 @@ public abstract class SqlTableColumn extends SqlCall {
             return ImmutableNullableList.of(name, type, comment);
         }
     }
-
+   //根据表达式计算的列
     /** A column derived from an expression. */
     public static class SqlComputedColumn extends SqlTableColumn {
 

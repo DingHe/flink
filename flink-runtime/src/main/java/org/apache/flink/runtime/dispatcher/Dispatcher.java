@@ -185,9 +185,9 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
     private final Executor ioExecutor;
 
     @Nullable private final String metricServiceQueryAddress;
-
+    //等待job结束的fature
     private final Map<JobID, CompletableFuture<Void>> jobManagerRunnerTerminationFutures;
-    private final Set<JobID> submittedAndWaitingTerminationJobIDs;
+    private final Set<JobID> submittedAndWaitingTerminationJobIDs; //已经提交并等待结束的job，在internalSubmitJob方法的开头添加进来
 
     protected final CompletableFuture<ApplicationStatus> shutDownFuture;
 
@@ -521,9 +521,9 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
             log.info("Received JobGraph submission '{}' ({}).", jobGraph.getName(), jobID);
         }
         return isInGloballyTerminalState(jobID)
-                .thenComposeAsync(
+                .thenComposeAsync(  //thenComposeAsync 方法是 thenCompose 方法的一个变体，提供了异步执行的功能。thenCompose 用于将两个异步操作链式连接，但 thenComposeAsync 确保了第二个异步操作（由你提供的 Function）也会在异步线程中执行
                         isTerminated -> {
-                            if (isTerminated) {
+                            if (isTerminated) {  //如果是已经终止，则进行后续的处理
                                 log.warn(
                                         "Ignoring JobGraph submission '{}' ({}) because the job already "
                                                 + "reached a globally-terminal state (i.e. {}) in a "
@@ -575,7 +575,7 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
 
     /**
      * Checks whether the given job has already been executed.
-     *
+     *  判断一个作业是否已经处于全局终止状态
      * @param jobId identifying the submitted job
      * @return a successfully completed future with {@code true} if the job has already finished,
      *     either successfully or as a failure
@@ -647,13 +647,13 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
         }
         return CompletableFuture.completedFuture(Acknowledge.get());
     }
-
+    //真正执行run job的地方
     private void persistAndRunJob(JobGraph jobGraph) throws Exception {
-        jobGraphWriter.putJobGraph(jobGraph);
+        jobGraphWriter.putJobGraph(jobGraph); //在standalone模式下，什么也没做
         initJobClientExpiredTime(jobGraph);
         runJob(createJobMasterRunner(jobGraph), ExecutionType.SUBMISSION);
     }
-
+    //创建JobMaster
     private JobManagerRunner createJobMasterRunner(JobGraph jobGraph) throws Exception {
         Preconditions.checkState(!jobManagerRunnerRegistry.isRegistered(jobGraph.getJobID()));
         return jobManagerRunnerFactory.createJobManagerRunner(
@@ -680,7 +680,7 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
 
     private void runJob(JobManagerRunner jobManagerRunner, ExecutionType executionType)
             throws Exception {
-        jobManagerRunner.start();
+        jobManagerRunner.start(); //创建了JobMaster以及执行图
         jobManagerRunnerRegistry.register(jobManagerRunner);
 
         final JobID jobId = jobManagerRunner.getJobID();
@@ -688,7 +688,7 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
         final CompletableFuture<CleanupJobState> cleanupJobStateFuture =
                 jobManagerRunner
                         .getResultFuture()
-                        .handleAsync(
+                        .handleAsync(  //异步处理jobMaster的运行结果
                                 (jobManagerRunnerResult, throwable) -> {
                                     Preconditions.checkState(
                                             jobManagerRunnerRegistry.isRegistered(jobId)
@@ -1578,10 +1578,10 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
                         }));
     }
 
-    @VisibleForTesting
+    @VisibleForTesting //
     CompletableFuture<Void> getJobTerminationFuture(JobID jobId) {
         return jobManagerRunnerTerminationFutures.getOrDefault(
-                jobId, CompletableFuture.completedFuture(null));
+                jobId, CompletableFuture.completedFuture(null)); //completedFuture用于创建一个已经完成的 CompletableFuture 实例。这个方法返回的 CompletableFuture 实例已经包含一个结果，因此不需要等待任何异步操作完成
     }
 
     private void registerDispatcherMetrics(MetricGroup jobManagerMetricGroup) {

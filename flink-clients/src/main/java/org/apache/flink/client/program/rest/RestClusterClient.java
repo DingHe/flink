@@ -256,7 +256,7 @@ public class RestClusterClient<T> implements ClusterClient<T> {
                         configuration.get(JobManagerOptions.ADDRESS),
                         configuration.get(JobManagerOptions.PORT),
                         configuration.get(RestOptions.PATH));
-
+        //启动连接的客户端，客户端是RestClient
         if (restClient != null) {
             this.restClient = restClient;
         } else {

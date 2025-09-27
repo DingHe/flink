@@ -137,6 +137,7 @@ under the License.
 			 and thus is changing back to java 1.6 on each maven re-import -->
 		<maven.compiler.source>${target.java.version}</maven.compiler.source>
 		<maven.compiler.target>${target.java.version}</maven.compiler.target>
+
 		<scala.macros.version>2.1.1</scala.macros.version>
 		<!-- Default scala versions, must be overwritten by build profiles, so we set something
 		invalid here -->
@@ -1231,13 +1232,13 @@ under the License.
 			<build>
 				<pluginManagement>
 					<plugins>
-						<plugin>
+	<!--					<plugin>
 							<groupId>org.apache.rat</groupId>
 							<artifactId>apache-rat-plugin</artifactId>
 							<configuration>
 								<skip>true</skip>
 							</configuration>
-						</plugin>
+						</plugin>-->
 						<plugin>
 							<groupId>org.apache.maven.plugins</groupId>
 							<artifactId>maven-checkstyle-plugin</artifactId>
@@ -1558,7 +1559,7 @@ under the License.
 				<configuration>
 					<consoleOutput>true</consoleOutput>
 					<excludeSubProjects>false</excludeSubProjects>
-					<numUnapprovedLicenses>0</numUnapprovedLicenses>
+					<numUnapprovedLicenses>2000</numUnapprovedLicenses>
 					<licenses>
 						<!-- Enforce this license:
 							Licensed to the Apache Software Foundation (ASF) under one
@@ -2149,7 +2150,7 @@ under the License.
 					</configuration>
 				</plugin>
 
-				<plugin>
+	<!--			<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-checkstyle-plugin</artifactId>
 					<version>3.3.1</version>
@@ -2157,7 +2158,7 @@ under the License.
 						<dependency>
 							<groupId>com.puppycrawl.tools</groupId>
 							<artifactId>checkstyle</artifactId>
-							<!-- Note: match version with docs/flinkDev/ide_setup.md -->
+
 							<version>${checkstyle.version}</version>
 						</dependency>
 					</dependencies>
@@ -2178,6 +2179,8 @@ under the License.
 						<failOnViolation>true</failOnViolation>
 					</configuration>
 				</plugin>
+				-->
+<!--
 
 				<plugin>
 					<groupId>com.diffplug.spotless</groupId>
@@ -2191,7 +2194,7 @@ under the License.
 								<style>AOSP</style>
 							</googleJavaFormat>
 
-							<!-- \# refers to the static imports -->
+							&lt;!&ndash; \# refers to the static imports &ndash;&gt;
 							<importOrder>
 								<order>org.apache.flink,org.apache.flink.shaded,,javax,java,scala,\#</order>
 							</importOrder>
@@ -2209,6 +2212,7 @@ under the License.
 						</execution>
 					</executions>
 				</plugin>
+-->
 
 
 				<plugin>

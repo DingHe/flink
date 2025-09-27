@@ -43,7 +43,7 @@ import javax.annotation.Nullable;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 
-/** {@link ResourceManagerFactory} which creates a {@link StandaloneResourceManager}. */
+/** {@link ResourceManagerFactory} which creates a {@link StandaloneResourceManager}. 创建方法就是 new StandaloneResourceManager */
 public final class StandaloneResourceManagerFactory extends ResourceManagerFactory<ResourceID> {
 
     private static final StandaloneResourceManagerFactory INSTANCE =

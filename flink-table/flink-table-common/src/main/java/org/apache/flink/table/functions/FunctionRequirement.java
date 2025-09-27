@@ -23,7 +23,7 @@ import org.apache.flink.annotation.PublicEvolving;
 /** Characteristics that a {@link FunctionDefinition} requires. */
 @PublicEvolving
 public enum FunctionRequirement {
-
+    //聚合函数只能在over window中使用
     /** Requirement that an aggregate function can only be applied in an OVER window. */
     OVER_WINDOW_ONLY
 }

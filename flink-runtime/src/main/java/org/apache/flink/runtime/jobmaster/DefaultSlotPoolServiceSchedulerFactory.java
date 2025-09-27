@@ -160,12 +160,12 @@ public final class DefaultSlotPoolServiceSchedulerFactory
             Configuration configuration, JobType jobType, boolean isDynamicGraph) {
 
         final Duration rpcTimeout = configuration.get(RpcOptions.ASK_TIMEOUT_DURATION);
-        final Duration slotIdleTimeout = configuration.get(JobManagerOptions.SLOT_IDLE_TIMEOUT);
-        final Duration batchSlotTimeout = configuration.get(JobManagerOptions.SLOT_REQUEST_TIMEOUT);
+        final Duration slotIdleTimeout = configuration.get(JobManagerOptions.SLOT_IDLE_TIMEOUT); //slot超时时间
+        final Duration batchSlotTimeout = configuration.get(JobManagerOptions.SLOT_REQUEST_TIMEOUT); //请求slot pool超时时间
 
         final SlotPoolServiceFactory slotPoolServiceFactory;
         final SchedulerNGFactory schedulerNGFactory;
-
+        //哪种调度器
         JobManagerOptions.SchedulerType schedulerType =
                 getSchedulerType(configuration, jobType, isDynamicGraph);
 
@@ -183,7 +183,7 @@ public final class DefaultSlotPoolServiceSchedulerFactory
                     "Only adaptive batch scheduler supports setting "
                             + JobManagerOptions.HYBRID_PARTITION_DATA_CONSUME_CONSTRAINT.key());
         }
-
+        //根据不同的调度器，调用不同的类
         switch (schedulerType) {
             case Default:
                 schedulerNGFactory = new DefaultSchedulerFactory();

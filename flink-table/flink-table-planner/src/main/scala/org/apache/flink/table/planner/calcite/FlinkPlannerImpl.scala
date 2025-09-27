@@ -51,26 +51,26 @@ import java.util.function.{Function => JFunction}
 
 import scala.collection.JavaConverters._
 
-/**
+/** FlinkPlannerImpl 主要负责语句的validate和把SqlNode转为RelNode
  * NOTE: this is heavily inspired by Calcite's PlannerImpl. We need it in order to share the planner
  * between the Table API relational plans and the SQL relation plans that are created by the Calcite
  * parser. The main difference is that we do not create a new RelOptPlanner in the ready() method.
  */
 class FlinkPlannerImpl(
-    val config: FrameworkConfig,
-    catalogReaderSupplier: JFunction[JBoolean, CalciteCatalogReader],
-    typeFactory: FlinkTypeFactory,
+    val config: FrameworkConfig, //这是 Calcite 配置对象，包含有关 SQL 解析、执行等方面的设置
+    catalogReaderSupplier: JFunction[JBoolean, CalciteCatalogReader], //提供一个 CalciteCatalogReader，用于解析和验证 SQL 查询中的表和字段
+    typeFactory: FlinkTypeFactory, //创建 Flink 类型的工厂类，基于 Flink 的类型系统
     val cluster: RelOptCluster) {
 
-  val operatorTable: SqlOperatorTable = config.getOperatorTable
+  val operatorTable: SqlOperatorTable = config.getOperatorTable  //存储 SQL 操作符的表，它是 Calcite 中的操作符表，提供了 SQL 解析时对操作符的支持
   val parser: CalciteParser = new CalciteParser(config.getParserConfig)
-  val convertletTable: SqlRexConvertletTable = config.getConvertletTable
+  val convertletTable: SqlRexConvertletTable = config.getConvertletTable //用于处理 SQL 转换的表，管理 SQL 到 Rel 操作（逻辑计划）的转换
   val sqlToRelConverterConfig: SqlToRelConverter.Config =
     config.getSqlToRelConverterConfig.withAddJsonTypeOperatorEnabled(false)
 
   var validator: FlinkCalciteSqlValidator = _
 
-  def getSqlAdvisorValidator(): SqlAdvisorValidator = {
+  def getSqlAdvisorValidator(): SqlAdvisorValidator = { //用于 SQL 建议的验证（如自动完成提示）
     new SqlAdvisorValidator(
       operatorTable,
       catalogReaderSupplier.apply(true), // ignore cases for lenient completion
@@ -84,7 +84,7 @@ class FlinkPlannerImpl(
    * current validator has not been initialized, or returns the validator instance directly.
    *
    * <p>The validator instance creation is not thread safe.
-   *
+   * 如果尚未创建，创建一个新的实例并返回。它是用来验证 SQL 语句的语法和语义
    * @return
    *   a new validator instance or current existed one
    */
@@ -95,7 +95,7 @@ class FlinkPlannerImpl(
     }
     validator
   }
-
+   //创建flink的sql 校验器
   private def createSqlValidator(catalogReader: CalciteCatalogReader) = {
     val validator = new FlinkCalciteSqlValidator(
       operatorTable,
@@ -111,12 +111,12 @@ class FlinkPlannerImpl(
     ) // Disable implicit type coercion for now.
     validator
   }
-
+  //主要用于验证 SQL 语句的有效性，确保 SQL 语句符合 Flink 的语法和语义要求
   def validate(sqlNode: SqlNode): SqlNode = {
     val validator = getOrCreateSqlValidator()
     validate(sqlNode, validator)
   }
-
+  //对SqlNode节点校验
   private def validate(sqlNode: SqlNode, validator: FlinkCalciteSqlValidator): SqlNode = {
     try {
       sqlNode.accept(new PreValidateReWriter(validator, typeFactory))
@@ -126,7 +126,7 @@ class FlinkPlannerImpl(
           node.validate()
         case _ =>
       }
-      // no need to validate row type for DDL and insert nodes.
+      // no need to validate row type for DDL and insert nodes.DDl和Inset节点不校验
       if (
         sqlNode.getKind.belongsTo(SqlKind.DDL)
         || sqlNode.getKind == SqlKind.CREATE_FUNCTION
@@ -203,7 +203,7 @@ class FlinkPlannerImpl(
         throw new ValidationException(s"SQL validation failed. ${e.getMessage}", e)
     }
   }
-
+  //将经过验证的 SQL 节点转换为 RelRoot（逻辑查询计划）。这是 SQL 到 Rel 操作转换的核心方法
   def rel(validatedSqlNode: SqlNode): RelRoot = {
     rel(validatedSqlNode, getOrCreateSqlValidator())
   }
@@ -276,7 +276,7 @@ class FlinkPlannerImpl(
       false
     }
   }
-
+  //验证 SQL 表达式是否有效。特别用于验证 SQL 中的表达式节点，并确保它们符合输入和输出类型的约束
   def validateExpression(
       sqlNode: SqlNode,
       inputRowType: RelDataType,
@@ -310,7 +310,7 @@ class FlinkPlannerImpl(
     insert.setOperand(2, validatedSource)
     insert
   }
-
+  //将 SQL 节点转换为 RexNode，这是一个表达式形式的节点，可以用于进一步的查询执行
   def rex(
       sqlNode: SqlNode,
       inputRowType: RelDataType,
@@ -335,7 +335,7 @@ class FlinkPlannerImpl(
       case e: RelConversionException => throw new TableException(e.getMessage)
     }
   }
-
+ //创建并返回一个 SqlToRelConverter，用于将 SQL 转换为 Rel 操作。它根据配置和 SQL 验证器进行转换
   private def createSqlToRelConverter(
       sqlValidator: SqlValidator,
       config: SqlToRelConverter.Config): SqlToRelConverter = {
@@ -394,3 +394,12 @@ object FlinkPlannerImpl {
   /** the default field collation if not specified, Consistent with CALCITE. */
   val defaultCollationDirection: RelFieldCollation.Direction = RelFieldCollation.Direction.ASCENDING
 }
+
+/*FlinkPlannerImpl 的工作流
+解析 SQL: FlinkPlannerImpl 使用 CalciteParser 解析 SQL 语句，生成对应的 SqlNode 语法树。
+
+验证 SQL: 使用 FlinkCalciteSqlValidator 对 SQL 进行验证。验证步骤会检查 SQL 语句的合法性、语法错误、表和字段的存在等。
+
+转换为 Relational Plan: 通过 SqlToRelConverter 将经过验证的 SQL 语法树转换为 Relational Plan (RelRoot)，这个计划可以被优化器优化，并最终转化为可执行的查询计划。
+
+执行计划生成: 最终的 Relational Plan 将会经过进一步的优化和转换，生成执行计划，交给 Flink 引擎执行。*/

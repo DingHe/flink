@@ -37,10 +37,10 @@ public interface LeaderRetrievalEventHandler {
      *
      * <p>Duplicated leader change events could happen, so the implementation should check whether
      * the passed leader information is truly changed with last stored leader information.
-     *
+     * 当 LeaderRetrievalDriver 发现领导者发生变化时，调用这个方法来通知 LeaderRetrievalEventHandler 实现者新的领导者信息
      * @param leaderInformation the new leader information to notify {@link LeaderRetrievalService}.
      *     It could be {@link LeaderInformation#empty()} if the leader address does not exist in the
-     *     external storage.
+     *     external storage. LeaderInformation表示当前的领导者信息，封装了领导者的地址和一些其他元数据
      */
     void notifyLeaderAddress(LeaderInformation leaderInformation);
 }

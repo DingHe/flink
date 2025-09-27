@@ -98,7 +98,7 @@ public class LegacySinkTransformationTranslator<IN>
 
         streamGraph.setSupportsConcurrentExecutionAttempts(
                 transformationId, transformation.isSupportsConcurrentExecutionAttempts());
-
+        //添加边
         for (Integer inputId : context.getStreamNodeIds(input)) {
             streamGraph.addEdge(inputId, transformationId, 0);
         }

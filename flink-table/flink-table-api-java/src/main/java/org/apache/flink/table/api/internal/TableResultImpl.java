@@ -50,12 +50,12 @@ import java.util.concurrent.TimeoutException;
 public class TableResultImpl implements TableResultInternal {
 
     private final JobClient jobClient;
-    private final ResolvedSchema resolvedSchema;
-    private final ResultKind resultKind;
+    private final ResolvedSchema resolvedSchema; //已解析的schema
+    private final ResultKind resultKind; //结果类型SUCCESS_WITH_CONTENT或者SUCCESS
     private final ResultProvider resultProvider;
     private final PrintStyle printStyle;
 
-    private final CachedPlan cachedPlan;
+    private final CachedPlan cachedPlan; //返回解析语句的operation
 
     private TableResultImpl(
             @Nullable JobClient jobClient,
@@ -96,7 +96,7 @@ public class TableResultImpl implements TableResultInternal {
 
     private void awaitInternal(long timeout, TimeUnit unit)
             throws InterruptedException, ExecutionException, TimeoutException {
-        if (jobClient == null) {
+        if (jobClient == null) { //客户端为空，则不需要等待
             return;
         }
 
@@ -108,7 +108,7 @@ public class TableResultImpl implements TableResultInternal {
                             () -> {
                                 while (!resultProvider.isFirstRowReady()) {
                                     try {
-                                        Thread.sleep(100);
+                                        Thread.sleep(100); //如果还没结果就等待100毫秒
                                     } catch (InterruptedException e) {
                                         throw new TableException("Thread is interrupted");
                                     }
@@ -136,7 +136,7 @@ public class TableResultImpl implements TableResultInternal {
         return resultKind;
     }
 
-    @Override
+    @Override  //通过resultProvider获取内容
     public CloseableIterator<Row> collect() {
         return resultProvider.toExternalIterator();
     }

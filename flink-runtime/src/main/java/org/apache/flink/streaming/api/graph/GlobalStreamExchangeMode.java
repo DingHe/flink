@@ -31,7 +31,7 @@ import org.apache.flink.streaming.runtime.partitioner.RescalePartitioner;
 @Internal
 public enum GlobalStreamExchangeMode {
     /** Set all job edges to be {@link ResultPartitionType#BLOCKING}. */
-    ALL_EDGES_BLOCKING,
+    ALL_EDGES_BLOCKING, //阻塞型分区意味着数据在传递时会阻塞，直到数据被完全处理。数据流不会继续处理，直到下游算子完全接收并处理了当前算子的所有数据
 
     /**
      * Set job edges with {@link ForwardPartitioner} to be {@link

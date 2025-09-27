@@ -38,9 +38,9 @@ import java.util.Collections;
 public interface TableResultInternal extends TableResult {
     TableResultInternal TABLE_RESULT_OK =
             TableResultImpl.builder()
-                    .resultKind(ResultKind.SUCCESS)
-                    .schema(ResolvedSchema.of(Column.physical("result", DataTypes.STRING())))
-                    .data(Collections.singletonList(Row.of("OK")))
+                    .resultKind(ResultKind.SUCCESS)  //结果类型为SUCCESS
+                    .schema(ResolvedSchema.of(Column.physical("result", DataTypes.STRING()))) //结果的shcema只有result列
+                    .data(Collections.singletonList(Row.of("OK"))) //内容为ok
                     .build();
 
     /** Returns an iterator that returns the iterator with the internal row data type. */

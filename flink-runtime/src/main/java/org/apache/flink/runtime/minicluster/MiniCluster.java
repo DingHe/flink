@@ -326,7 +326,7 @@ public class MiniCluster implements AutoCloseableAsync {
 
             final Configuration configuration = miniClusterConfiguration.getConfiguration();
             final boolean useSingleRpcService =
-                    miniClusterConfiguration.getRpcServiceSharing() == RpcServiceSharing.SHARED;
+                    miniClusterConfiguration.getRpcServiceSharing() == RpcServiceSharing.SHARED; //表示多个组建共享同一个rpc服务
 
             try {
                 workingDirectory =

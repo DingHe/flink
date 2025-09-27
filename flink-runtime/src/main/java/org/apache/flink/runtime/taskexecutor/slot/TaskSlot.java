@@ -64,30 +64,30 @@ import java.util.stream.Collectors;
 public class TaskSlot<T extends TaskSlotPayload> implements AutoCloseableAsync {
     private static final Logger LOG = LoggerFactory.getLogger(TaskSlot.class);
 
-    /** Index of the task slot. */
+    /** Index of the task slot. 表示当前槽位的索引（ID），用于标识 TaskManager 中的具体槽位*/
     private final int index;
 
-    /** Resource characteristics for this slot. */
+    /** Resource characteristics for this slot.描述槽位的资源特征（例如内存、CPU），表示这个槽位可用的资源 */
     private final ResourceProfile resourceProfile;
 
-    /** Tasks running in this slot. */
+    /** Tasks running in this slot. 存储当前槽位上运行的任务，其中 ExecutionAttemptID 是任务的唯一标识，T 是任务的实际负载*/
     private final Map<ExecutionAttemptID, T> tasks;
-
+    //管理任务运行时所需的内存资源，确保任务内存的分配和释放
     private final MemoryManager memoryManager;
 
-    /** State of this slot. */
+    /** State of this slot. 表示当前槽位的状态 */
     private TaskSlotState state;
 
-    /** Job id to which the slot has been allocated. */
+    /** Job id to which the slot has been allocated. slot已经分配给哪个jobid*/
     private final JobID jobId;
 
-    /** Allocation id of this slot. */
+    /** Allocation id of this slot. 槽位的分配标识*/
     private final AllocationID allocationId;
 
-    /** The closing future is completed when the slot is freed and closed. */
+    /** The closing future is completed when the slot is freed and closed. 异步操作的完成标识，用于指示槽位何时被释放*/
     private final CompletableFuture<Void> closingFuture;
 
-    /** {@link Executor} for background actions, e.g. verify all managed memory released. */
+    /** {@link Executor} for background actions, e.g. verify all managed memory released. 用于异步执行后台操作，例如验证内存是否释放*/
     private final Executor asyncExecutor;
 
     public TaskSlot(
@@ -188,7 +188,7 @@ public class TaskSlot<T extends TaskSlotPayload> implements AutoCloseableAsync {
      * <p>In case that the task slot state is not active an {@link IllegalStateException} is thrown.
      * In case that the task's job id and allocation id don't match with the job id and allocation
      * id for which the task slot has been allocated, an {@link IllegalArgumentException} is thrown.
-     *
+     * 添加任务到槽位，验证任务的作业 ID 和分配 ID 与槽位的 jobId 和 allocationId 一致，确保槽位处于 ACTIVE 状态
      * @param task to be added to the task slot
      * @throws IllegalStateException if the task slot is not in state active
      * @return true if the task was added to the task slot; otherwise false

@@ -59,6 +59,7 @@ import java.util.Set;
  * <p>A function can, during runtime, obtain the RuntimeContext via a call to {@link
  * AbstractRichFunction#getRuntimeContext()}.
  */
+//为 Flink 的用户自定义函数（UDF）提供了与执行环境交互的能力
 @Public
 public interface RuntimeContext {
 
@@ -72,6 +73,7 @@ public interface RuntimeContext {
      *     href="https://cwiki.apache.org/confluence/display/FLINK/FLIP-382%3A+Unify+the+Provision+of+Diverse+Metadata+for+Context-like+APIs">
      *     FLIP-382: Unify the Provision of Diverse Metadata for Context-like APIs </a>
      */
+    //获取当前 Flink 作业的唯一 ID 和相关元数据
     @Deprecated
     default JobID getJobId() {
         return getJobInfo().getJobId();
@@ -87,6 +89,7 @@ public interface RuntimeContext {
      *     href="https://cwiki.apache.org/confluence/display/FLINK/FLIP-382%3A+Unify+the+Provision+of+Diverse+Metadata+for+Context-like+APIs">
      *     FLIP-382: Unify the Provision of Diverse Metadata for Context-like APIs </a>
      */
+    //获取当前任务的名称和相关元数据
     @Deprecated
     default String getTaskName() {
         return getTaskInfo().getTaskName();
@@ -110,6 +113,7 @@ public interface RuntimeContext {
      *     href="https://cwiki.apache.org/confluence/display/FLINK/FLIP-382%3A+Unify+the+Provision+of+Diverse+Metadata+for+Context-like+APIs">
      *     FLIP-382: Unify the Provision of Diverse Metadata for Context-like APIs </a>
      */
+    //获取当前任务的总并行度以及当前子任务的索引（从0开始）
     @Deprecated
     default int getNumberOfParallelSubtasks() {
         return getTaskInfo().getNumberOfParallelSubtasks();
@@ -187,6 +191,7 @@ public interface RuntimeContext {
      *     version FLINK-2.0. Users relying on this method should migrate to alternative getter
      *     methods, such as {@link #getGlobalJobParameters()} or {@link #isObjectReuseEnabled()}.
      */
+    //获取当前作业的执行配置。例如，检查是否启用了对象复用
     @Deprecated
     ExecutionConfig getExecutionConfig();
 
@@ -327,6 +332,7 @@ public interface RuntimeContext {
      *
      * @return The distributed cache of the worker executing this instance.
      */
+    //获取分布式缓存的句柄。分布式缓存允许你将文件分发到所有工作节点，然后在 open() 方法中通过它获取本地文件路径
     DistributedCache getDistributedCache();
 
     // ------------------------------------------------------------------------
@@ -374,6 +380,7 @@ public interface RuntimeContext {
      * @throws UnsupportedOperationException Thrown, if no partitioned state is available for the
      *     function (function is not part of a KeyedStream).
      */
+    //获取一个 ValueState 句柄。ValueState 存储一个单一的、可更新的值，适用于按键维护简单的状态，例如计数器
     @PublicEvolving
     <T> ValueState<T> getState(ValueStateDescriptor<T> stateProperties);
 

@@ -31,19 +31,19 @@ public class JobEdge implements java.io.Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** The vertex connected to this edge. */
+    /** The vertex connected to this edge. 目标顶点*/
     private final JobVertex target;
 
-    /** The distribution pattern that should be used for this job edge. */
+    /** The distribution pattern that should be used for this job edge.定义如何跟下游顶点连接，ALL_TO_ALL或者POINTWISE */
     private final DistributionPattern distributionPattern;
 
-    /** The channel rescaler that should be used for this job edge on downstream side. */
+    /** The channel rescaler that should be used for this job edge on downstream side. 并行度变化时，旧的子任务如何连接到新的子任务*/
     private SubtaskStateMapper downstreamSubtaskStateMapper = SubtaskStateMapper.ROUND_ROBIN;
 
     /** The channel rescaler that should be used for this job edge on upstream side. */
     private SubtaskStateMapper upstreamSubtaskStateMapper = SubtaskStateMapper.ROUND_ROBIN;
 
-    /** The data set at the source of the edge, may be null if the edge is not yet connected. */
+    /** The data set at the source of the edge, may be null if the edge is not yet connected. 源节点*/
     private final IntermediateDataSet source;
 
     /**

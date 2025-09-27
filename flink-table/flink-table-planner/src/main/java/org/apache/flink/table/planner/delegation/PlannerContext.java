@@ -88,9 +88,9 @@ import static java.util.Collections.singletonList;
 public class PlannerContext {
 
     private final RelDataTypeSystem typeSystem;
-    private final FlinkTypeFactory typeFactory;
+    private final FlinkTypeFactory typeFactory; //FLINK的类型工厂
     private final RelOptCluster cluster;
-    private final FlinkContext context;
+    private final FlinkContext context; //FLINK的上下文
     private final CalciteSchema rootSchema;
     private final List<RelTraitDef> traitDefs;
     private final FrameworkConfig frameworkConfig;

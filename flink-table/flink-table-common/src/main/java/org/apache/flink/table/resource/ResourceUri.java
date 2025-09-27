@@ -25,7 +25,7 @@ import java.util.Objects;
 /** Description of resource information. */
 @PublicEvolving
 public class ResourceUri {
-
+    //资源类型为FILE JAR or ARCHIVE
     private final ResourceType resourceType;
     private final String uri;
 

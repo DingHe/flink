@@ -34,7 +34,7 @@ import org.apache.flink.table.operations.TableSourceQueryOperation;
 import org.apache.flink.table.operations.ValuesQueryOperation;
 import org.apache.flink.table.operations.WindowAggregateQueryOperation;
 
-/**
+/** 都通过重写的defaultMethod执行代码逻辑
  * A utility {@link QueryOperationVisitor} that calls {@link
  * QueryOperationDefaultVisitor#defaultMethod(QueryOperation)} by default, unless other methods are
  * overridden explicitly.

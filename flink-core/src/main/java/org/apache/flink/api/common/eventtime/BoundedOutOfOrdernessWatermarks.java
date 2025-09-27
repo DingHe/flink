@@ -32,14 +32,21 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>The watermarks are generated periodically. The delay introduced by this watermark strategy is
  * the periodic interval length, plus the out-of-orderness bound.
+ * 提供的一个 WatermarkGenerator 的具体实现类，它的作用是专门用于处理**有界乱序（Bounded Out-of-Orderness）**的数据流
+ * 在实际的流处理场景中，数据到达的顺序往往不是完全按时间戳递增的，可能会有部分乱序。然而，在许多情况下，我们可以假定乱序的程度有一个上限。例如，我们知道任何事件最多会迟到 5 秒
+ * //工作原理是
+ * //跟踪最大时间戳：每当一个新事件到达时，它会记录到目前为止所见过的最大时间戳（maxTimestamp）
+ * //周期性生成水印：它会周期性地生成水印。生成的水印时间戳是 maxTimestamp - maxOutOfOrderness - 1
  */
 @Public
 public class BoundedOutOfOrdernessWatermarks<T> implements WatermarkGenerator<T> {
 
     /** The maximum timestamp encountered so far. */
+    //用于存储到目前为止在流中见到的最大事件时间戳
     private long maxTimestamp;
 
     /** The maximum out-of-orderness that this watermark generator assumes. */
+    //表示允许的最大乱序时间，以毫秒为单位
     private final long outOfOrdernessMillis;
 
     /**
@@ -58,12 +65,13 @@ public class BoundedOutOfOrdernessWatermarks<T> implements WatermarkGenerator<T>
     }
 
     // ------------------------------------------------------------------------
-
+    //每当一个事件到达时被调用
+    //比较当前事件的时间戳 eventTimestamp 和 maxTimestamp，并用两者中的较大值来更新 maxTimestamp。它不会立即发出水印
     @Override
     public void onEvent(T event, long eventTimestamp, WatermarkOutput output) {
         maxTimestamp = Math.max(maxTimestamp, eventTimestamp);
     }
-
+    //以固定的时间间隔被调用，用于生成水印
     @Override
     public void onPeriodicEmit(WatermarkOutput output) {
         output.emitWatermark(new Watermark(maxTimestamp - outOfOrdernessMillis - 1));

@@ -32,17 +32,17 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.apache.flink.table.expressions.ApiExpressionUtils.unresolvedCall;
-
+//继承的接口只要重写defaultMethod方法即可，如果其他visit没有重写，就按照defaultMethod的逻辑。主要负责调用函数到真实函数调用的转换
 /** Resolves calls with function names to calls with actual function definitions. */
 @Internal
 public class LookupCallResolver extends ApiExpressionDefaultVisitor<Expression> {
 
-    private final FunctionLookup functionLookup;
+    private final FunctionLookup functionLookup; //负责查找函数
 
     public LookupCallResolver(FunctionLookup functionLookup) {
         this.functionLookup = functionLookup;
     }
-
+    //找到函数，返回函数的调用表达式
     public Expression visit(LookupCallExpression lookupCall) {
         final ContextResolvedFunction resolvedFunction =
                 functionLookup

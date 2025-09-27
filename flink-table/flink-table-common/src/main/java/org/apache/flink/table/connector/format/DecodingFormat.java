@@ -84,6 +84,8 @@ import java.util.Map;
  *
  * @param <I> runtime interface needed by the table source
  */
+//是 Flink Table API 中用于数据源的 Format 子接口。它的核心作用是定义一个解码（反序列化）器的契约，
+// 用于将外部数据源（如 Kafka、文件等）的原始字节流或行数据转换为 Flink 内部的 RowData 对象
 @PublicEvolving
 public interface DecodingFormat<I> extends Format {
 
@@ -95,6 +97,10 @@ public interface DecodingFormat<I> extends Format {
      *     decoder implementation of the format
      * @param physicalDataType For more details check the documentation of {@link DecodingFormat}.
      */
+    //创建并返回一个运行时解码器实现
+    //physicalDataType: 物理数据类型。
+    // 这通常是从表的 ResolvedSchema 中派生出来的，它描述了序列化记录中所有字段的完整结构
+    //I: 这是一个泛型，代表了具体的运行时解码器接口，例如 DeserializationSchema<RowData> 或其他批量读取接口
     I createRuntimeDecoder(DynamicTableSource.Context context, DataType physicalDataType);
 
     /**
@@ -110,6 +116,8 @@ public interface DecodingFormat<I> extends Format {
      * SupportsReadingMetadata} and calls this method in {@link
      * SupportsReadingMetadata#listReadableMetadata()}.
      */
+    //列出该格式可读取的所有元数据键及其对应的数据类型
+    //这是一种高级功能，允许从外部数据（例如 Kafka 消息的偏移量、时间戳等）中提取额外的元信息，并作为特殊的列添加到结果表中
     default Map<String, DataType> listReadableMetadata() {
         return Collections.emptyMap();
     }
@@ -124,6 +132,7 @@ public interface DecodingFormat<I> extends Format {
      * SupportsReadingMetadata} and calls this method in {@link
      * SupportsReadingMetadata#applyReadableMetadata(List, DataType)}.
      */
+    //应用用户在 SQL 中指定的元数据键
     @SuppressWarnings("unused")
     default void applyReadableMetadata(List<String> metadataKeys) {
         throw new UnsupportedOperationException(

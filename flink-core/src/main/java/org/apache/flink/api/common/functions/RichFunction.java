@@ -27,6 +27,8 @@ import org.apache.flink.configuration.Configuration;
  * cycle of the functions, as well as methods to access the context in which the functions are
  * executed.
  */
+//提供生命周期管理：RichFunction 定义了 open() 和 close() 方法，允许用户在函数开始执行前进行一次性设置（如连接数据库、加载模型文件）和在函数结束时进行资源清理（如关闭连接）
+//提供运行时上下文访问：它定义了 getRuntimeContext() 方法，允许用户获取到运行时上下文（RuntimeContext）。这个上下文包含了关于函数执行环境的丰富信息，比如任务名称、子任务索引、并行度、以及访问累加器和广播变量的能力
 @Public
 public interface RichFunction extends Function {
 
@@ -72,6 +74,8 @@ public interface RichFunction extends Function {
      * @see <a href="https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=263425231">
      *     FLIP-344: Remove parameter in RichFunction#open </a>
      */
+    //初始化方法。它在任何数据处理方法（如 map, filter）被调用之前，在每个并行子任务上只执行一次
+    //
     @Deprecated
     void open(Configuration parameters) throws Exception;
 
@@ -114,6 +118,7 @@ public interface RichFunction extends Function {
      *     When the runtime catches an exception, it aborts the task and lets the fail-over logic
      *     decide whether to retry the task execution.
      */
+    //open 方法的新版本。它提供了更丰富的上下文信息，以便更好地进行初始化
     @PublicEvolving
     default void open(OpenContext openContext) throws Exception {
         open(new Configuration());
@@ -130,6 +135,7 @@ public interface RichFunction extends Function {
      *     When the runtime catches an exception, it aborts the task and lets the fail-over logic
      *     decide whether to retry the task execution.
      */
+    //函数的清理方法。它在数据处理方法被最后一次调用后，在每个并行子任务上只执行一次
     void close() throws Exception;
 
     // ------------------------------------------------------------------------
@@ -147,6 +153,7 @@ public interface RichFunction extends Function {
      *
      * @return The UDF's runtime context.
      */
+    //返回一个运行时上下文对象
     RuntimeContext getRuntimeContext();
 
     /**
@@ -159,6 +166,7 @@ public interface RichFunction extends Function {
      * @throws java.lang.IllegalStateException Thrown, if the function is not executed as part of an
      *     iteration.
      */
+    //返回一个迭代运行时上下文对象
     IterationRuntimeContext getIterationRuntimeContext();
 
     /**

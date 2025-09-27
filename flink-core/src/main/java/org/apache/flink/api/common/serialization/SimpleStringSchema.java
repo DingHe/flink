@@ -33,6 +33,10 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>By default, the serializer uses "UTF-8" for string/byte conversion.
  */
+// 非常简单的、用于字符串类型数据的序列化和反序列化模式。
+// 它同时实现了 DeserializationSchema<String> 和 SerializationSchema<String> 接口，
+// 这意味着它既能将字节流（如来自 Kafka 的消息）反序列化为 Java String 对象，
+// 也能将 Java String 对象序列化为字节数组，以便写入外部系统。默认情况下，它使用 UTF-8 编码进行转换
 @PublicEvolving
 public class SimpleStringSchema
         implements DeserializationSchema<String>, SerializationSchema<String> {
@@ -43,6 +47,7 @@ public class SimpleStringSchema
      * The charset to use to convert between strings and bytes. The field is transient because we
      * serialize a different delegate object instead
      */
+    //定义了用于字符串和字节之间转换的字符集
     private transient Charset charset;
 
     /** Creates a new SimpleStringSchema that uses "UTF-8" as the encoding. */

@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 
 /** A thread-safe in-memory implementation of the {@link JobResultStore}. */
 public class EmbeddedJobResultStore extends AbstractThreadsafeJobResultStore {
-
+     //结果存储在内存
     private final Map<JobID, JobResultEntry> dirtyJobResults = new HashMap<>();
 
     private final Map<JobID, JobResultEntry> cleanJobResults = new HashMap<>();

@@ -28,7 +28,7 @@ import java.util.TreeSet;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/**
+/** 相同 SlotSharingGroup 的不同 JobVertex 的子任务可以被分配在同一个 slot 中，但不保证能做到
  * A slot sharing units defines which different task (from different job vertices) can be deployed
  * together within a slot. This is a soft permission, in contrast to the hard constraint defined by
  * a co-location hint.

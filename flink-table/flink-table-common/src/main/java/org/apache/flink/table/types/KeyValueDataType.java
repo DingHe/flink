@@ -37,13 +37,17 @@ import static org.apache.flink.table.types.logical.utils.LogicalTypeUtils.toInte
  *
  * @see DataTypes for a list of supported data types
  */
+// Flink 表生态系统中用于表示键值对复合数据类型的具体实现类。
+// 它的核心作用是为像 MAP（映射）这样的数据类型提供一个具体的、可实例化的 DataType 对象
+//与 AtomicDataType（用于基本类型）不同，KeyValueDataType 包含了两个子数据类型：一个用于键 (keyDataType)，另一个用于值 (valueDataType)。
+// 这种设计允许 Flink 准确地描述和处理像 MAP<STRING, INT> 这样的复杂数据结构
 @PublicEvolving
 public final class KeyValueDataType extends DataType {
-
+    //存储该键值对类型的键的数据类型
     private final DataType keyDataType;
-
+    //存储该键值对类型的值的数据类型
     private final DataType valueDataType;
-
+    //创建一个具有指定逻辑类型、物理转换类、键类型和值类型的 KeyValueDataType 实例
     public KeyValueDataType(
             LogicalType logicalType,
             @Nullable Class<?> conversionClass,

@@ -31,14 +31,17 @@ import org.apache.flink.streaming.api.transformations.SourceTransformation;
 
 /**
  * The DataStreamSource represents the starting point of a DataStream.
- *
+ * 代表一个数据源（Source）算子。
+ * 它的主要作用是从外部系统（如文件、Kafka、Socket 等）中读取数据，并作为数据流的第一个元素进入整个 Flink 作业
  * @param <T> Type of the elements in the DataStream created from the this source.
  */
 @Public
 public class DataStreamSource<T> extends SingleOutputStreamOperator<T> {
-
+    //用于指示该数据源是否可以并行执行
     private boolean isParallel;
-
+    // 用于创建旧版（Legacy）数据源的构造函数。
+    // 它接收执行环境、输出类型信息、StreamSource 算子、并行性标志和名称。
+    // 在内部，它创建了一个 LegacySourceTransformation 来表示这个旧版数据源操作
     public DataStreamSource(
             StreamExecutionEnvironment environment,
             TypeInformation<T> outTypeInfo,
@@ -78,7 +81,8 @@ public class DataStreamSource<T> extends SingleOutputStreamOperator<T> {
         }
     }
 
-    /**
+    /** 用于创建**“深层”数据源**。
+     * 它接收一个已经配置好的 SingleOutputStreamOperator，通常用于一些手动配置的复杂数据源，这些数据源可能由多个操作符组成
      * Constructor for "deep" sources that manually set up (one or more) custom configured complex
      * operators.
      */

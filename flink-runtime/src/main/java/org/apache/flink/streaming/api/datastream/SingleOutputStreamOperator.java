@@ -41,13 +41,15 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 /**
  * {@code SingleOutputStreamOperator} represents a user defined transformation applied on a {@link
  * DataStream} with one predefined output type.
- *
+ * 代表一个已应用了用户自定义转换（如 map、filter、process 等）并且只产生一个主要输出流的算子。
+ * 它封装了对这个特定转换算子的所有配置选项，比如设置并行度、名称、UID、资源、链式策略等
  * @param <T> The type of the elements in this stream.
  */
 @Public
 public class SingleOutputStreamOperator<T> extends DataStream<T> {
 
     /** Indicate this is a non-parallel operator and cannot set a non-1 degree of parallelism. * */
+    //用于指示该算子是否是非并行的。如果设置为 true，则该算子的并行度只能是1
     protected boolean nonParallel = false;
 
     /**
@@ -55,6 +57,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
      * can catch the case when a side output with a matching id is requested for a different type
      * because this would lead to problems at runtime.
      */
+    //用于记录所有已经被请求的侧输出及其对应的类型信息
     private Map<OutputTag<?>, TypeInformation<?>> requestedSideOutputs = new HashMap<>();
 
     protected SingleOutputStreamOperator(
@@ -65,7 +68,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
     /**
      * Gets the name of the current data stream. This name is used by the visualization and logging
      * during runtime.
-     *
+     * 获取当前算子的名称
      * @return Name of the stream.
      */
     public String getName() {
@@ -75,7 +78,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
     /**
      * Sets the name of the current data stream. This name is used by the visualization and logging
      * during runtime.
-     *
+     * 设置当前算子的名称。这是一个链式调用方法，返回当前实例，方便进行链式编程
      * @return The named operator.
      */
     public SingleOutputStreamOperator<T> name(String name) {
@@ -91,7 +94,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
      *
      * <p><strong>Important</strong>: this ID needs to be unique per transformation and job.
      * Otherwise, job submission will fail.
-     *
+     * 设置算子的唯一 ID（UID）。UID 是在保存点（Savepoint）和故障恢复时用于标识算子的重要属性
      * @param uid The unique user-specified ID of this transformation.
      * @return The operator with the specified ID.
      */
@@ -118,7 +121,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
      * that changes the automatically generated hashes. In this case, providing the previous hashes
      * directly through this method (e.g. obtained from old logs) can help to reestablish a lost
      * mapping from states to their target operator.
-     *
+     * 设置一个用户提供的哈希值作为 JobVertexID
      * @param uidHash The user provided hash for this operator. This will become the JobVertexID,
      *     which is shown in the logs and web ui.
      * @return The operator with the user provided hash.
@@ -131,7 +134,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
 
     /**
      * Sets the parallelism for this operator.
-     *
+     * 设置当前算子的并行度。这个值决定了 Flink 集群中运行该算子的任务实例数量
      * @param parallelism The parallelism for this operator.
      * @return The operator with set parallelism.
      */
@@ -147,7 +150,8 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
      *
      * <p>The maximum parallelism specifies the upper bound for dynamic scaling. It also defines the
      * number of key groups used for partitioned state.
-     *
+     * 设置当前算子的最大并行度。
+     * 该值定义了动态扩缩容的上限，也决定了分区状态（Partitioned State）的键组（key groups）数量
      * @param maxParallelism Maximum parallelism
      * @return The operator with set maximum parallelism
      */
@@ -199,7 +203,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
     /**
      * Sets the parallelism and maximum parallelism of this operator to one. And mark this operator
      * cannot set a non-1 degree of parallelism.
-     *
+     * 强制将算子的并行度和最大并行度都设置为1，并将其标记为非并行算子
      * @return The operator with only one parallelism.
      */
     @PublicEvolving
@@ -220,7 +224,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
      * <p>A value of '-1' means that the default buffer timeout should be used. A value of '0'
      * indicates that no buffering should happen, and all records/events should be immediately sent
      * through the network, without additional buffering.
-     *
+     * 设置数据缓冲区的超时时间
      * @param timeoutMillis The maximum time between two output flushes.
      * @return The operator with buffer timeout set.
      */
@@ -233,7 +237,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
     /**
      * Sets the {@link ChainingStrategy} for the given operator affecting the way operators will
      * possibly be co-located on the same thread for increased performance.
-     *
+     * 设置算子的算子链策略。该策略决定了 Flink 是否以及如何将多个算子合并到同一个物理任务中，以提高性能
      * @param strategy The selected {@link ChainingStrategy}
      * @return The operator with the modified chaining strategy
      */
@@ -255,7 +259,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
      * <p>Chaining can be turned off for the whole job by {@link
      * StreamExecutionEnvironment#disableOperatorChaining()} however it is not advised for
      * performance considerations.
-     *
+     * 禁用当前算子的算子链。这意味着该算子将不会与前后的算子合并，而是在独立的任务线程中执行
      * @return The operator with chaining disabled
      */
     @PublicEvolving
@@ -266,7 +270,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
     /**
      * Starts a new task chain beginning at this operator. This operator will not be chained (thread
      * co-located for increased performance) to any previous tasks even if possible.
-     *
+     * 强制当前算子开启一个新的算子链。这意味着它不会与之前的算子合并，但可以与后面的算子合并
      * @return The operator with chaining set.
      */
     @PublicEvolving
@@ -287,7 +291,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
      * <p>Classes can be used as type hints for non-generic types (classes without generic
      * parameters), but not for generic types like for example Tuples. For those generic types,
      * please use the {@link #returns(TypeHint)} method.
-     *
+     * 为算子的输出类型提供类型提示。当 Flink 的类型推断系统无法自动确定输出类型时（例如，当使用泛型时），可以使用此方法来显式指定
      * @param typeClass The class of the returned data type.
      * @return This operator with the type information corresponding to the given type class.
      */
@@ -317,7 +321,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
      *     stream.flatMap(new FunctionWithNonInferrableReturnType())
      *           .returns(new TypeHint<Tuple2<String, Double>>(){});
      * }</pre>
-     *
+     * 为算子的输出类型提供类型提示。与上一个方法类似，但使用 TypeHint，这更适用于泛型类型
      * @param typeHint The type hint for the returned data type.
      * @return This operator with the type information corresponding to the given type hint.
      */
@@ -338,7 +342,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
      * in cases where Flink cannot determine automatically what the produced type of a function is.
      * That can be the case if the function uses generic type variables in the return type that
      * cannot be inferred from the input type.
-     *
+     * 为算子的输出类型提供类型信息。这是类型提示的通用底层方法，接受一个 TypeInformation 对象
      * <p>In most cases, the methods {@link #returns(Class)} and {@link #returns(TypeHint)} are
      * preferable.
      *
@@ -365,6 +369,9 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
      *
      * <p>Initially an operation is in the default slot sharing group. An operation can be put into
      * the default group explicitly by setting the slot sharing group to {@code "default"}.
+     *
+     * 设置算子的槽位共享组（Slot Sharing Group）。
+     * 属于同一组的算子可以共享同一个 TaskManager 的任务槽（Task Slot），从而节省资源
      *
      * @param slotSharingGroup The slot sharing group name.
      */
@@ -395,7 +402,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
     /**
      * Gets the {@link DataStream} that contains the elements that are emitted from an operation
      * into the side output with the given {@link OutputTag}.
-     *
+     * 根据给定的 OutputTag，获取当前算子的侧输出流。这允许你将数据发送到主输出流之外的其他流，并对这些流进行单独处理
      * @see org.apache.flink.streaming.api.functions.ProcessFunction.Context#output(OutputTag,
      *     Object)
      */
@@ -428,7 +435,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
      * while name is expected to be more simple, providing summary information only, so that we can
      * have more user-friendly logging messages and metric tags without losing useful messages for
      * debugging.
-     *
+     * 为算子设置描述信息。与 name 不同，description 用于提供更详细的信息，主要用于 JSON 计划和 Web UI，而不是日志和度量指标
      * @param description The description for this operation.
      * @return The operation with new description.
      */
@@ -443,7 +450,7 @@ public class SingleOutputStreamOperator<T> extends DataStream<T> {
      * currently only block mode is supported. The cache is generated lazily at the first time the
      * intermediate result is computed. The cache will be clear when {@link
      * CachedDataStream#invalidate()} called or the {@link StreamExecutionEnvironment} close.
-     *
+     * 根据给定的 OutputTag，获取当前算子的侧输出流。这允许你将数据发送到主输出流之外的其他流，并对这些流进行单独处理
      * @return CachedDataStream that can use in later job to reuse the cached intermediate result.
      */
     @PublicEvolving

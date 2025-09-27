@@ -388,9 +388,9 @@ public class PipelineOptions {
     @PublicEvolving
     public enum VertexDescriptionMode {
         /** Organizes the description in a multi line tree mode. */
-        TREE,
+        TREE, //Flink 在显示流任务的拓扑时，会以树状结构呈现各个节点和它们之间的关系。这通常用于可视化或日志输出中，以便用户能够清晰地看到任务流中各个阶段或算子的层次关系。例如，根节点代表主任务或最上层的任务，而子节点则表示依赖于该任务的下游任务
         /** Organizes the description in a single line cascading mode, which is similar to name. */
-        CASCADING
+        CASCADING  //所有的顶点描述会被排列成一条线，像级联一样。每个顶点会在同一行显示，按顺序呈现。这种方式适用于描述简单的流图，其中任务之间的依赖关系较少，或者任务流呈现线性结构
     }
 
     public static final ConfigOption<Boolean> VERTEX_NAME_INCLUDE_INDEX_PREFIX =

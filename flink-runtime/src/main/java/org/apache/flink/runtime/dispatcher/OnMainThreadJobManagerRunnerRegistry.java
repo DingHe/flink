@@ -32,7 +32,7 @@ import java.util.concurrent.Executor;
  * {@code OnMainThreadJobManagerRunnerRegistry} implements {@link JobManagerRunnerRegistry} guarding
  * the passed {@code JobManagerRunnerRegistry} instance in a way that it only allows modifying
  * methods to be executed on the component's main thread.
- *
+ *  通过JobManagerRunnerRegistry来注册，这个类的作用是判断要在指定线程
  * @see ComponentMainThreadExecutor
  */
 public class OnMainThreadJobManagerRunnerRegistry

@@ -25,7 +25,7 @@ import org.apache.flink.util.AutoCloseableAsync;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-
+  //封装Dispatcher的生命周期
 /** Leader process which encapsulates the lifecycle of the {@link Dispatcher} component. */
 interface DispatcherLeaderProcess extends AutoCloseableAsync {
 

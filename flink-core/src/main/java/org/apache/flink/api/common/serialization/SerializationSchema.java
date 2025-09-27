@@ -31,6 +31,8 @@ import java.io.Serializable;
  *
  * @param <T> The type to be serialized.
  */
+//其作用是定义如何将 Flink 内部处理的 Java/Scala 数据对象序列化为外部数据格式（通常是字节数组），以便写入到数据接收器（Sink）中，例如 Apache Kafka、文件或数据库。
+// 它充当了 Flink 内部处理逻辑和外部数据存储之间的桥梁
 @Public
 public interface SerializationSchema<T> extends Serializable {
     /**
@@ -42,6 +44,8 @@ public interface SerializationSchema<T> extends Serializable {
      *
      * @param context Contextual information that can be used during initialization.
      */
+    //初始化方法
+    //
     @PublicEvolving
     default void open(InitializationContext context) throws Exception {}
 
@@ -51,6 +55,8 @@ public interface SerializationSchema<T> extends Serializable {
      * @param element The incoming element to be serialized
      * @return The serialized element.
      */
+    //序列化传入的元素
+    //接收一个 T 类型的对象，并返回一个表示该对象的字节数组
     byte[] serialize(T element);
 
     /**

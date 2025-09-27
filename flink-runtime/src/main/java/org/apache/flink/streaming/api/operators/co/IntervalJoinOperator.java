@@ -80,6 +80,7 @@ import java.util.Objects;
  * @param <T2> The type of the elements in the right stream.
  * @param <OUT> The output type created by the user-defined function.
  */
+//实现基于时间区间联结（Interval Join） 的核心算子。它处理两个已经按照相同键进行分区的流，并根据每个流中元素的事件时间戳和用户定义的时间边界来将元素进行匹配
 @Internal
 public class IntervalJoinOperator<K, T1, T2, OUT>
         extends AbstractUdfStreamOperator<OUT, ProcessJoinFunction<T1, T2, OUT>>
@@ -94,20 +95,26 @@ public class IntervalJoinOperator<K, T1, T2, OUT>
     private static final String CLEANUP_TIMER_NAME = "CLEANUP_TIMER";
     private static final String CLEANUP_NAMESPACE_LEFT = "CLEANUP_LEFT";
     private static final String CLEANUP_NAMESPACE_RIGHT = "CLEANUP_RIGHT";
-
+    // 定义了联结的时间边界。
+    // lowerBound 和 upperBound 指定了右流元素的事件时间戳相对于左流元素时间戳的偏移量范围。
+    // 例如，如果左流元素时间戳为 t1，右流元素时间戳为 t2，则联结条件为 t2.ts ∈ [t1.ts + lowerBound, t1.ts + upperBound]
     private final long lowerBound;
     private final long upperBound;
+    //迟到数据侧输出标签。用于将迟于当前水印的元素发送到指定的侧输出流，而不是丢弃
     private final OutputTag<T1> leftLateDataOutputTag;
     private final OutputTag<T2> rightLateDataOutputTag;
+    //类型序列化器。用于正确地序列化和反序列化左右流的元素，这是状态管理和网络传输所必需的
     private final TypeSerializer<T1> leftTypeSerializer;
     private final TypeSerializer<T2> rightTypeSerializer;
-
+    //左右流的缓冲状态。这是该算子存储所有未处理元素的键控状态。
+    // MapState 的键是元素的事件时间戳，值是一个 BufferEntry 列表，因为可能存在多个元素具有相同的时间戳
     private transient MapState<Long, List<BufferEntry<T1>>> leftBuffer;
     private transient MapState<Long, List<BufferEntry<T2>>> rightBuffer;
-
+    //带时间戳的收集器。用于将处理后的输出结果发送到下游，并为其分配一个正确的时间戳（
     private transient TimestampedCollector<OUT> collector;
+    //用户自定义 ProcessJoinFunction 的上下文实现。它包装了 ProcessJoinFunction.Context，提供了访问联结元素时间戳和侧输出流的方法
     private transient ContextImpl context;
-
+    //内部定时器服务。用于注册和管理清理定时器，确保状态不会无限增长
     private transient InternalTimerService<String> internalTimerService;
 
     /**
@@ -158,7 +165,7 @@ public class IntervalJoinOperator<K, T1, T2, OUT>
         internalTimerService =
                 getInternalTimerService(CLEANUP_TIMER_NAME, StringSerializer.INSTANCE, this);
     }
-
+    //状态初始化和恢复。除了调用父类的逻辑，它会注册 leftBuffer 和 rightBuffer 这两个 MapState，从而在算子启动时（或从检查点恢复时）初始化状态
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
@@ -191,6 +198,8 @@ public class IntervalJoinOperator<K, T1, T2, OUT>
      * @param record An incoming record to be joined
      * @throws Exception Can throw an Exception during state access
      */
+    //处理输入元素。这是处理来自左流或右流的元素的主要方法。它们是 TwoInputStreamOperator 接口的实现，内部调用私有方法 processElement 来执行核心逻辑
+    //Interval Join 的核心联结条件是：左流元素时间戳 + lowerBound <= 右流元素时间戳 <= 左流元素时间戳 + upperBound
     @Override
     public void processElement1(StreamRecord<T1> record) throws Exception {
         processElement(record, leftBuffer, rightBuffer, lowerBound, upperBound, true);
@@ -205,11 +214,17 @@ public class IntervalJoinOperator<K, T1, T2, OUT>
      * @param record An incoming record to be joined
      * @throws Exception Can throw an exception during state access
      */
+    //以左流元素为基准  : 左流元素时间戳 + lowerBound <= 右流元素时间戳 <= 左流元素时间戳 + upperBound
+    //=> 左流元素时间戳  <= 右流元素时间戳 - lowerBound
+    //=> 右流元素时间戳  >= 右流元素时间戳 - upperBound
+    //以右流元素为基准 :  =>   右流元素时间戳 - upperBound    <= 左流元素时间戳  <= 右流元素时间戳 - lowerBound
+
     @Override
     public void processElement2(StreamRecord<T2> record) throws Exception {
         processElement(record, rightBuffer, leftBuffer, -upperBound, -lowerBound, false);
     }
-
+    //核心处理逻辑。这个私有方法是联结算法的核心。它会检查元素是否迟到，如果是则发送到侧输出。
+    // 否则，它会将元素添加到相应缓冲状态，然后遍历另一个缓冲状态寻找匹配的元素，并调用 collect 方法进行联结
     @SuppressWarnings("unchecked")
     private <THIS, OTHER> void processElement(
             final StreamRecord<THIS> record,
@@ -219,8 +234,9 @@ public class IntervalJoinOperator<K, T1, T2, OUT>
             final long relativeUpperBound,
             final boolean isLeft)
             throws Exception {
-
+        //表示从某个输入流接收到的记录，THIS 是该流元素的类型
         final THIS ourValue = record.getValue();
+        //获取输入记录的事件时间戳
         final long ourTimestamp = record.getTimestamp();
 
         if (ourTimestamp == Long.MIN_VALUE) {
@@ -228,17 +244,18 @@ public class IntervalJoinOperator<K, T1, T2, OUT>
                     "Long.MIN_VALUE timestamp: Elements used in "
                             + "interval stream joins need to have timestamps meaningful timestamps.");
         }
-
+        //迟到数据处理。调用 isLate 方法检查当前元素的时间戳是否小于当前的水印
         if (isLate(ourTimestamp)) {
             sideOutput(ourValue, ourTimestamp, isLeft);
             return;
         }
 
         addToBuffer(ourBuffer, ourValue, ourTimestamp);
-
+        //添加到状态。将当前元素及其时间戳添加到其对应的状态缓冲区 ourBuffer 中
         for (Map.Entry<Long, List<BufferEntry<OTHER>>> bucket : otherBuffer.entries()) {
+            //获取另一个流中元素的事件时间戳
             final long timestamp = bucket.getKey();
-
+            //联结条件判断
             if (timestamp < ourTimestamp + relativeLowerBound
                     || timestamp > ourTimestamp + relativeUpperBound) {
                 continue;
@@ -252,7 +269,10 @@ public class IntervalJoinOperator<K, T1, T2, OUT>
                 }
             }
         }
-
+        //ourTimestamp：是当前新到达元素的事件时间戳
+        //relativeUpperBound：是联结的时间上界，即另一个流中的元素时间戳与当前流中元素时间戳的最大时间差
+        //relativeUpperBound > 0L  意味着联结窗口的右边界在当前元素时间戳的未来
+        //relativeUpperBound <= 0L 意味着联结窗口的右边界在当前元素时间戳的过去或当下
         long cleanupTime =
                 (relativeUpperBound > 0L) ? ourTimestamp + relativeUpperBound : ourTimestamp;
         if (isLeft) {
@@ -261,13 +281,14 @@ public class IntervalJoinOperator<K, T1, T2, OUT>
             internalTimerService.registerEventTimeTimer(CLEANUP_NAMESPACE_RIGHT, cleanupTime);
         }
     }
-
+    //如果事件时间小于当前水位线，则认为迟到
     private boolean isLate(long timestamp) {
         long currentWatermark = internalTimerService.currentWatermark();
         return timestamp < currentWatermark;
     }
 
     /** Write skipped late arriving element to SideOutput. */
+    //输出测流
     protected <T> void sideOutput(T value, long timestamp, boolean isLeft) {
         if (isLeft) {
             if (leftLateDataOutputTag != null) {
@@ -393,8 +414,9 @@ public class IntervalJoinOperator<K, T1, T2, OUT>
     @Internal
     @VisibleForTesting
     public static class BufferEntry<T> {
-
+        //流元素
         private final T element;
+        //是否已经连接
         private final boolean hasBeenJoined;
 
         public BufferEntry(T element, boolean hasBeenJoined) {

@@ -81,7 +81,7 @@ public interface TaskMailbox {
 
     /**
      * Check if the current thread is the mailbox thread.
-     *
+     * 检查当前线程是否mailbox trhead
      * <p>Read operations will fail if they are called from another thread.
      *
      * @return only true if called from the mailbox thread.
@@ -90,7 +90,7 @@ public interface TaskMailbox {
 
     /**
      * Returns <code>true</code> if the mailbox contains mail.
-     *
+     * 是否有邮件
      * <p>Must be called from the mailbox thread ({@link #isMailboxThread()}.
      */
     boolean hasMail();
@@ -98,7 +98,7 @@ public interface TaskMailbox {
     /**
      * Returns an optional with either the oldest mail from the mailbox (head of queue) if the
      * mailbox is not empty or an empty optional otherwise.
-     *
+     * 返回最先排队的邮件，没有返回空
      * <p>Must be called from the mailbox thread ({@link #isMailboxThread()}.
      *
      * @return an optional with either the oldest mail from the mailbox (head of queue) if the
@@ -112,7 +112,7 @@ public interface TaskMailbox {
      * is available.
      *
      * <p>Must be called from the mailbox thread ({@link #isMailboxThread()}.
-     *
+     * 取出优先级最高的任务，没有会阻塞
      * @return the oldest mail from the mailbox (head of queue).
      * @throws InterruptedException on interruption.
      * @throws IllegalStateException if mailbox is already closed.
@@ -132,7 +132,7 @@ public interface TaskMailbox {
      *
      * <p>If a batch is not completely consumed by {@link #tryTakeFromBatch()}, its elements are
      * carried over to the new batch.
-     *
+     *  为了减少读取队列时的同步开销，TaskMailbox 支持创建一个 batch 后续消费，相当于把队列中的元素存入一个额外的队列，后续消费时就避免了加锁的操作
      * <p>Must be called from the mailbox thread ({@link #isMailboxThread()}.
      *
      * @return true if there is at least one element in the batch; that is, if there is any mail at
@@ -148,7 +148,7 @@ public interface TaskMailbox {
      *
      * <p>Note that there is no blocking {@code takeFromBatch} as batches can only be created and
      * consumed from the mailbox thread.
-     *
+     *  从当前批次中取出一个任务
      * @return an optional with either the oldest mail from the batch (head of queue) if the batch
      *     is not empty or an empty optional otherwise.
      * @throws MailboxClosedException if mailbox is already closed.
@@ -162,7 +162,7 @@ public interface TaskMailbox {
      * put.
      *
      * <p>Mails can be added from any thread.
-     *
+     * 将一个任务（Mail）添加到邮箱中
      * @param mail the mail to enqueue.
      * @throws MailboxClosedException if the mailbox is quiesced or closed.
      */
@@ -183,9 +183,9 @@ public interface TaskMailbox {
     /** This enum represents the states of the mailbox lifecycle. */
     enum State {
         OPEN(true),
-        QUIESCED(false),
+        QUIESCED(false), //静默
         CLOSED(false);
-        private final boolean acceptingMails;
+        private final boolean acceptingMails; //是否接收邮件
 
         State(boolean acceptingMails) {
             this.acceptingMails = acceptingMails;
@@ -198,12 +198,12 @@ public interface TaskMailbox {
 
     /**
      * Drains the mailbox and returns all mails that were still enqueued.
-     *
+     *  清空邮箱并返回所有仍在排队的邮件
      * @return list with all mails that where enqueued in the mailbox.
      */
     List<Mail> drain();
 
-    /**
+    /** QUIESCED（静默），不再接收新邮件，只能从里面取
      * Quiesce the mailbox. In this state, the mailbox supports only take operations and all pending
      * and future put operations will throw {@link MailboxClosedException}.
      */

@@ -40,7 +40,7 @@ import java.util.function.Function;
  * Default {@link JobMasterServiceProcess} which is responsible for creating and running a {@link
  * JobMasterService}. The process is responsible for receiving the signals from the {@link
  * JobMasterService} and to create the respective {@link JobManagerRunnerResult} from it.
- *
+ * DefaultJobMasterServiceProcess 是 Apache Flink 中用于管理 JobMasterService 的一个实现。它负责创建、管理 JobMasterService 的生命周期，并处理与 JobMasterService 相关的异步操作
  * <p>The {@link JobMasterService} can be created asynchronously and the creation can also fail.
  * That is why the process needs to observe the creation operation and complete the {@link
  * #resultFuture} with an initialization failure.
@@ -61,21 +61,21 @@ public class DefaultJobMasterServiceProcess
     private static final Logger LOG = LoggerFactory.getLogger(DefaultJobMasterServiceProcess.class);
 
     private final Object lock = new Object();
-
+    //作业的唯一标识符。它用于标识与该 JobMasterServiceProcess 相关的作业
     private final JobID jobId;
-
+    //当前作业的领导者会话 ID，表示当前 JobMaster 的领导者会话，用于标识该 JobMaster 所处的会话上下文
     private final UUID leaderSessionId;
-
+    //异步操作的结果对象，表示 JobMasterService 的创建过程。它会在服务成功创建或失败时完成
     private final CompletableFuture<JobMasterService> jobMasterServiceFuture;
-
+    //表示作业结束或服务关闭的异步结果。用于追踪服务的终止过程
     private final CompletableFuture<Void> terminationFuture = new CompletableFuture<>();
-
+   //表示 JobMasterServiceProcess 的最终结果。它会在服务初始化失败、作业完成或遇到异常时被完成
     private final CompletableFuture<JobManagerRunnerResult> resultFuture =
             new CompletableFuture<>();
-
+    //表示 JobMasterService 创建成功后的 JobMasterGateway 异步对象，用于与 JobMaster 进行通信
     private final CompletableFuture<JobMasterGateway> jobMasterGatewayFuture =
             new CompletableFuture<>();
-
+    //表示领导者地址的异步结果对象，用于获取 JobMasterService 所在的地址
     private final CompletableFuture<String> leaderAddressFuture = new CompletableFuture<>();
 
     @GuardedBy("lock")
@@ -88,7 +88,7 @@ public class DefaultJobMasterServiceProcess
             Function<Throwable, ArchivedExecutionGraph> failedArchivedExecutionGraphFactory) {
         this.jobId = jobId;
         this.leaderSessionId = leaderSessionId;
-        this.jobMasterServiceFuture =
+        this.jobMasterServiceFuture =    //创建JobMaster,JobMaster实现了JobMasterService接口
                 jobMasterServiceFactory.createJobMasterService(leaderSessionId, this);
 
         jobMasterServiceFuture.whenComplete(
@@ -115,7 +115,7 @@ public class DefaultJobMasterServiceProcess
                     }
                 });
     }
-
+    //JobMaster创建完成后，这里持有它的gateway
     private void registerJobMasterServiceFutures(JobMasterService jobMasterService) {
         LOG.debug(
                 "Successfully created the JobMasterService for job {} under leader id {}.",

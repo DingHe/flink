@@ -52,6 +52,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>This interface is {@link Serializable} because watermark strategies may be shipped to workers
  * during distributed execution.
  */
+//用于定义水印生成和时间戳分配策略的核心接口。它是一个“构建器”或“工厂”，旨在将时间戳分配器（TimestampAssigner）和水印生成器（WatermarkGenerator）的创建逻辑封装在一起
 @Public
 public interface WatermarkStrategy<T>
         extends TimestampAssignerSupplier<T>, WatermarkGeneratorSupplier<T> {
@@ -61,12 +62,14 @@ public interface WatermarkStrategy<T>
     // ------------------------------------------------------------------------
 
     /** Instantiates a WatermarkGenerator that generates watermarks according to this strategy. */
+    //实例化并返回一个 WatermarkGenerator
     @Override
     WatermarkGenerator<T> createWatermarkGenerator(WatermarkGeneratorSupplier.Context context);
 
     /**
      * Instantiates a {@link TimestampAssigner} for assigning timestamps according to this strategy.
      */
+    //实例化并返回一个 TimestampAssigner。这是一个可选实现的方法，因为它有默认实现
     @Override
     default TimestampAssigner<T> createTimestampAssigner(
             TimestampAssignerSupplier.Context context) {
@@ -84,6 +87,7 @@ public interface WatermarkStrategy<T>
      * <p>Once configured Flink will "pause" consuming from a source/task/partition that is ahead of
      * the emitted watermark in the group by more than the maxAllowedWatermarkDrift.
      */
+    //获取水印对齐的配置参数。这也是一个可选方法，默认返回禁用水印对齐的参数
     @PublicEvolving
     default WatermarkAlignmentParams getAlignmentParameters() {
         return WatermarkAlignmentParams.WATERMARK_ALIGNMENT_DISABLED;
@@ -106,6 +110,7 @@ public interface WatermarkStrategy<T>
      *   .withTimestampAssigner((ctx) -> new MetricsReportingAssigner(ctx));
      * }</pre>
      */
+    //创建一个新的 WatermarkStrategy，它使用指定的 TimestampAssigner
     default WatermarkStrategy<T> withTimestampAssigner(
             TimestampAssignerSupplier<T> timestampAssigner) {
         checkNotNull(timestampAssigner, "timestampAssigner");
@@ -144,6 +149,7 @@ public interface WatermarkStrategy<T>
      * during some periods. Without idleness, these streams can stall the overall event time
      * progress of the application.
      */
+    //创建一个新的 WatermarkStrategy，在其中添加空闲检测功能
     default WatermarkStrategy<T> withIdleness(Duration idleTimeout) {
         checkNotNull(idleTimeout, "idleTimeout");
         checkArgument(
@@ -164,6 +170,9 @@ public interface WatermarkStrategy<T>
      * @param maxAllowedWatermarkDrift Maximal drift, before we pause consuming from the
      *     source/task/partition
      */
+    //创建一个新的 WatermarkStrategy，以配置水印对齐功能
+    //水位对齐（Watermark Alignment） 解决多个数据源或分区之间水印时间戳差异过大的特性
+    //当你的 Flink 作业消费来自多个并行源头（例如，Kafka 的多个分区）的数据时，如果某些源头的数据流速非常快，而另一些则很慢甚至停止，就会导致一个严重的性能问题：反压和内存溢出
     @PublicEvolving
     default WatermarkStrategy<T> withWatermarkAlignment(
             String watermarkGroup, Duration maxAllowedWatermarkDrift) {
@@ -213,7 +222,7 @@ public interface WatermarkStrategy<T>
      * <p>The watermarks are generated periodically and tightly follow the latest timestamp in the
      * data. The delay introduced by this strategy is mainly the periodic interval in which the
      * watermarks are generated.
-     *
+     *创建一个适用于单调递增时间戳的水位线策略。生成的水位线紧随事件的时间戳进展
      * @see AscendingTimestampsWatermarks
      */
     static <T> WatermarkStrategy<T> forMonotonousTimestamps() {
@@ -228,21 +237,21 @@ public interface WatermarkStrategy<T>
      *
      * <p>The watermarks are generated periodically. The delay introduced by this watermark strategy
      * is the periodic interval length, plus the out of orderness bound.
-     *
+     *创建一个适用于事件有最大乱序边界的水位线策略。该策略支持一定范围的乱序事件
      * @see BoundedOutOfOrdernessWatermarks
      */
     static <T> WatermarkStrategy<T> forBoundedOutOfOrderness(Duration maxOutOfOrderness) {
         return (ctx) -> new BoundedOutOfOrdernessWatermarks<>(maxOutOfOrderness);
     }
 
-    /** Creates a watermark strategy based on an existing {@link WatermarkGeneratorSupplier}. */
+    /** Creates a watermark strategy based on an existing {@link WatermarkGeneratorSupplier}. 创建一个自定义的水位线生成器策略，适用于需要自定义水位线生成逻辑的场景*/
     static <T> WatermarkStrategy<T> forGenerator(WatermarkGeneratorSupplier<T> generatorSupplier) {
         return generatorSupplier::createWatermarkGenerator;
     }
 
     /**
      * Creates a watermark strategy that generates no watermarks at all. This may be useful in
-     * scenarios that do pure processing-time based stream processing.
+     * scenarios that do pure processing-time based stream processing.创建一个不生成水位线的策略，适用于基于处理时间而非事件时间的流处理应用
      */
     static <T> WatermarkStrategy<T> noWatermarks() {
         return (ctx) -> new NoWatermarksGenerator<>();

@@ -98,10 +98,10 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
 
     // ------------------------------------------------------------------------
 
-    /** RPC service to be used to start the RPC server and to obtain rpc gateways. */
+    /** RPC service to be used to start the RPC server and to obtain rpc gateways. RpcService 是 Flink 中的 RPC 服务提供者，用于在不同节点之间处理远程调用*/
     private final RpcService rpcService;
 
-    /** Unique identifier for this rpc endpoint. */
+    /** Unique identifier for this rpc endpoint. 唯一标识当前 RPC 端点的 ID。每个 RPC 端点都会有一个唯一的 ID，通常是一个 UUID 或手动指定的标识符*/
     private final String endpointId;
 
     /** Interface to access the underlying rpc server. */
@@ -109,7 +109,7 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
 
     /**
      * A reference to the endpoint's main thread, if the current method is called by the main
-     * thread.
+     * thread.当前 RPC 端点的主线程。如果当前调用是在主线程中执行的，这个属性会被设置为当前线程。主线程是处理 RPC 请求的线程，所有的状态改变操作都在该线程中执行
      */
     final AtomicReference<Thread> currentMainThread = new AtomicReference<>(null);
 
@@ -140,10 +140,10 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
      * @param endpointId Unique identifier for this endpoint
      */
     protected RpcEndpoint(
-            RpcService rpcService, String endpointId, Map<String, String> loggingContext) {
+            RpcService rpcService, String endpointId, Map<String, String> loggingContext) { //loggingContext打印日志的上下文，方便识别多线程
         this.rpcService = checkNotNull(rpcService, "rpcService");
         this.endpointId = checkNotNull(endpointId, "endpointId");
-
+        //通过动态代理，使用PekkoRpcActor的引用访问本地或者远程节点
         this.rpcServer = rpcService.startServer(this, loggingContext);
         this.resourceRegistry = new CloseableRegistry();
 
@@ -196,7 +196,7 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
 
     /**
      * Triggers start of the rpc endpoint. This tells the underlying rpc server that the rpc
-     * endpoint is ready to process remote procedure calls.
+     * endpoint is ready to process remote procedure calls.启动 RPC 端点并让其准备好接受远程调用
      */
     public final void start() {
         rpcServer.start();
@@ -361,7 +361,7 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
     /**
      * Gets the main thread execution context. The main thread execution context can be used to
      * execute tasks in the main thread of the underlying RPC endpoint.
-     *
+     *  获取endpoint的主executor，并且在mdc包装了JobID
      * @param jobID the {@link JobID} to scope the returned {@link ComponentMainThreadExecutor} to,
      *     i.e. add/remove before/after the invocations using the returned executor
      * @return Main thread execution context
@@ -479,15 +479,15 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
     /** Executor which executes runnables in the main thread context. */
     protected static class MainThreadExecutor implements ComponentMainThreadExecutor, Closeable {
         private static final Logger log = LoggerFactory.getLogger(MainThreadExecutor.class);
-
+        //封装任务指定在gateway 上执行
         private final MainThreadExecutable gateway;
-        private final Runnable mainThreadCheck;
+        private final Runnable mainThreadCheck;//用于验证当前任务是否在主线程执行。它是为了支持一些检查机制，确保任务只能在主线程中执行
         /**
          * The main scheduled executor manages the scheduled tasks and send them to gateway when
-         * they should be executed.
+         * they should be executed. 任务可以被调度延迟执行或者定时执行，并最终被传递给 gateway 进行实际的执行
          */
         private final ScheduledExecutorService mainScheduledExecutor;
-
+        //任务在gateway线程上执行，mainThreadCheck负责检查是否在gateway上执行，
         MainThreadExecutor(
                 MainThreadExecutable gateway, Runnable mainThreadCheck, String endpointId) {
             this(
@@ -507,7 +507,7 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
             this.mainScheduledExecutor = mainScheduledExecutor;
         }
 
-        @Override
+        @Override //直接使用gateway执行
         public void execute(@Nonnull Runnable command) {
             gateway.runAsync(command);
         }
@@ -515,7 +515,7 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
         /**
          * The mainScheduledExecutor manages the task and sends it to the gateway after the given
          * delay.
-         *
+         * 任务转发到gateway执行
          * @param command the task to execute in the future
          * @param delay the time from now to delay the execution
          * @param unit the time unit of the delay parameter

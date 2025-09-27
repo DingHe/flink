@@ -38,7 +38,7 @@ import java.util.Optional;
 /**
  * This class contains information about a function and its relationship with a {@link Catalog}, if
  * any.
- *
+ *  包含了已解析函数的上下文
  * <p>There can be 3 kinds of {@link ContextResolvedFunction}:
  *
  * <ul>
@@ -62,11 +62,11 @@ import java.util.Optional;
 @Internal
 public final class ContextResolvedFunction {
 
-    private final boolean isTemporary;
+    private final boolean isTemporary; //是否临时函数
 
-    private final @Nullable FunctionIdentifier functionIdentifier;
+    private final @Nullable FunctionIdentifier functionIdentifier; //函数标识
 
-    private final FunctionDefinition functionDefinition;
+    private final FunctionDefinition functionDefinition; //函数定义
 
     public static ContextResolvedFunction permanent(
             FunctionIdentifier functionIdentifier, FunctionDefinition functionDefinition) {

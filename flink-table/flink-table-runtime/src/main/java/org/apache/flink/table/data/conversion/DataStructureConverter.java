@@ -33,9 +33,13 @@ import java.io.Serializable;
  * @param <I> internal data structure (see {@link RowData})
  * @param <E> external data structure (see {@link DataType#getConversionClass()})
  */
+//Flink Table API 中的一个内部（Internal）接口，
+// 用于在 Flink 的内部数据结构（如 RowData、StringData 等）和外部 Java 数据结构（如 Row、String、BigDecimal 等）之间进行双向转换
+//I: 代表 Flink 的内部数据结构类型，例如 RowData
+//E: 代表 Flink 的外部数据结构类型，例如 Row
 @Internal
 public interface DataStructureConverter<I, E> extends Serializable {
-
+    //在运行时初始化转换器
     default void open(ClassLoader classLoader) {
         assert classLoader != null;
         // nothing to do
@@ -46,6 +50,7 @@ public interface DataStructureConverter<I, E> extends Serializable {
      *
      * <p>Note: Parameter must not be null. Output must not be null.
      */
+    //将外部数据结构转换为内部数据结构
     I toInternal(E external);
 
     /**
@@ -66,6 +71,7 @@ public interface DataStructureConverter<I, E> extends Serializable {
      *
      * <p>Note: Parameter must not be null. Output must not be null.
      */
+    //将内部数据结构转换为外部数据结构，并处理 null 值
     E toExternal(I internal);
 
     /**
@@ -86,6 +92,7 @@ public interface DataStructureConverter<I, E> extends Serializable {
      *
      * <p>An identity conversion means that the type is already an internal data structure.
      */
+    //判断该转换器是否执行“恒等转换”（no-op）
     default boolean isIdentityConversion() {
         return false;
     }

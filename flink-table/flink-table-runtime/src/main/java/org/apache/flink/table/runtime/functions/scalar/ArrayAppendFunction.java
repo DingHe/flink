@@ -28,6 +28,7 @@ import org.apache.flink.table.types.DataType;
 
 import javax.annotation.Nullable;
 
+
 /** Implementation of {@link BuiltInFunctionDefinitions#ARRAY_APPEND}. */
 @Internal
 public class ArrayAppendFunction extends BuiltInScalarFunction {

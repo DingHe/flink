@@ -59,7 +59,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * but we must ensure that there is at least one action in the mailbox so that the change is picked
  * up. For control flag changes by all other threads, that must happen through mailbox actions, this
  * is automatically the case.
- *
+ * 1、任务调度： MailboxProcessor负责从TaskMailbox中取出任务，并按照一定的顺序执行 2、线程管理： MailboxProcessor通常运行在一个单独的线程中，负责处理所有的任务。 3、生命周期管理： MailboxProcessor管理TaskMailbox的生命周期，包括创建、关闭等操作
  * <p>This class has an open-prepareClose-close lifecycle that is connected with and maps to the
  * lifecycle of the encapsulated {@link TaskMailbox} (which is open-quiesce-close).
  */
@@ -72,9 +72,9 @@ public class MailboxProcessor implements Closeable {
      * The mailbox data-structure that manages request for special actions, like timers,
      * checkpoints, ...
      */
-    protected final TaskMailbox mailbox;
+    protected final TaskMailbox mailbox; //邮箱
 
-    /**
+    /** // 默认行为，用于普通的数据流上的消息数据处理
      * Action that is repeatedly executed if no action request is in the mailbox. Typically record
      * processing.
      */
@@ -84,13 +84,13 @@ public class MailboxProcessor implements Closeable {
      * Control flag to terminate the mailbox processor. Once it was terminated could not be
      * restarted again. Must only be accessed from mailbox thread.
      */
-    private boolean mailboxLoopRunning;
+    private boolean mailboxLoopRunning; //如果终止，不能再重启
 
     /**
      * Control flag to temporary suspend the mailbox loop/processor. After suspending the mailbox
      * processor can be still later resumed. Must only be accessed from mailbox thread.
      */
-    private boolean suspended;
+    private boolean suspended;//挂起标志
 
     /**
      * Remembers a currently active suspension of the default action. Serves as flag to indicate a
@@ -114,7 +114,7 @@ public class MailboxProcessor implements Closeable {
 
     public MailboxProcessor(
             MailboxDefaultAction mailboxDefaultAction, StreamTaskActionExecutor actionExecutor) {
-        this(mailboxDefaultAction, new TaskMailboxImpl(Thread.currentThread()), actionExecutor);
+        this(mailboxDefaultAction, new TaskMailboxImpl(Thread.currentThread()), actionExecutor); //mailbox默认当前线程
     }
 
     public MailboxProcessor(
@@ -206,7 +206,7 @@ public class MailboxProcessor implements Closeable {
         }
     }
 
-    /**
+    /** 处理邮件，任务可以通过调用suspend（）随时挂起
      * Runs the mailbox processing loop. This is where the main work is done. This loop can be
      * suspended at any time by calling {@link #suspend()}. For resuming the loop this method should
      * be called again.
@@ -221,10 +221,10 @@ public class MailboxProcessor implements Closeable {
                 "Method must be executed by declared mailbox thread!");
 
         assert localMailbox.getState() == TaskMailbox.State.OPEN : "Mailbox must be opened!";
-
+        //创建mailbox控制器
         final MailboxController mailboxController = new MailboxController(this);
 
-        while (isNextLoopPossible()) {
+        while (isNextLoopPossible()) { //如果没有被挂起，suspended = false
             // The blocking `processMail` call will not return until default action is available.
             processMail(localMailbox, false);
             if (isNextLoopPossible()) {
@@ -324,12 +324,12 @@ public class MailboxProcessor implements Closeable {
                     // #close may cause a
                     // MailboxStateException in #sendPriorityMail.
                     if (mailbox.getState() == TaskMailbox.State.OPEN) {
-                        sendControlMail(mail, "poison mail");
+                        sendControlMail(mail, "poison mail"); //OPEN状态，就把mail放在队列的头
                     }
                 });
     }
 
-    /**
+    /** 控制邮件放在最前面
      * Sends the given <code>mail</code> using {@link TaskMailbox#putFirst(Mail)} . Intended use is
      * to control this <code>MailboxProcessor</code>; no interaction with tasks should be performed;
      */
@@ -343,7 +343,7 @@ public class MailboxProcessor implements Closeable {
                         descriptionArgs));
     }
 
-    /**
+    /**  处理邮件
      * This helper method handles all special actions from the mailbox. In the current design, this
      * method also evaluates all control flag changes. This keeps the hot path in {@link
      * #runMailboxLoop()} free from any other flag checking, at the cost that all flag changes must
@@ -387,7 +387,7 @@ public class MailboxProcessor implements Closeable {
         }
         return processedSomething;
     }
-
+    //singleStep是否单步，true则处理一个邮件就退出
     private boolean processMailsNonBlocking(boolean singleStep) throws Exception {
         long processedMails = 0;
         Optional<Mail> maybeMail;
@@ -473,7 +473,7 @@ public class MailboxProcessor implements Closeable {
         return mailbox.hasMail();
     }
 
-    /**
+    /** MailboxDefaultAction的Controller接口通过MailboxProcessor的对应方法来实现
      * Implementation of {@link MailboxDefaultAction.Controller} that is connected to a {@link
      * MailboxProcessor} instance.
      */
@@ -507,7 +507,7 @@ public class MailboxProcessor implements Closeable {
      * resume execution.
      */
     private final class DefaultActionSuspension implements MailboxDefaultAction.Suspension {
-        @Nullable private final PeriodTimer suspensionTimer;
+        @Nullable private final PeriodTimer suspensionTimer; //暂停时间
 
         public DefaultActionSuspension(@Nullable PeriodTimer suspensionTimer) {
             this.suspensionTimer = suspensionTimer;

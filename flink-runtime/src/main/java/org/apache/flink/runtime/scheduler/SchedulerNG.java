@@ -64,45 +64,45 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Interface for scheduling Flink jobs.
- *
+ *  SchedulerNG 接口定义了 Flink 作业的调度和执行方式。它涵盖了作业状态管理、检查点处理、操作符事件处理等功能
  * <p>Instances are created via {@link SchedulerNGFactory}, and receive a {@link JobGraph} when
  * instantiated.
- *
+ * 所有的方法调用都由 ComponentMainThreadExecutor 线程池发起，这意味着所有方法调用是顺序执行的，而不是并发的
  * <p>Implementations can expect that methods will not be invoked concurrently. In fact, all
  * invocations will originate from a thread in the {@link ComponentMainThreadExecutor}.
  */
 public interface SchedulerNG extends GlobalFailureHandler, AutoCloseableAsync {
-
+    //启动 Flink 作业的调度过程，该方法会触发作业执行生命周期的开始，通常在作业准备好执行时调用
     void startScheduling();
-
+    //取消 Flink 作业的执行
     void cancel();
-
+    //允许用户异步跟踪作业的终止状态
     CompletableFuture<JobStatus> getJobTerminationFuture();
-
+    //用于更新任务的状态，例如将任务状态从 RUNNING 更新为 FAILED 或 FINISHED
     default boolean updateTaskExecutionState(TaskExecutionState taskExecutionState) {
         return updateTaskExecutionState(new TaskExecutionStateTransition(taskExecutionState));
     }
 
     boolean updateTaskExecutionState(TaskExecutionStateTransition taskExecutionState);
-
+   //在流式或批处理作业中，用于请求任务执行的下一批数据分片
     SerializedInputSplit requestNextInputSplit(
             JobVertexID vertexID, ExecutionAttemptID executionAttempt) throws IOException;
-
+    //请求一个结果分区的当前状态，用于检查任务是否已经成功写入分区数据，或者分区是否仍然处于处理中
     ExecutionState requestPartitionState(
             IntermediateDataSetID intermediateResultId, ResultPartitionID resultPartitionId)
             throws PartitionProducerDisposedException;
-
+    //请求作业的执行图信息
     ExecutionGraphInfo requestJob();
 
     /**
      * Returns the checkpoint statistics for a given job. Although the {@link
      * CheckpointStatsSnapshot} is included in the {@link ExecutionGraphInfo}, this method is
      * preferred to {@link SchedulerNG#requestJob()} because it is less expensive.
-     *
+     * 用于获取作业的检查点统计信息，便于监控和优化检查点的执行
      * @return checkpoint statistics snapshot for job graph
      */
     CheckpointStatsSnapshot requestCheckpointStats();
-
+    //请求作业的当前状态（如 RUNNING、FAILED）
     JobStatus requestJobStatus();
 
     // ------------------------------------------------------------------------------------
@@ -133,12 +133,12 @@ public interface SchedulerNG extends GlobalFailureHandler, AutoCloseableAsync {
     void updateAccumulators(AccumulatorSnapshot accumulatorSnapshot);
 
     // ------------------------------------------------------------------------
-
+    //触发保存点操作，即将作业的状态持久化
     CompletableFuture<String> triggerSavepoint(
             @Nullable String targetDirectory, boolean cancelJob, SavepointFormatType formatType);
 
     CompletableFuture<CompletedCheckpoint> triggerCheckpoint(CheckpointType checkpointType);
-
+    //任务管理器在完成检查点后会调用此方法，通知调度器该检查点已成功完成
     void acknowledgeCheckpoint(
             JobID jobID,
             ExecutionAttemptID executionAttemptID,
@@ -151,7 +151,7 @@ public interface SchedulerNG extends GlobalFailureHandler, AutoCloseableAsync {
             ExecutionAttemptID executionAttemptID,
             long checkpointId,
             CheckpointMetrics checkpointMetrics);
-
+    //当某个任务无法完成检查点时，会调用该方法拒绝检查点
     void declineCheckpoint(DeclineCheckpoint decline);
 
     void reportInitializationMetrics(
@@ -182,7 +182,7 @@ public interface SchedulerNG extends GlobalFailureHandler, AutoCloseableAsync {
      * non-existing operator coordinator, then respond with an exception to the call. If task and
      * coordinator exist, then we assume that the call from the TaskManager was valid, and any
      * bubbling exception needs to cause a job failure
-     *
+     * 将事件发送到指定的操作符协调器
      * @throws FlinkException Thrown, if the task is not running or no operator/coordinator exists
      *     for the given ID.
      */

@@ -128,7 +128,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
 
     /** Unique id of the resource manager. */
     private final ResourceID resourceId;
-
+   //注册每个job的JobMaster信息
     /** All currently registered JobMasterGateways scoped by JobID. */
     private final Map<JobID, JobManagerRegistration> jobManagerRegistrations;
 
@@ -137,7 +137,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
 
     /** Service to retrieve the job leader ids. */
     private final JobLeaderIdService jobLeaderIdService;
-
+    //管理已注册的 TaskExecutor，以及它们的连接状态
     /** All currently registered TaskExecutors with there framework specific worker information. */
     private final Map<ResourceID, WorkerRegistration<WorkerType>> taskExecutors;
 
@@ -162,10 +162,10 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
     protected final Executor ioExecutor;
 
     private final CompletableFuture<Void> startedFuture;
-    /** The heartbeat manager with task managers. */
+    /** The heartbeat manager with task managers. Payload for heartbeats sent from the TaskExecutor to the ResourceManager. */
     private HeartbeatManager<TaskExecutorHeartbeatPayload, Void> taskManagerHeartbeatManager;
 
-    /** The heartbeat manager with job managers. */
+    /** The heartbeat manager with job managers. jobManager的心跳管理*/
     private HeartbeatManager<Void, Void> jobManagerHeartbeatManager;
 
     private final DelegationTokenManager delegationTokenManager;
@@ -173,7 +173,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
     protected final BlocklistHandler blocklistHandler;
 
     private final AtomicReference<byte[]> latestTokens = new AtomicReference<>();
-
+    //用于分配和清理与任务相关的资源。提供抽象方法 getResourceAllocator() 获取具体实现
     private final ResourceAllocator resourceAllocator;
 
     public ResourceManager(
@@ -1218,9 +1218,9 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
             JobManagerRegistration jobManagerRegistration = jobManagerRegistrations.get(jobId);
 
             if (Objects.equals(jobManagerRegistration.getJobMasterId(), oldJobMasterId)) {
-                closeJobManagerConnection(
+                closeJobManagerConnection( //关闭连接
                         jobId,
-                        ResourceRequirementHandling.RETAIN,
+                        ResourceRequirementHandling.RETAIN,  //资源保持还是清理
                         new Exception("Job leader lost leadership."));
             } else {
                 log.debug(
@@ -1424,7 +1424,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
             runAsync(
                     new Runnable() {
                         @Override
-                        public void run() {
+                        public void run() {  //关闭连接
                             ResourceManager.this.jobLeaderLostLeadership(jobId, oldJobMasterId);
                         }
                     });

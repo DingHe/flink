@@ -980,7 +980,7 @@ public final class FactoryUtil {
         protected final Set<String> consumedOptionKeys;
 
         protected final Set<String> deprecatedOptionKeys;
-
+        //主要是配置一些参数
         public FactoryHelper(
                 F factory, Map<String, String> configuration, ConfigOption<?>... implicitOptions) {
             this.factory = factory;

@@ -70,13 +70,13 @@ public class ResourceManager implements Closeable {
 
     private static final String JAR_SUFFIX = "jar";
     private static final String FILE_SCHEME = "file";
-
+    //本地资源目录
     protected final Path localResourceDir;
     /** Resource infos for functions. */
     private final Map<ResourceUri, ResourceCounter> functionResourceInfos;
 
     private final boolean cleanLocalResource;
-
+    //资源路径
     protected final Map<ResourceUri, URL> resourceInfos;
     protected final MutableURLClassLoader userClassLoader;
 
@@ -92,7 +92,7 @@ public class ResourceManager implements Closeable {
     public ResourceManager(ReadableConfig config, MutableURLClassLoader userClassLoader) {
         this(
                 new Path(
-                        config.get(TableConfigOptions.RESOURCES_DOWNLOAD_DIR),
+                        config.get(TableConfigOptions.RESOURCES_DOWNLOAD_DIR), //Local directory that is used by planner for storing downloaded resources
                         String.format("flink-table-%s", UUID.randomUUID())),
                 new HashMap<>(),
                 new HashMap<>(),
@@ -106,14 +106,14 @@ public class ResourceManager implements Closeable {
             Map<ResourceUri, ResourceCounter> functionResourceInfos,
             MutableURLClassLoader userClassLoader,
             boolean cleanLocalResource) {
-        this.localResourceDir = localResourceDir;
+        this.localResourceDir = localResourceDir;  //本地资源目录，默认java.io.tmpdir
         this.functionResourceInfos = functionResourceInfos;
         this.resourceInfos = resourceInfos;
         this.userClassLoader = userClassLoader;
         this.cleanLocalResource = cleanLocalResource;
     }
 
-    /**
+    /**注册jar资源
      * Due to anyone of the resource in list maybe fail during register, so we should stage it
      * before actual register to guarantee transaction process. If all the resources are available,
      * register them into the {@link ResourceManager}.
@@ -143,7 +143,7 @@ public class ResourceManager implements Closeable {
      *
      * <p>If the file is remote, it will be copied to a local file, with file name suffixed with a
      * UUID.
-     *
+     * 注册文件资源
      * @param resourceUri resource with type as {@link ResourceType#FILE}, the resource uri might or
      *     might not contain the uri scheme, or it could be a relative path.
      * @return the absolute local file path.

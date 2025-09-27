@@ -75,7 +75,7 @@ abstract class AbstractOneInputTransformationTranslator<IN, OUT, OP extends Tran
                     stateKeyType.createSerializer(executionConfig.getSerializerConfig());
             streamGraph.setOneInputStateKey(transformationId, stateKeySelector, keySerializer);
         }
-
+        //获取并行度信息，设置并行度和最大并行度
         int parallelism =
                 transformation.getParallelism() != ExecutionConfig.PARALLELISM_DEFAULT
                         ? transformation.getParallelism()
@@ -89,11 +89,11 @@ abstract class AbstractOneInputTransformationTranslator<IN, OUT, OP extends Tran
                 parentTransformations.size() == 1,
                 "Expected exactly one input transformation but found "
                         + parentTransformations.size());
-
+         //添加边信息
         for (Integer inputId : context.getStreamNodeIds(parentTransformations.get(0))) {
             streamGraph.addEdge(inputId, transformationId, 0);
         }
-
+        //重算时是否支持多个task并发执行
         if (transformation instanceof PhysicalTransformation) {
             streamGraph.setSupportsConcurrentExecutionAttempts(
                     transformationId,

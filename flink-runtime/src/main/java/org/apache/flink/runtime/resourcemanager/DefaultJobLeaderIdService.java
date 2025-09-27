@@ -57,7 +57,7 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
 
     private final ScheduledExecutor scheduledExecutor;
 
-    private final Time jobTimeout;
+    private final Time jobTimeout; //超时时间
 
     /** Map of currently monitored jobs. */
     private final Map<JobID, JobLeaderIdListener> jobLeaderIdListeners;
@@ -191,19 +191,19 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
      * listener.
      */
     private final class JobLeaderIdListener implements LeaderRetrievalListener {
-        private final Object timeoutLock = new Object();
-        private final JobID jobId;
-        private final JobLeaderIdActions listenerJobLeaderIdActions;
-        private final LeaderRetrievalService leaderRetrievalService;
+        private final Object timeoutLock = new Object(); //同步锁，用于保护与超时相关的状态（timeoutFuture 和 timeoutId）的并发修改
+        private final JobID jobId; //标识当前监听器关联的 Flink 作业 ID
+        private final JobLeaderIdActions listenerJobLeaderIdActions; //提供与作业领导者相关的回调接口，例如当领导者失去领导权或发生超时时的操作
+        private final LeaderRetrievalService leaderRetrievalService; //Flink 中的服务，用于检索当前作业领导者的信息（如地址和领导者会话 ID
 
-        private volatile CompletableFuture<UUID> leaderIdFuture;
-        private volatile boolean running = true;
-
-        /** Null if no timeout has been scheduled; otherwise non null. */
-        @Nullable private volatile ScheduledFuture<?> timeoutFuture;
+        private volatile CompletableFuture<UUID> leaderIdFuture; //存储当前领导者的会话 ID（UUID），允许异步地获取最新的领导者信息
+        private volatile boolean running = true; //标识监听器是否仍在运行，避免在停止后处理无效的事件
 
         /** Null if no timeout has been scheduled; otherwise non null. */
-        @Nullable private volatile UUID timeoutId;
+        @Nullable private volatile ScheduledFuture<?> timeoutFuture; //调度超时任务（如果有的话），为领导者的状态变化设置超时
+
+        /** Null if no timeout has been scheduled; otherwise non null. */
+        @Nullable private volatile UUID timeoutId; //唯一标识当前超时任务，确保不同超时任务之间不会相互干扰
 
         private JobLeaderIdListener(
                 JobID jobId,
@@ -215,12 +215,12 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
                     Preconditions.checkNotNull(listenerJobLeaderIdActions);
             this.leaderRetrievalService = Preconditions.checkNotNull(leaderRetrievalService);
 
-            leaderIdFuture = new CompletableFuture<>();
+            leaderIdFuture = new CompletableFuture<>(); //以保存当前领导者的会话 ID
 
             activateTimeout();
 
             // start the leader service we're listening to
-            leaderRetrievalService.start(this);
+            leaderRetrievalService.start(this); //使其监听领导者状态的变化
         }
 
         public CompletableFuture<UUID> getLeaderIdFuture() {
@@ -233,11 +233,11 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
         }
 
         public void stop() throws Exception {
-            running = false;
-            leaderRetrievalService.stop();
-            cancelTimeout();
+            running = false;  //将 running 设置为 false，标识监听器已停止。
+            leaderRetrievalService.stop();  //停止领导者检索服务
+            cancelTimeout();  //取消任何未完成的超时任务
             leaderIdFuture.completeExceptionally(
-                    new Exception("Job leader id service has been stopped."));
+                    new Exception("Job leader id service has been stopped.")); //将 leaderIdFuture 标记为异常完成，表明服务已停止，无法继续提供领导者信息
         }
 
         @Override
@@ -281,7 +281,7 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
 
                 if (previousJobLeaderId != null && !previousJobLeaderId.equals(leaderSessionId)) {
                     // we had a previous job leader, so notify about his lost leadership
-                    listenerJobLeaderIdActions.jobLeaderLostLeadership(
+                    listenerJobLeaderIdActions.jobLeaderLostLeadership(   //通知之前的jobMaster 已经有了新的领导
                             jobId, new JobMasterId(previousJobLeaderId));
 
                     if (null == leaderSessionId) {
@@ -319,13 +319,13 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
 
         private void activateTimeout() {
             synchronized (timeoutLock) {
-                cancelTimeout();
+                cancelTimeout();  //首先取消
 
                 final UUID newTimeoutId = UUID.randomUUID();
 
                 timeoutId = newTimeoutId;
                 timeoutFuture =
-                        scheduledExecutor.schedule(
+                        scheduledExecutor.schedule(  //延迟jobTimeout时间调用
                                 new Runnable() {
                                     @Override
                                     public void run() {
@@ -337,7 +337,7 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
                                 TimeUnit.MILLISECONDS);
             }
         }
-
+        //取消当前超时任务并重置相关状态
         private void cancelTimeout() {
             synchronized (timeoutLock) {
                 if (timeoutFuture != null) {

@@ -27,20 +27,25 @@ import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
  *
  * @see org.apache.flink.streaming.api.watermark.Watermark
  */
+//Flink 中最基础和最常用的事件时间触发器
+    //核心作用是当**水位线（Watermark）**超过窗口的结束时间时，触发窗口的计算。它与 TumblingEventTimeWindows 和 SlidingEventTimeWindows 等基于事件时间的窗口分配器默认配合使用
 @PublicEvolving
 public class EventTimeTrigger extends Trigger<Object, TimeWindow> {
     private static final long serialVersionUID = 1L;
 
     private EventTimeTrigger() {}
-
+    //当一个新元素到达窗口时，此方法被调用
     @Override
     public TriggerResult onElement(
             Object element, long timestamp, TimeWindow window, TriggerContext ctx)
             throws Exception {
+        //它首先检查当前的水位线（ctx.getCurrentWatermark()）是否已经超过了窗口的最大时间戳（window.maxTimestamp()）
         if (window.maxTimestamp() <= ctx.getCurrentWatermark()) {
             // if the watermark is already past the window fire immediately
             return TriggerResult.FIRE;
         } else {
+            //如果水位线还没有到达窗口结束时间，说明元素是按时到达的。此时，触发器会为该窗口的 maxTimestamp()
+            // 注册一个事件时间计时器（ctx.registerEventTimeTimer(window.maxTimestamp())）
             ctx.registerEventTimeTimer(window.maxTimestamp());
             return TriggerResult.CONTINUE;
         }

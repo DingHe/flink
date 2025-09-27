@@ -31,7 +31,7 @@ public class DefaultParserFactory implements ParserFactory {
 
     @Override
     public String factoryIdentifier() {
-        return SqlDialect.DEFAULT.name().toLowerCase();
+        return SqlDialect.DEFAULT.name().toLowerCase(); //目前支持default和hive解析起
     }
 
     @Override
@@ -44,7 +44,7 @@ public class DefaultParserFactory implements ParserFactory {
         return Collections.emptySet();
     }
 
-    @Override
+    @Override  //构建默认的Parser
     public Parser create(Context context) {
         DefaultCalciteContext defaultCalciteContext = (DefaultCalciteContext) context;
         return new ParserImpl(

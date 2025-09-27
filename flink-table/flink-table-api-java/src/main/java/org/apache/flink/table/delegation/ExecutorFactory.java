@@ -24,7 +24,7 @@ import org.apache.flink.table.factories.Factory;
 
 /**
  * Factory that creates an {@link Executor} for submitting table programs.
- *
+ * ExecutorFactory 是一个工厂接口，用来创建 Executor 实例，Executor 是负责提交和执行 Flink Table API 或 SQL 作业的组件
  * <p>The factory is used with Java's Service Provider Interfaces (SPI) for discovering. See {@link
  * Factory} for more information.
  *

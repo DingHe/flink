@@ -31,6 +31,7 @@ import org.apache.flink.runtime.state.internal.InternalValueState;
  * @param <N> The type of the namespace.
  * @param <V> The type of the value.
  */
+//基于java堆内存的值状态
 class HeapValueState<K, N, V> extends AbstractHeapState<K, N, V>
         implements InternalValueState<K, N, V> {
 

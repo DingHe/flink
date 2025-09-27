@@ -99,13 +99,13 @@ public interface Sink<InputT> extends Serializable {
          * implementers are expected to batch records and only enqueue a single {@link Runnable} per
          * batch to handle the result.
          */
-        MailboxExecutor getMailboxExecutor();
+        MailboxExecutor getMailboxExecutor(); //MailboxExecutor负责把mail投递到mailbox里面
 
         /**
          * Returns a {@link ProcessingTimeService} that can be used to get the current time and
          * register timers.
          */
-        ProcessingTimeService getProcessingTimeService();
+        ProcessingTimeService getProcessingTimeService(); //处理时间服务
 
         /** @return The metric group this writer belongs to. */
         SinkWriterMetricGroup metricGroup();

@@ -27,7 +27,7 @@ import org.apache.flink.table.planner.codegen.GeneratedExpression;
 
 import java.util.List;
 import java.util.Set;
-
+//在 Flink 中，操作符融合是通过合并多个操作符生成一个单独的处理函数，以提高执行效率，减少不必要的数据传输和操作开销
 /** An interface for those physical operators that support operator fusion codegen. */
 @Internal
 public interface OpFusionCodegenSpec {
@@ -37,35 +37,35 @@ public interface OpFusionCodegenSpec {
      * doProduce and doConsume related methods.
      */
     void setup(OpFusionContext opFusionContext);
-
+    //获取当前操作符的变量前缀。
     /** Prefix used in the current operator's variable names. */
     String variablePrefix();
 
     /**
      * The subset of column index those should be evaluated before this operator.
-     *
+     * 返回当前操作符使用的输入列的索引集合
      * <p>We will use this to insert some code to access those columns that are actually used by
      * current operator before calling doProcessConsume().
      */
     Set<Integer> usedInputColumns(int inputId);
 
-    /**
+    /** 返回当前操作符需要的输入数据类型
      * Specific inputId of current operator needed {@link RowData} type, this is used to notify the
      * upstream operator wrap the proper {@link RowData} we needed before call doProcessConsume
      * method. For example, HashJoin build side need {@link BinaryRowData}.
      */
     Class<? extends RowData> getInputRowDataClass(int inputId);
 
-    /**
+    /** 返回用于操作符融合代码生成的上下文
      * Every operator need one {@link CodeGeneratorContext} to store the context needed during
      * operator fusion codegen.
      */
     CodeGeneratorContext getCodeGeneratorContext();
-
+    //ExprCodeGenerator 负责生成表达式代码
     /** Get the {@link ExprCodeGenerator} used by this operator during operator fusion codegen, . */
     ExprCodeGenerator getExprCodeGenerator();
 
-    /**
+    /** 生成处理行数据的 Java 源代码
      * Generate the Java source code to process rows, only the leaf operator in operator DAG need to
      * generate the code which produce the row, other middle operators just call its input {@link
      * OpFusionCodegenSpecGenerator#processProduce(CodeGeneratorContext)} normally, otherwise, the
@@ -77,7 +77,7 @@ public interface OpFusionCodegenSpec {
      */
     void doProcessProduce(CodeGeneratorContext codegenCtx);
 
-    /**
+    /** 操作符要么处理 RowData 类型的单行数据，要么处理一个变量列表
      * The process method is responsible for the operator data processing logic, so each operator
      * needs to implement this method to generate the code to process the row. This should only be
      * called from {@link OpFusionCodegenSpecGenerator#processConsume(List, String)}.
@@ -92,7 +92,7 @@ public interface OpFusionCodegenSpec {
     String doProcessConsume(
             int inputId, List<GeneratedExpression> inputVars, GeneratedExpression row);
 
-    /**
+    /** 生成操作符结束输入数据生产的 Java 源代码
      * Generate the Java source code to do operator clean work, only the leaf operator in operator
      * DAG need to generate the code, other middle operators just call its input `endInputProduce`
      * normally, otherwise, the operator has some specific logic.

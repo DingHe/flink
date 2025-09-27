@@ -57,7 +57,7 @@ public enum JobMasterServiceLeadershipRunnerFactory implements JobManagerRunnerF
             RpcService rpcService,
             HighAvailabilityServices highAvailabilityServices,
             HeartbeatServices heartbeatServices,
-            JobManagerSharedServices jobManagerServices,
+            JobManagerSharedServices jobManagerServices, //持有JobMaster辅助Service的工具类
             JobManagerJobMetricGroupFactory jobManagerJobMetricGroupFactory,
             FatalErrorHandler fatalErrorHandler,
             Collection<FailureEnricher> failureEnrichers,
@@ -68,12 +68,12 @@ public enum JobMasterServiceLeadershipRunnerFactory implements JobManagerRunnerF
 
         final JobMasterConfiguration jobMasterConfiguration =
                 JobMasterConfiguration.fromConfiguration(configuration);
-
+        //获取job结果的存储地方
         final JobResultStore jobResultStore = highAvailabilityServices.getJobResultStore();
-
+        //standalone模式下，直接new DefaultLeaderElection
         final LeaderElection jobManagerLeaderElection =
                 highAvailabilityServices.getJobManagerLeaderElection(jobGraph.getJobID());
-
+        //创建SlotPoolService 和 SchedulerNG的工厂
         final SlotPoolServiceSchedulerFactory slotPoolServiceSchedulerFactory =
                 DefaultSlotPoolServiceSchedulerFactory.fromConfiguration(
                         configuration, jobGraph.getJobType(), jobGraph.isDynamic());
@@ -90,13 +90,13 @@ public enum JobMasterServiceLeadershipRunnerFactory implements JobManagerRunnerF
                 jobManagerServices
                         .getLibraryCacheManager()
                         .registerClassLoaderLease(jobGraph.getJobID());
-
+        //用户代码类加载器
         final ClassLoader userCodeClassLoader =
                 classLoaderLease
                         .getOrResolveClassLoader(
                                 jobGraph.getUserJarBlobKeys(), jobGraph.getClasspaths())
                         .asClassLoader();
-
+        //创建JobMasterService工厂，JobMasterService持有JobMaster的gateway
         final DefaultJobMasterServiceFactory jobMasterServiceFactory =
                 new DefaultJobMasterServiceFactory(
                         MdcUtils.scopeToJob(

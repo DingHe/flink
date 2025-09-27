@@ -37,10 +37,10 @@ public class StandaloneLeaderRetrievalService implements LeaderRetrievalService 
 
     private final Object startStopLock = new Object();
 
-    /** The fix address of the leader. */
+    /** The fix address of the leader.固定的领导者地址，用于标识当前领导者（比如 JobManager）的网络地址，在服务启动时直接将这个地址通知给监听器 */
     private final String leaderAddress;
 
-    /** The fix leader ID (leader lock fencing token). */
+    /** The fix leader ID (leader lock fencing token).leaderId 是领导者锁的唯一标识符（通常称为 "fencing token"），可以防止领导权的混乱 */
     private final UUID leaderId;
 
     /** Flag whether this service is started. */
@@ -72,7 +72,7 @@ public class StandaloneLeaderRetrievalService implements LeaderRetrievalService 
 
     // ------------------------------------------------------------------------
 
-    @Override
+    @Override  //因为领导者地址是固定的，启动时可以直接通知，无需等待动态更新
     public void start(LeaderRetrievalListener listener) {
         checkNotNull(listener, "Listener must not be null.");
 

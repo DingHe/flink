@@ -42,18 +42,18 @@ import java.util.Map;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
-
+//ExecutionJobVertex的输出结果
 public class IntermediateResult {
-
+    //JobVertex的输出结果
     private final IntermediateDataSet intermediateDataSet;
 
     private final IntermediateDataSetID id;
-
+   //明中间结果的生产者，便于任务间的关联
     private final ExecutionJobVertex producer;
-
+   //更多地是作为一个元数据对象来管理和描述数据的生产、消费和状态信息，而不直接存储数据本身
     private final IntermediateResultPartition[] partitions;
 
-    /**
+    /**将分区 ID 映射到分区索引，用于快速查找特定分区
      * Maps intermediate result partition IDs to a partition index. This is used for ID lookups of
      * intermediate results. I didn't dare to change the partition connect logic in other places
      * that is tightly coupled to the partitions being held as an array.
@@ -62,15 +62,15 @@ public class IntermediateResult {
             new HashMap<>();
 
     private final int numParallelProducers;
-
+    //记录已经被分配的分区数量
     private int partitionsAssigned;
 
     private final int connectionIndex;
-
+   //指定中间结果的分区类型
     private final ResultPartitionType resultType;
-
+    //存特定消费分区组（ConsumedPartitionGroup）的 Shuffle 描述符
     private final Map<ConsumedPartitionGroup, CachedShuffleDescriptors> shuffleDescriptorCache;
-
+   //存储所有消费此数据集的任务（JobVertex）的 ID
     /** All consumer job vertex ids of this dataset. */
     private final List<JobVertexID> consumerVertices = new ArrayList<>();
 

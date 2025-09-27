@@ -101,7 +101,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <p>The main entry point to the chain is it's {@code mainOperator}. {@code mainOperator} is
  * driving the execution of the {@link StreamTask}, by pulling the records from network inputs
  * and/or source inputs and pushing produced records to the remaining chained operators.
- *
+ *用于管理一组算子（operator）的链式执行的核心组件。它的主要作用是将多个算子（如 StreamOperator）连接成一个执行链，这样就可以减少数据传输的开销，提高执行效率
  * @param <OUT> The type of elements accepted by the chain, i.e., the input type of the chain's main
  *     operator.
  */
@@ -109,9 +109,9 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
         implements BoundedMultiInput, Closeable {
 
     private static final Logger LOG = LoggerFactory.getLogger(OperatorChain.class);
-
+    //这是一个记录写入器输出的数组，用于处理当前任务输出到下游的所有流数据
     protected final RecordWriterOutput<?>[] streamOutputs;
-
+    //Watermark度量信息
     protected final WatermarkGaugeExposingOutput<StreamRecord<OUT>> mainOperatorOutput;
 
     /**
@@ -134,29 +134,29 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
      * <p>Where "first" and "second" (there can be more) are chained source operators. When it comes
      * to things like closing, stat initialisation or state snapshotting, the operator chain is
      * traversed: first, second, main, ..., tail or in reversed order: tail, ..., main, second,
-     * first
+     * first  包装主算子的包装器，通常是链中的第一个算子。它是整个操作链的入口，用于管理主算子的生命周期
      */
     @Nullable protected final StreamOperatorWrapper<OUT, OP> mainOperatorWrapper;
-
+    //链中第一个算子的包装器。如果算子链中有多个源算子，它可能不是 mainOperatorWrapper
     @Nullable protected final StreamOperatorWrapper<?, ?> firstOperatorWrapper;
-    @Nullable protected final StreamOperatorWrapper<?, ?> tailOperatorWrapper;
-
+    @Nullable protected final StreamOperatorWrapper<?, ?> tailOperatorWrapper;//链中最后一个算子的包装器。通常是主算子链的末尾，但在一些特殊情况下，它可能会是其他算子
+    //存储与源输入相关的链式源算子映射。这些源算子负责从外部输入读取数据
     protected final Map<StreamConfig.SourceInputConfig, ChainedSource> chainedSources;
-
+    //当前操作链中算子的数量
     protected final int numOperators;
-
+    //用于分发操作事件的调度器，它负责将操作事件传递到各个算子
     protected final OperatorEventDispatcherImpl operatorEventDispatcher;
-
+   //用于关闭相关资源的工具类。确保所有资源在任务结束时正确释放
     protected final Closer closer = Closer.create();
-
+    //当任务恢复时，记录恢复输入状态。它是任务恢复机制的一部分，用于标记和管理恢复后的状态
     protected final @Nullable FinishedOnRestoreInput finishedOnRestoreInput;
-
+    //表示 OperatorChain 是否已被关闭
     protected boolean isClosed;
 
     public OperatorChain(
             StreamTask<OUT, OP> containingTask,
             RecordWriterDelegate<SerializationDelegate<StreamRecord<OUT>>> recordWriterDelegate) {
-
+        //事件调度器用于管理和分发算子之间的事件。事件调度器会向算子链中的各个算子发送事件，例如检查点事件、算子协调事件等
         this.operatorEventDispatcher =
                 new OperatorEventDispatcherImpl(
                         containingTask.getEnvironment().getUserCodeClassLoader().asClassLoader(),
@@ -167,7 +167,7 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
 
         StreamOperatorFactory<OUT> operatorFactory =
                 configuration.getStreamOperatorFactory(userCodeClassloader);
-
+         //chainedConfigs 是一个包含当前任务以及其所有相关联的算子配置的映射
         // we read the chained configs, and the order of record writer registrations by output name
         Map<Integer, StreamConfig> chainedConfigs =
                 configuration.getTransitiveChainedTaskConfigsWithSelf(userCodeClassloader);

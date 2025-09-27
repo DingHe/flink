@@ -105,7 +105,7 @@ class SlotSharingExecutionSlotAllocator implements ExecutionSlotAllocator {
     public Map<ExecutionAttemptID, ExecutionSlotAssignment> allocateSlotsFor(
             List<ExecutionAttemptID> executionAttemptIds) {
 
-        final Map<ExecutionVertexID, ExecutionAttemptID> vertexIdToExecutionId = new HashMap<>();
+        final Map<ExecutionVertexID, ExecutionAttemptID> vertexIdToExecutionId = new HashMap<>(); //顶点id到执行id的映射
         executionAttemptIds.forEach(
                 executionId ->
                         vertexIdToExecutionId.put(executionId.getExecutionVertexId(), executionId));

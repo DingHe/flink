@@ -35,7 +35,7 @@ import java.util.Objects;
 @PublicEvolving
 public final class TableReferenceExpression implements ResolvedExpression {
 
-    private final String name;
+    private final String name;  //表名
     private final QueryOperation queryOperation;
 
     TableReferenceExpression(String name, QueryOperation queryOperation) {

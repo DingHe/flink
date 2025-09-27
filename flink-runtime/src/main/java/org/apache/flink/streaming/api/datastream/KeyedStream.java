@@ -93,21 +93,24 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * @param <T> The type of the elements in the Keyed Stream.
  * @param <KEY> The type of the key in the Keyed Stream.
  */
+//表示一个已经根据某个键（Key）进行分区的数据流
 @Public
 public class KeyedStream<T, KEY> extends DataStream<T> {
 
     /**
      * The key selector that can get the key by which the stream if partitioned from the elements.
      */
+    //键选择器函数。它定义了如何从数据流中的每个元素 (T) 中提取出用于分区的键 (KEY)
     private final KeySelector<T, KEY> keySelector;
 
     /** The type of the key by which the stream is partitioned. */
+    //存储键的类型信息。Flink 的类型序列化系统需要这个信息来正确地对键进行序列化和反序列化，尤其是在处理状态时
     private final TypeInformation<KEY> keyType;
 
     /**
      * Creates a new {@link KeyedStream} using the given {@link KeySelector} to partition operator
      * state by key.
-     *
+     * 最常用的构造函数。它接收一个基准 DataStream 和一个 KeySelector。它会自动推断出键的类型，并创建一个 KeyedStream
      * @param dataStream Base stream of data
      * @param keySelector Function for determining state partitions
      */
@@ -133,7 +136,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
                 dataStream,
                 new PartitionTransformation<>(
                         dataStream.getTransformation(),
-                        new KeyGroupStreamPartitioner<>(
+                        new KeyGroupStreamPartitioner<>(  //keyGroupId * parallelism / maxParallelism
                                 keySelector,
                                 StreamGraphGenerator.DEFAULT_LOWER_BOUND_MAX_PARALLELISM)),
                 keySelector,
@@ -168,7 +171,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * can be used as a key in the {@code DataStream.keyBy()} operation. This is done by searching
      * depth-first the key type and checking if each of the composite types satisfies the required
      * conditions (see {@link #validateKeyTypeIsHashable(TypeInformation)}).
-     *
+     * 类型验证方法，用于检查指定的键类型是否可以作为键。键类型必须是可哈希的（hashable）
      * @param keyType The {@link TypeInformation} of the key.
      */
     @SuppressWarnings("rawtypes")
@@ -210,7 +213,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
     /**
      * Validates that a given type of element (as encoded by the provided {@link TypeInformation})
      * can be used as a key in the {@code DataStream.keyBy()} operation.
-     *
+     * 检查单个类型是否可哈希
      * @param type The {@link TypeInformation} of the type to check.
      * @return {@code false} if:
      *     <ol>
@@ -271,6 +274,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
         return keyType;
     }
 
+    //这个方法被重写并禁用了。因为 KeyedStream 的分区方式是固定的（基于键），所以不允许用户再手动设置其他分区策略
     @Override
     protected DataStream<T> setConnectionType(StreamPartitioner<T> partitioner) {
         throw new UnsupportedOperationException("Cannot override partitioning for KeyedStream.");
@@ -279,7 +283,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
     // ------------------------------------------------------------------------
     //  basic transformations
     // ------------------------------------------------------------------------
-
+    //核心转换方法。当在 KeyedStream 上调用一个转换（如 map 或 process）时，这个方法会被调用
     @Override
     protected <R> SingleOutputStreamOperator<R> doTransform(
             final String operatorName,
@@ -297,7 +301,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
 
         return returnStream;
     }
-
+    //向 KeyedStream 添加一个数据汇（Sink）。它会像 doTransform 一样，将键选择器和键类型信息注入到 Sink 的 Transformation 中，以支持有状态的 Sink 算子
     @Override
     public DataStreamSink<T> addSink(SinkFunction<T> sinkFunction) {
         DataStreamSink<T> result = super.addSink(sinkFunction);
@@ -321,6 +325,8 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * @return The transformed {@link DataStream}.
      * @deprecated Use {@link KeyedStream#process(KeyedProcessFunction)}
      */
+    // 在 KeyedStream 上应用一个**KeyedProcessFunction。
+    // 这是一个非常强大的转换，它允许用户访问键控状态（keyed state）**、计时器（timers）和时间信息，从而实现复杂的、按键的逻辑
     @Deprecated
     @Override
     @PublicEvolving
@@ -436,6 +442,8 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * @param <T1> Type parameter of elements in the other stream
      * @return An instance of {@link IntervalJoin} with this keyed stream and the other keyed stream
      */
+    // 将当前 KeyedStream 与另一个 KeyedStream 进行时间区间联接。
+    // 这个操作会返回一个 IntervalJoin 对象，允许你定义一个时间窗口，将两个流中同一键（KEY）的元素在指定时间范围内进行匹配和联接
     @PublicEvolving
     public <T1> IntervalJoin<T, T1, KEY> intervalJoin(KeyedStream<T1, KEY> otherStream) {
         return new IntervalJoin<>(this, otherStream);
@@ -443,13 +451,16 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
 
     /**
      * Perform a join over a time interval.
+     * 用于配置和发起**时间区间联接（Interval Join）**的辅助类。
+     * 它不直接执行联接操作，而是充当一个构建器（builder），帮助用户定义两个 KeyedStream 之间的联接条件，
+     * 包括联接的时间语义（事件时间或处理时间）和时间边界
      *
      * @param <T1> The type parameter of the elements in the first streams
      * @param <T2> The type parameter of the elements in the second stream
      */
     @PublicEvolving
     public static class IntervalJoin<T1, T2, KEY> {
-
+        //分别存储进行联接的两个输入 KeyedStream
         private final KeyedStream<T1, KEY> streamOne;
         private final KeyedStream<T2, KEY> streamTwo;
 
@@ -472,13 +483,13 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
             this.streamOne = checkNotNull(streamOne);
             this.streamTwo = checkNotNull(streamTwo);
         }
-
+        //设置联接的时间语义为事件时间
         /** Sets the time characteristic to event time. */
         public IntervalJoin<T1, T2, KEY> inEventTime() {
             timeBehaviour = TimeBehaviour.EventTime;
             return this;
         }
-
+        //设置联接的时间语义为处理时间
         /** Sets the time characteristic to processing time. */
         public IntervalJoin<T1, T2, KEY> inProcessingTime() {
             timeBehaviour = TimeBehaviour.ProcessingTime;
@@ -520,6 +531,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
          * @param lowerBound The lower bound. Needs to be smaller than or equal to the upperBound
          * @param upperBound The upper bound. Needs to be bigger than or equal to the lowerBound
          */
+        //核心方法，用于指定联接的时间边界。它接收一个下界 (lowerBound) 和一个上界 (upperBound)，以 Duration 形式表示
         @PublicEvolving
         public IntervalJoined<T1, T2, KEY> between(Duration lowerBound, Duration upperBound) {
             if (timeBehaviour != TimeBehaviour.EventTime) {
@@ -543,6 +555,8 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      * @param <IN2> Input type of elements from the second stream
      * @param <KEY> The type of the key
      */
+    //一个配置完成的时间区间联接对象。它承载了两个输入流、时间边界，以及键选择器等所有联接所需的元数据。
+    // 用户可以在这个对象上继续配置联接的细节，例如边界是否包含，以及如何处理迟到数据，并最终通过 process() 方法应用一个联接函数来完成联接操作
     @PublicEvolving
     public static class IntervalJoined<IN1, IN2, KEY> {
 
@@ -657,16 +671,17 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
          * @param <OUT> The output type.
          * @return The transformed {@link DataStream}.
          */
+        //负责完成时间区间联结的配置，并应用用户定义的联结逻辑
         @PublicEvolving
         public <OUT> SingleOutputStreamOperator<OUT> process(
                 ProcessJoinFunction<IN1, IN2, OUT> processJoinFunction,
                 TypeInformation<OUT> outputType) {
             Preconditions.checkNotNull(processJoinFunction);
             Preconditions.checkNotNull(outputType);
-
+            //闭包清理 (Closure Cleaning)
             final ProcessJoinFunction<IN1, IN2, OUT> cleanedUdf =
                     left.getExecutionEnvironment().clean(processJoinFunction);
-
+            //创建一个核心联结算子。这个算子是真正执行联结逻辑的地方
             final IntervalJoinOperator<KEY, IN1, IN2, OUT> operator =
                     new IntervalJoinOperator<>(
                             lowerBound,
@@ -682,7 +697,8 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
                                     .createSerializer(
                                             right.getExecutionConfig().getSerializerConfig()),
                             cleanedUdf);
-
+            //将两个键控流连接成一个 ConnectedStreams
+            //在 ConnectedStreams 上执行键分区，这一步至关重要，它确保了两个流中键相同的元素会被路由到同一个 IntervalJoinOperator 实例
             return left.connect(right)
                     .keyBy(keySelector1, keySelector2)
                     .transform("Interval Join", outputType, operator);
@@ -706,6 +722,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      *     TumblingEventTimeWindows} or {@link TumblingProcessingTimeWindows}. For more information,
      *     see the deprecation notice on {@link TimeCharacteristic}
      */
+    //窗口是流处理中用于处理**有限数据集（即窗口）**的核心概念。KeyedStream 上的窗口操作会对每个键独立地进行
     @Deprecated
     public WindowedStream<T, KEY, TimeWindow> timeWindow(Time size) {
         if (environment.getStreamTimeCharacteristic() == TimeCharacteristic.ProcessingTime) {
@@ -789,6 +806,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      *     values with the same key.
      * @return The transformed DataStream.
      */
+    //将具有相同键的元素连续进行归约。ReduceFunction 会接收当前聚合值和新元素，并返回一个新的聚合值
     public SingleOutputStreamOperator<T> reduce(ReduceFunction<T> reducer) {
         ReduceTransformation<T, KEY> reduce =
                 new ReduceTransformation<>(
@@ -814,6 +832,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      *     (which is considered as having one field).
      * @return The transformed DataStream.
      */
+    //对指定字段或位置进行滚动求和
     public SingleOutputStreamOperator<T> sum(int positionToSum) {
         return aggregate(new SumAggregator<>(positionToSum, getType(), getExecutionConfig()));
     }
@@ -841,6 +860,7 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
      *     field).
      * @return The transformed DataStream.
      */
+    //对指定字段或位置进行滚动求最小值/最大值
     public SingleOutputStreamOperator<T> min(int positionToMin) {
         return aggregate(
                 new ComparableAggregator<>(

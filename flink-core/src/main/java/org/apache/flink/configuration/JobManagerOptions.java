@@ -476,9 +476,9 @@ public class JobManagerOptions {
     public enum SchedulerType implements DescribedEnum {
         /** @deprecated Use {@link SchedulerType#Default} instead. */
         @Deprecated
-        Ng(text("Deprecated. Use Default scheduler instead.")),
-        Default(text("Default scheduler")),
-        Adaptive(
+        Ng(text("Deprecated. Use Default scheduler instead.")),//提供了更灵活的任务调度策略和更强的失败恢复能力，某些任务失败时，只重新调度失败的任务，而不是整个作业拓扑
+        Default(text("Default scheduler")),//Flink 的默认调度器。适用于绝大多数场景，采用了较为成熟和稳定的调度逻辑，按照 JobGraph 的拓扑顺序分配资源和启动任务，静态资源分配，依赖于用户定义的 slot 和资源配置
+        Adaptive(  //Flink 的自适应调度器，旨在动态调整资源分配，适应不同的集群资源状况，调度器会根据当前资源状况和作业需求动态调整 slot 和资源
                 text(
                         "Adaptive scheduler. More details can be found %s.",
                         link(

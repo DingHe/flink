@@ -21,19 +21,19 @@ package org.apache.flink.api.common.eventtime;
 import org.apache.flink.annotation.Internal;
 
 import java.time.Duration;
-
+//作用是作为一个装饰器（Decorator），来封装一个现有的 WatermarkStrategy，并为其添加水印对齐（Watermark Alignment）的配置
 /** A helper class to pass a watermark group and max allowed watermark drift to the runtime. */
 @Internal
 final class WatermarksWithWatermarkAlignment<T> implements WatermarkStrategy<T> {
-
+    //定义了默认的水印对齐状态更新间隔，即 1000 毫秒（1秒）
     static final Duration DEFAULT_UPDATE_INTERVAL = Duration.ofMillis(1000);
-
+    //被包装的原始水印策略。这个对象包含了实际的时间戳分配和水印生成逻辑
     private final WatermarkStrategy<T> strategy;
-
+    //水印对齐组的名称
     private final String watermarkGroup;
-
+    //最大允许的水印漂移时间
     private final Duration maxAllowedWatermarkDrift;
-
+    //水印对齐状态的更新间隔
     private final Duration updateInterval;
 
     public WatermarksWithWatermarkAlignment(

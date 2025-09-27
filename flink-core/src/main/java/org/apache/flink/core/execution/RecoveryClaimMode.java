@@ -30,16 +30,16 @@ import static org.apache.flink.configuration.description.TextElement.text;
  */
 @PublicEvolving
 public enum RecoveryClaimMode implements DescribedEnum {
-    CLAIM(
+    CLAIM(  //Flink会主动声明对指定保存点的所有权，一旦JobManager成功声明所有权，它就可以在不需要的时候删除这个保存点
             "Flink will take ownership of the given snapshot. It will clean the"
                     + " snapshot once it is subsumed by newer ones."),
-    NO_CLAIM(
+    NO_CLAIM( //Flink会确保自己不依赖保存点中的任何特定文件
             "Flink will not claim ownership of the snapshot files. However it will make sure it"
                     + " does not depend on any artefacts from the restored snapshot. In order to do that,"
                     + " Flink will take the first checkpoint as a full one, which means it might"
                     + " reupload/duplicate files that are part of the restored checkpoint."),
     @Deprecated
-    LEGACY(
+    LEGACY( //这是Flink早期版本使用的模式，不推荐使用
             "This is the mode in which Flink worked until 1.15. It will not claim ownership of the"
                     + " snapshot and will not delete the files. However, it can directly depend on"
                     + " the existence of the files of the restored checkpoint. It might not be safe"

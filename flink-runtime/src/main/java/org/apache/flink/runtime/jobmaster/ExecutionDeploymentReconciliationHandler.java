@@ -26,16 +26,16 @@ import java.util.Collection;
 public interface ExecutionDeploymentReconciliationHandler {
     /**
      * Called if some executions are expected to be hosted on a task executor, but aren't.
-     *
+     *  当 Flink 检测到某些任务执行没有部署到预期的任务执行器上时，会调用该方法。该方法可以触发一些操作来修复这种状态不匹配，比如重新调度任务或触发错误处理等
      * @param executionAttemptIds ids of the missing deployments
      * @param hostingTaskExecutor expected hosting task executor
      */
     void onMissingDeploymentsOf(
             Collection<ExecutionAttemptID> executionAttemptIds, ResourceID hostingTaskExecutor);
-
+     //hostingTaskExecutor 表示预计应该承载这些执行任务的任务执行器
     /**
      * Called if some executions are hosted on a task executor, but we don't expect them.
-     *
+     *  当 Flink 检测到任务执行器上存在未预期的任务执行时，会调用该方法。该方法可以触发一些操作来管理或停止这些意外的任务执行
      * @param executionAttemptIds ids of the unknown executions
      * @param hostingTaskExecutor hosting task executor
      */

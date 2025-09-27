@@ -153,8 +153,8 @@ public abstract class Transformation<T> {
      * dynamic resource resize in future plan.
      */
     private ResourceSpec preferredResources = ResourceSpec.DEFAULT;
-
-    /**
+     //权重值高的场景会获得更多的内存资源，而权重值低的场景则会在内存分配时受到限制。这种机制有助于优化 Flink 作业的内存管理，避免内存过度分配或不足
+    /**它用于存储每个操作符在不同场景下使用 Managed Memory（受管理内存）的权重值，Managed Memory（受管理内存）是 Flink 提供的一种内存模型，允许作业在不同操作符之间共享内存池，而不必为每个操作符分配独立的内存
      * Each entry in this map represents a operator scope use case that this transformation needs
      * managed memory for. The keys indicate the use cases, while the values are the
      * use-case-specific weights for this transformation. Managed memory reserved for a use case
@@ -165,14 +165,14 @@ public abstract class Transformation<T> {
 
     /**
      * This map is a cache that stores transitive predecessors and used in {@code
-     * getTransitivePredecessors()}.
+     * getTransitivePredecessors()}. 存储了当前Transformation的上游Transformation的引用
      */
     private final Map<Transformation<T>, List<Transformation<?>>> predecessorsCache =
             new HashMap<>();
-
-    /** Slot scope use cases that this transformation needs managed memory for. */
+     //这两个属性是相辅相成的。managedMemorySlotScopeUseCases定义了每个Transformation的内存用途，而managedMemoryOperatorScopeUseCaseWeights则决定了当多个Transformation竞争内存时，如何分配
+    /** Slot scope use cases that this transformation needs managed memory for.它用于定义一个Transformation所使用的托管内存（managed memory）的具体用途 */
     private final Set<ManagedMemoryUseCase> managedMemorySlotScopeUseCases = new HashSet<>();
-
+   //managedMemorySlotScopeUseCases 就像给每个任务分配了一个房间，房间的用途是固定的，managedMemoryOperatorScopeUseCaseWeights 就像给每个房间分配了一个优先级，当多个任务争抢房间时，优先级高的任务更有可能获得房间
     /**
      * User-specified ID for this transformation. This is used to assign the same operator ID across
      * job restarts. There is also the automatically generated {@link #id}, which is assigned from a

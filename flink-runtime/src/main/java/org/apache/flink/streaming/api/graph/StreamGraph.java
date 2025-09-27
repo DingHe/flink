@@ -111,16 +111,16 @@ public class StreamGraph implements Pipeline {
     /** Flag to indicate whether to put all vertices into the same slot sharing group by default. */
     private boolean allVerticesInSameSlotSharingGroupByDefault = true;
 
-    private Map<Integer, StreamNode> streamNodes;
-    private Set<Integer> sources;
-    private Set<Integer> sinks;
+    private Map<Integer, StreamNode> streamNodes; //存储streamnode的节点
+    private Set<Integer> sources; //源
+    private Set<Integer> sinks;   //目标
     private Map<Integer, Tuple2<Integer, OutputTag>> virtualSideOutputNodes;
     private Map<Integer, Tuple3<Integer, StreamPartitioner<?>, StreamExchangeMode>>
-            virtualPartitionNodes;
+            virtualPartitionNodes;  //虚拟分区节点，Tuple3分别对应上有节点id，分区器，exchangemode
 
-    protected Map<Integer, String> vertexIDtoBrokerID;
-    protected Map<Integer, Long> vertexIDtoLoopTimeout;
-    private StateBackend stateBackend;
+    protected Map<Integer, String> vertexIDtoBrokerID; //它主要用于将 StreamGraph 中的算子（vertex）与消息传递系统中的broker进行关联。这个属性是一个映射关系
+    protected Map<Integer, Long> vertexIDtoLoopTimeout; //为作业图中的每个顶点（算子）设置一个循环超时，即限制某个算子在执行期间可以持续处理的时间。如果某个算子的处理时间超过了指定的超时值，可能会触发一些异常处理或作业的终止。它用于控制算子执行中的“死循环”或过长的处理时间，防止系统卡死或资源耗尽
+    private StateBackend stateBackend; //状态后端
     private CheckpointStorage checkpointStorage;
     private Set<Tuple2<StreamNode, StreamNode>> iterationSourceSinkPairs;
     private InternalTimeServiceManager.Provider timerServiceProvider;
@@ -132,11 +132,11 @@ public class StreamGraph implements Pipeline {
     private boolean vertexNameIncludeIndexPrefix = false;
 
     private final List<JobStatusHook> jobStatusHooks = new ArrayList<>();
-
+    //是否动态图
     private boolean dynamic;
 
     private boolean autoParallelismEnabled;
-
+    //要作用是缓存每个 StreamNode 对应的头算子，通常是指在当前节点前面执行的第一个算子。这样，当需要多次访问该算子时，就可以避免重复计算，提高性能
     private final transient Map<StreamNode, StreamOperatorFactory<?>> nodeToHeadOperatorCache =
             new HashMap<>();
 
@@ -198,7 +198,7 @@ public class StreamGraph implements Pipeline {
     public String getJobName() {
         return jobName;
     }
-
+    // job的名称
     public void setJobName(String jobName) {
         this.jobName = jobName;
     }
@@ -206,11 +206,11 @@ public class StreamGraph implements Pipeline {
     public LineageGraph getLineageGraph() {
         return lineageGraph;
     }
-
+    //设置血缘图
     public void setLineageGraph(LineageGraph lineageGraph) {
         this.lineageGraph = lineageGraph;
     }
-
+    //状态后端
     public void setStateBackend(StateBackend backend) {
         this.stateBackend = backend;
     }
@@ -218,7 +218,7 @@ public class StreamGraph implements Pipeline {
     public StateBackend getStateBackend() {
         return this.stateBackend;
     }
-
+    //检查点存储路径
     public void setCheckpointStorage(CheckpointStorage checkpointStorage) {
         this.checkpointStorage = checkpointStorage;
     }
@@ -244,7 +244,7 @@ public class StreamGraph implements Pipeline {
     public TimeCharacteristic getTimeCharacteristic() {
         return timeCharacteristic;
     }
-
+    //设置时间属性
     public void setTimeCharacteristic(TimeCharacteristic timeCharacteristic) {
         this.timeCharacteristic = timeCharacteristic;
     }
@@ -331,7 +331,7 @@ public class StreamGraph implements Pipeline {
                 inTypeInfo,
                 outTypeInfo,
                 operatorName,
-                SourceOperatorStreamTask.class);
+                SourceOperatorStreamTask.class); //源节点的执行是SourceOperatorStreamTask
         sources.add(vertexID);
     }
 
@@ -353,7 +353,7 @@ public class StreamGraph implements Pipeline {
                 operatorName);
         sources.add(vertexID);
     }
-
+    //添加输出节点
     public <IN, OUT> void addSink(
             Integer vertexID,
             @Nullable String slotSharingGroup,
@@ -399,7 +399,7 @@ public class StreamGraph implements Pipeline {
                 operatorName,
                 invokableClass);
     }
-
+    //把Operator转成streamnode
     private <IN, OUT> void addOperator(
             Integer vertexID,
             @Nullable String slotSharingGroup,
@@ -409,7 +409,7 @@ public class StreamGraph implements Pipeline {
             TypeInformation<OUT> outTypeInfo,
             String operatorName,
             Class<? extends TaskInvokable> invokableClass) {
-
+        //添加StreamNode顶点
         addNode(
                 vertexID,
                 slotSharingGroup,
@@ -501,7 +501,7 @@ public class StreamGraph implements Pipeline {
             LOG.debug("CO-TASK: {}", vertexID);
         }
     }
-
+    //添加streamnode节点
     protected StreamNode addNode(
             Integer vertexID,
             @Nullable String slotSharingGroup,
@@ -572,15 +572,15 @@ public class StreamGraph implements Pipeline {
      *
      * <p>When adding an edge from the virtual node to a downstream node the connection will be made
      * to the original node, but with the partitioning given here.
-     *
+     * 添加虚拟分区节点
      * @param originalId ID of the node that should be connected to.
      * @param virtualId ID of the virtual node.
      * @param partitioner The partitioner
      */
     public void addVirtualPartitionNode(
-            Integer originalId,
-            Integer virtualId,
-            StreamPartitioner<?> partitioner,
+            Integer originalId,  //上有节点id
+            Integer virtualId,   //虚拟节点id
+            StreamPartitioner<?> partitioner, //分区器
             StreamExchangeMode exchangeMode) {
 
         if (virtualPartitionNodes.containsKey(virtualId)) {
@@ -608,7 +608,7 @@ public class StreamGraph implements Pipeline {
     public void addEdge(Integer upStreamVertexID, Integer downStreamVertexID, int typeNumber) {
         addEdge(upStreamVertexID, downStreamVertexID, typeNumber, null);
     }
-
+    //添加边
     public void addEdge(
             Integer upStreamVertexID,
             Integer downStreamVertexID,
@@ -624,7 +624,7 @@ public class StreamGraph implements Pipeline {
                 null,
                 intermediateDataSetId);
     }
-
+    //添加边
     private void addEdgeInternal(
             Integer upStreamVertexID,
             Integer downStreamVertexID,
@@ -652,13 +652,13 @@ public class StreamGraph implements Pipeline {
                     intermediateDataSetId);
         } else if (virtualPartitionNodes.containsKey(upStreamVertexID)) {
             int virtualId = upStreamVertexID;
-            upStreamVertexID = virtualPartitionNodes.get(virtualId).f0;
+            upStreamVertexID = virtualPartitionNodes.get(virtualId).f0; //获取到虚拟节点的上游节点
             if (partitioner == null) {
-                partitioner = virtualPartitionNodes.get(virtualId).f1;
+                partitioner = virtualPartitionNodes.get(virtualId).f1;  //分区器
             }
-            exchangeMode = virtualPartitionNodes.get(virtualId).f2;
+            exchangeMode = virtualPartitionNodes.get(virtualId).f2;  //exchangemode
             addEdgeInternal(
-                    upStreamVertexID,
+                    upStreamVertexID,  //当上游节点是虚拟分区节点时，直接关联到虚拟节点的上游节点
                     downStreamVertexID,
                     typeNumber,
                     partitioner,
@@ -677,7 +677,7 @@ public class StreamGraph implements Pipeline {
                     intermediateDataSetId);
         }
     }
-
+    //创建边
     private void createActualEdge(
             Integer upStreamVertexID,
             Integer downStreamVertexID,
@@ -692,7 +692,7 @@ public class StreamGraph implements Pipeline {
         // If no partitioner was specified and the parallelism of upstream and downstream
         // operator matches use forward partitioning, use rebalance otherwise.
         if (partitioner == null
-                && upstreamNode.getParallelism() == downstreamNode.getParallelism()) {
+                && upstreamNode.getParallelism() == downstreamNode.getParallelism()) { //上下游的并发数一致
             partitioner =
                     dynamic ? new ForwardForUnspecifiedPartitioner<>() : new ForwardPartitioner<>();
         } else if (partitioner == null) {
@@ -826,7 +826,7 @@ public class StreamGraph implements Pipeline {
     public void setSerializers(
             Integer vertexID, TypeSerializer<?> in1, TypeSerializer<?> in2, TypeSerializer<?> out) {
         StreamNode vertex = getStreamNode(vertexID);
-        vertex.setSerializersIn(in1, in2);
+         vertex.setSerializersIn(in1, in2);
         vertex.setSerializerOut(out);
     }
 
@@ -1015,7 +1015,7 @@ public class StreamGraph implements Pipeline {
         return getJobGraph(Thread.currentThread().getContextClassLoader(), null);
     }
 
-    /** Gets the assembled {@link JobGraph} with a specified {@link JobID}. */
+    /** Gets the assembled {@link JobGraph} with a specified {@link JobID}. 负责把streamgraph转为jobgraph*/
     public JobGraph getJobGraph(ClassLoader userClassLoader, @Nullable JobID jobID) {
         return StreamingJobGraphGenerator.createJobGraph(userClassLoader, this, jobID);
     }
@@ -1033,7 +1033,7 @@ public class StreamGraph implements Pipeline {
                 ? typeInfo.createSerializer(executionConfig.getSerializerConfig())
                 : null;
     }
-
+    //流还是批
     public void setJobType(JobType jobType) {
         this.jobType = jobType;
     }
@@ -1045,7 +1045,7 @@ public class StreamGraph implements Pipeline {
     public boolean isAutoParallelismEnabled() {
         return autoParallelismEnabled;
     }
-
+    //批模式自适应配置
     public void setAutoParallelismEnabled(boolean autoParallelismEnabled) {
         this.autoParallelismEnabled = autoParallelismEnabled;
     }
@@ -1053,7 +1053,7 @@ public class StreamGraph implements Pipeline {
     public PipelineOptions.VertexDescriptionMode getVertexDescriptionMode() {
         return descriptionMode;
     }
-
+    //默认为TREE
     public void setVertexDescriptionMode(PipelineOptions.VertexDescriptionMode mode) {
         this.descriptionMode = mode;
     }

@@ -37,7 +37,7 @@ public interface Module {
 
     /**
      * List names of all functions in this module. It excludes internal functions.
-     *
+     * 模块包含的函数
      * @return a set of function names
      */
     default Set<String> listFunctions() {
@@ -49,7 +49,7 @@ public interface Module {
      *
      * <p>A module can decide to hide certain functions. For example, internal functions that can be
      * resolved via {@link #getFunctionDefinition(String)} but should not be listed by default.
-     *
+     * 模块包含的函数，是否包含隐藏函数
      * @param includeHiddenFunctions whether to list hidden functions or not
      * @return a set of function names
      */
@@ -82,7 +82,7 @@ public interface Module {
      *
      * <p>This will be called on loaded modules in the order in which they have been loaded. The
      * first factory returned will be used.
-     *
+     * 获取动态表的工厂类
      * <p>This method can be useful to disable Java SPI completely or influence how temporary table
      * sources should be created without a corresponding catalog.
      */

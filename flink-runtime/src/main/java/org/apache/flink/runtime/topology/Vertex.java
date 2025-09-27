@@ -25,12 +25,12 @@ package org.apache.flink.runtime.topology;
 public interface Vertex<
         VID extends VertexID,
         RID extends ResultID,
-        V extends Vertex<VID, RID, V, R>,
+        V extends Vertex<VID, RID, V, R>, //自引用
         R extends Result<VID, RID, V, R>> {
 
     VID getId();
-
+    //每个顶点可能从其他顶点的输出（Result）中消费数据，返回一个 Iterable 集合，包含当前顶点所依赖的所有结果。通过这些结果，当前顶点可以获得输入数据进行计算
     Iterable<? extends R> getConsumedResults();
-
+    //获取当前顶点产生的数据结果
     Iterable<? extends R> getProducedResults();
 }

@@ -32,11 +32,11 @@ import org.apache.calcite.util.SourceStringReader;
 
 import java.io.Reader;
 
-/**
+/**  Calcite内封装的解析器
  * Thin wrapper around {@link SqlParser} that does exception conversion and {@link SqlNode} casting.
  */
 public class CalciteParser {
-    private final SqlParser.Config config;
+    private final SqlParser.Config config; //存储解析器的配置（如大小写规则、标识符长度限制、语法符合性等）
 
     public CalciteParser(SqlParser.Config config) {
         this.config = config;
@@ -106,7 +106,7 @@ public class CalciteParser {
      * @throws SqlParserException if an exception is thrown when parsing the identifier
      */
     public SqlIdentifier parseIdentifier(String identifier) throws SqlParserException {
-        try {
+        try { //使用自定义的 Flink 解析器 FlinkSqlParserImpl 来解析标识符
             SqlAbstractParserImpl flinkParser = createFlinkParser(identifier);
             if (flinkParser instanceof FlinkSqlParserImpl) {
                 return ((FlinkSqlParserImpl) flinkParser).TableApiIdentifier();
@@ -130,19 +130,19 @@ public class CalciteParser {
     private SqlAbstractParserImpl createFlinkParser(String expr) {
         SourceStringReader reader = new SourceStringReader(expr);
         SqlAbstractParserImpl parser = config.parserFactory().getParser(reader);
-        parser.setTabSize(1);
-        parser.setQuotedCasing(config.quotedCasing());
-        parser.setUnquotedCasing(config.unquotedCasing());
-        parser.setIdentifierMaxLength(config.identifierMaxLength());
-        parser.setConformance(config.conformance());
+        parser.setTabSize(1); // 设置解析器的缩进（tab 大小）
+        parser.setQuotedCasing(config.quotedCasing()); // 设置在 SQL 中被双引号或其他引用符号包围的标识符的大小写
+        parser.setUnquotedCasing(config.unquotedCasing()); //设置没有引用符号的标识符的大小写
+        parser.setIdentifierMaxLength(config.identifierMaxLength()); // 设置解析器的标识符最大长度
+        parser.setConformance(config.conformance()); // 设置解析器的 SQL 符合性级别
         switch (config.quoting()) {
-            case DOUBLE_QUOTE:
+            case DOUBLE_QUOTE: //表示 SQL 中使用双引号（") 来包围标识符（如 SELECT "column" FROM "table"）
                 parser.switchTo(SqlAbstractParserImpl.LexicalState.DQID);
                 break;
-            case BACK_TICK:
+            case BACK_TICK:  //表示使用反引号（`）包围标识符（如 MySQL 中的 SELECT columnFROMtable``）
                 parser.switchTo(SqlAbstractParserImpl.LexicalState.BTID);
                 break;
-            case BRACKET:
+            case BRACKET: //表示使用方括号（[ ]）包围标识符（如 SQL Server 中的 SELECT [column] FROM [table]）
                 parser.switchTo(SqlAbstractParserImpl.LexicalState.DEFAULT);
                 break;
         }

@@ -40,9 +40,11 @@ import static org.apache.flink.table.types.logical.utils.LogicalTypeUtils.toInte
  *
  * @see DataTypes for a list of supported data types
  */
+// Flink 表生态系统中用于表示集合数据类型（即包含一个元素数据类型的数据类型）的具体实现类。
+// 它的核心作用是为像 ARRAY（数组）或 MULTISET（多重集）这样的数据类型提供一个具体的、可实例化的 DataType 对象
 @PublicEvolving
 public final class CollectionDataType extends DataType {
-
+    //存储该集合类型的元素的数据类型
     private final DataType elementDataType;
 
     public CollectionDataType(

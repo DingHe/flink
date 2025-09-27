@@ -81,7 +81,7 @@ public final class FlinkRelBuilder extends RelBuilder {
 
     public static final RelBuilder.Config FLINK_REL_BUILDER_CONFIG =
             Config.DEFAULT.withSimplifyValues(false);
-    private final QueryOperationConverter toRelNodeConverter;
+    private final QueryOperationConverter toRelNodeConverter; //Operation转为RelNode的转换器
 
     private final ExpandFactory expandFactory;
 

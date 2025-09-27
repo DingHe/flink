@@ -50,17 +50,17 @@ public abstract class AbstractStreamingJoinOperator extends AbstractStreamOperat
 
     protected static final String LEFT_RECORDS_STATE_NAME = "left-records";
     protected static final String RIGHT_RECORDS_STATE_NAME = "right-records";
-
+    //join条件的代码生成类
     private final GeneratedJoinCondition generatedJoinCondition;
-    protected final InternalTypeInfo<RowData> leftType;
-    protected final InternalTypeInfo<RowData> rightType;
+    protected final InternalTypeInfo<RowData> leftType;  //左输入类型
+    protected final InternalTypeInfo<RowData> rightType; //右输入类型
 
     protected final JoinInputSideSpec leftInputSideSpec;
     protected final JoinInputSideSpec rightInputSideSpec;
 
-    private final boolean[] filterNullKeys;
+    private final boolean[] filterNullKeys; //是否过滤join条件为null的记录
 
-    protected final long leftStateRetentionTime;
+    protected final long leftStateRetentionTime; //状态保留时间
     protected final long rightStateRetentionTime;
 
     protected transient JoinConditionWithNullFilters joinCondition;

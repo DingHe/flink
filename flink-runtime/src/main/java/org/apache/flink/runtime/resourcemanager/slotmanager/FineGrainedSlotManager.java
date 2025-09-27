@@ -66,7 +66,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
+//ResourceManager 借助 SlotManager 来管理 slot。 SlotManager 维护了所有已经注册的 TaskExecutor 的所有 slot 的状态，
+// 它们的分配情况。SlotManager 还维护了所有处于等待状态的 slot 请求。每当有一个新的 slot 注册或者一个已经分配的 slot 被释放的时候，
+// SlotManager 会试图去满足处于等待状态 slot request。如果可用的 slot 不足以满足要求，
+// SlotManager 会通过 ResourceActions#allocateResource(ResourceProfile) 来告知 ResourceManager,
+// ResourceManager 可能会尝试启动新的 TaskExecutor (如 Yarn 模式下)。
+//此外，长时间处于空闲状态的 TaskExecutor 或者长时间没有被满足的 pending slot request，会触发超时机制进行处理。
 /** Implementation of {@link SlotManager} supporting fine-grained resource management. */
 public class FineGrainedSlotManager implements SlotManager {
     private static final Logger LOG = LoggerFactory.getLogger(FineGrainedSlotManager.class);

@@ -85,11 +85,11 @@ public class DefaultDispatcherResourceManagerComponentFactory
         implements DispatcherResourceManagerComponentFactory {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
-
+    //DispatcherRunner工厂，DispatcherRunner 是 Dispatcher 的运行实例，负责调度任务和管理作业的生命周期
     @Nonnull private final DispatcherRunnerFactory dispatcherRunnerFactory;
-
+    //ResourceManager工厂
     @Nonnull private final ResourceManagerFactory<?> resourceManagerFactory;
-
+    //RestEndpoint工厂
     @Nonnull private final RestEndpointFactory<?> restEndpointFactory;
 
     public DefaultDispatcherResourceManagerComponentFactory(
@@ -124,13 +124,13 @@ public class DefaultDispatcherResourceManagerComponentFactory
         ResourceManagerService resourceManagerService = null;
         DispatcherRunner dispatcherRunner = null;
 
-        try {
+        try {  //分别用于检索 Dispatcher 和 ResourceManager 的 Leader 信息，确保集群高可用
             dispatcherLeaderRetrievalService =
                     highAvailabilityServices.getDispatcherLeaderRetriever();
 
             resourceManagerRetrievalService =
                     highAvailabilityServices.getResourceManagerLeaderRetriever();
-
+           //通过 RpcGatewayRetriever 通过rpcService连接到Leader获取 DispatcherGateway 和 ResourceManagerGateway
             final LeaderGatewayRetriever<DispatcherGateway> dispatcherGatewayRetriever =
                     new RpcGatewayRetriever<>(
                             rpcService,
@@ -155,7 +155,7 @@ public class DefaultDispatcherResourceManagerComponentFactory
 
             final long updateInterval =
                     configuration.get(MetricOptions.METRIC_FETCHER_UPDATE_INTERVAL).toMillis();
-            final MetricFetcher metricFetcher =
+            final MetricFetcher metricFetcher =  //提供任务的运行状态和集群监控数据
                     updateInterval == 0
                             ? VoidMetricFetcher.INSTANCE
                             : MetricFetcherImpl.fromConfiguration(
@@ -164,7 +164,7 @@ public class DefaultDispatcherResourceManagerComponentFactory
                                     dispatcherGatewayRetriever,
                                     executor);
 
-            webMonitorEndpoint =
+            webMonitorEndpoint =  //创建并启动Dispatcher REST endpoint 服务端点
                     restEndpointFactory.createRestEndpoint(
                             configuration,
                             dispatcherGatewayRetriever,
@@ -179,7 +179,7 @@ public class DefaultDispatcherResourceManagerComponentFactory
             webMonitorEndpoint.start();
 
             final String hostname = RpcUtils.getHostname(rpcService);
-
+            //创建 ResourceManagerService，负责集群资源的管理和分配
             resourceManagerService =
                     ResourceManagerServiceImpl.create(
                             resourceManagerFactory,
@@ -203,7 +203,7 @@ public class DefaultDispatcherResourceManagerComponentFactory
             final DispatcherOperationCaches dispatcherOperationCaches =
                     new DispatcherOperationCaches(
                             configuration.get(RestOptions.ASYNC_OPERATION_STORE_DURATION));
-
+            //PartialDispatcherServices 通常作为一个参数传递给 Dispatcher 的构造函数
             final PartialDispatcherServices partialDispatcherServices =
                     new PartialDispatcherServices(
                             configuration,
@@ -223,7 +223,7 @@ public class DefaultDispatcherResourceManagerComponentFactory
                             failureEnrichers);
 
             log.debug("Starting Dispatcher.");
-            dispatcherRunner =
+            dispatcherRunner =  //创建并启动 DispatcherRunner，用于调度作业
                     dispatcherRunnerFactory.createDispatcherRunner(
                             highAvailabilityServices.getDispatcherLeaderElection(),
                             fatalErrorHandler,
@@ -292,16 +292,16 @@ public class DefaultDispatcherResourceManagerComponentFactory
                     "Could not create the DispatcherResourceManagerComponent.", exception);
         }
     }
-
+   //创建一个支持 会话模式 的工厂实例
     public static DefaultDispatcherResourceManagerComponentFactory createSessionComponentFactory(
             ResourceManagerFactory<?> resourceManagerFactory) {
         return new DefaultDispatcherResourceManagerComponentFactory(
                 DefaultDispatcherRunnerFactory.createSessionRunner(
-                        SessionDispatcherFactory.INSTANCE),
+                        SessionDispatcherFactory.INSTANCE),  //返回DispatcherFactory
                 resourceManagerFactory,
                 SessionRestEndpointFactory.INSTANCE);
     }
-
+   //创建一个支持 单作业模式 的工厂实例
     public static DefaultDispatcherResourceManagerComponentFactory createJobComponentFactory(
             ResourceManagerFactory<?> resourceManagerFactory, JobGraphRetriever jobGraphRetriever) {
         return new DefaultDispatcherResourceManagerComponentFactory(

@@ -26,7 +26,7 @@ import org.apache.flink.runtime.jobmanager.scheduler.SlotSharingGroup;
 import java.io.Serializable;
 
 import static org.apache.flink.runtime.executiongraph.ExecutionJobVertex.getAggregateJobVertexState;
-
+//归档的对象通常用于历史数据的存储和查询，而不是实时调度
 public class ArchivedExecutionJobVertex implements AccessExecutionJobVertex, Serializable {
 
     private static final long serialVersionUID = -5768187638639437957L;

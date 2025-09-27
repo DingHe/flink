@@ -27,6 +27,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
  * otherwise performed and is useful in situations where the produced data type may vary depending
  * on parametrization.
  */
+//核心作用是显式地告诉 Flink 框架一个函数或数据源所产生的数据类型
 @Public
 public interface ResultTypeQueryable<T> {
 
@@ -35,5 +36,6 @@ public interface ResultTypeQueryable<T> {
      *
      * @return The data type produced by this function or input format.
      */
+    //获取并返回该函数或数据源所生成的数据的 TypeInformation
     TypeInformation<T> getProducedType();
 }

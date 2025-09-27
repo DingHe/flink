@@ -39,7 +39,7 @@ public interface ResolvedCatalogBaseTable<T extends CatalogBaseTable> extends Ca
 
     /**
      * Returns a fully resolved and validated {@link ResolvedSchema}.
-     *
+     * 获取已解析的表schema
      * <p>Connectors can configure themselves by accessing {@link ResolvedSchema#getPrimaryKey()}
      * and {@link ResolvedSchema#toPhysicalRowDataType()}.
      */

@@ -77,7 +77,7 @@ public class ClosureCleaner {
         if (func == null) {
             return;
         }
-
+        //断当前对象是否已经处理过，如果已经处理过，则直接返回，避免重复清理同一个对象
         if (!visited.add(func)) {
             return;
         }
@@ -87,7 +87,7 @@ public class ClosureCleaner {
         if (ClassUtils.isPrimitiveOrWrapper(cls)) {
             return;
         }
-
+        //检查是否使用了自定义序列化
         if (usesCustomSerialization(cls)) {
             return;
         }

@@ -44,7 +44,7 @@ public class ExtendedParser {
 
     /**
      * Parse the input statement to the {@link Operation}.
-     *
+     * 用正则表达式匹配一些简单的语句，然后转为Operation
      * @param statement the command to evaluate
      * @return parsed operation that represents the command
      */

@@ -28,7 +28,7 @@ import org.apache.flink.table.types.logical.LogicalType;
 
 import java.util.List;
 import java.util.Optional;
-
+//调用上下文
 /** Provides details about a function call during {@link TypeInference}. */
 @PublicEvolving
 public interface CallContext {
@@ -38,14 +38,14 @@ public interface CallContext {
 
     /** Returns the function definition that defines the function currently being called. */
     FunctionDefinition getFunctionDefinition();
-
+    //指定位置的参数是否是常量
     /** Returns whether the argument at the given position is a value literal. */
     boolean isArgumentLiteral(int pos);
 
     /**
      * Returns {@code true} if the argument at the given position is a literal and {@code null},
      * {@code false} otherwise.
-     *
+     * 是否位置的参数是否为空
      * <p>Use {@link #isArgumentLiteral(int)} before to check if the argument is actually a literal.
      */
     boolean isArgumentNull(int pos);
@@ -53,7 +53,7 @@ public interface CallContext {
     /**
      * Returns the literal value of the argument at the given position, given that the argument is a
      * literal, is not null, and can be expressed as an instance of the provided class.
-     *
+     * 获取指定位置的参数
      * <p>It supports conversions to default conversion classes of {@link LogicalType LogicalTypes}.
      * This method should not be called with other classes.
      *
@@ -63,12 +63,12 @@ public interface CallContext {
 
     /**
      * Returns the function's name usually referencing the function in a catalog.
-     *
+     * 获取函数名称
      * <p>Note: The name is meant for debugging purposes only.
      */
     String getName();
 
-    /**
+    /** 参数类型列表
      * Returns a resolved list of the call's argument types. It also includes a type for every
      * argument in a vararg function call.
      */
@@ -76,7 +76,7 @@ public interface CallContext {
 
     /**
      * Returns the inferred output data type of the function call.
-     *
+     * 函数返回值类型
      * <p>It does this by inferring the input argument data type using {@link
      * ArgumentTypeStrategy#inferArgumentType(CallContext, int, boolean)} of a wrapping call (if
      * available) where this function call is an argument. For example, {@code

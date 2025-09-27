@@ -204,7 +204,7 @@ class MergeTableLikeUtil {
         }
         return sourcePartitions;
     }
-
+    //合并create table语句的参数
     /** Merges the options part of {@code CREATE TABLE} statement. */
     public Map<String, String> mergeOptions(
             MergingStrategy mergingStrategy,
@@ -336,7 +336,7 @@ class MergeTableLikeUtil {
         private void appendDerivedColumns(
                 Map<FeatureOption, MergingStrategy> mergingStrategies,
                 List<SqlNode> derivedColumns) {
-
+            //把sql中的数据类型转为RelDataType
             collectPhysicalFieldsTypes(derivedColumns);
 
             for (SqlNode derivedColumn : derivedColumns) {
@@ -434,7 +434,7 @@ class MergeTableLikeUtil {
                                 String.format(
                                         "A column named '%s' already exists in the base table.",
                                         name));
-                    }
+                    } //把sql语句中的数据类型转为RelDataType
                     RelDataType relType = toRelDataType(regularColumn.getType());
                     // add field name and field type to physical field list
                     RelDataType oldType = physicalFieldNamesToTypes.put(name, relType);

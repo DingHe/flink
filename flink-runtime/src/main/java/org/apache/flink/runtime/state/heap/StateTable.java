@@ -47,32 +47,32 @@ import java.util.stream.StreamSupport;
 /**
  * Base class for state tables. Accesses to state are typically scoped by the currently active key,
  * as provided through the {@link InternalKeyContext}.
- *
- * @param <K> type of key
- * @param <N> type of namespace
- * @param <S> type of state
+ *  是 Flink 的 Keyed State Backend 的核心组件之一。它的职责是维护和操作键控状态，以高效支持 Flink 的流处理任务
+ * @param <K> type of key  <K>: 键的类型
+ * @param <N> type of namespace  <N>: 命名空间的类型
+ * @param <S> type of state  <S>: 状态的类型
  */
 public abstract class StateTable<K, N, S>
         implements StateSnapshotRestore, Iterable<StateEntry<K, N, S>> {
 
     /**
      * The key context view on the backend. This provides information, such as the currently active
-     * key.
+     * key. 提供键作用域上下文，包括当前活跃的键以及键组范围信息
      */
     protected final InternalKeyContext<K> keyContext;
 
-    /** Combined meta information such as name and serializers for this state. */
+    /** Combined meta information such as name and serializers for this state. 保存状态的元信息，例如状态的名称、命名空间和状态的序列化器*/
     protected RegisteredKeyValueStateBackendMetaInfo<N, S> metaInfo;
 
-    /** The serializer of the key. */
+    /** The serializer of the key.  键的序列化器*/
     protected final TypeSerializer<K> keySerializer;
 
-    /** The current key group range. */
+    /** The current key group range. 当前状态表的键组范围*/
     protected final KeyGroupRange keyGroupRange;
 
     /**
      * Map for holding the actual state objects. The outer array represents the key-groups. All
-     * array positions will be initialized with an empty state map.
+     * array positions will be initialized with an empty state map. 一个数组，存储状态映射。数组的每个元素对应一个 Key Group
      */
     protected final StateMap<K, N, S>[] keyGroupedStateMaps;
 
@@ -135,7 +135,7 @@ public abstract class StateTable<K, N, S>
 
     /**
      * Returns the state of the mapping for the composite of active key and given namespace.
-     *
+     * 返回当前活跃键和指定命名空间的状态
      * @param namespace the namespace. Not null.
      * @return the states of the mapping with the specified key/namespace composite key, or {@code
      *     null} if no mapping for the specified key is found.

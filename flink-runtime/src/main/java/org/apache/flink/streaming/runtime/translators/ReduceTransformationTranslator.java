@@ -66,7 +66,7 @@ public class ReduceTransformationTranslator<IN, KEY>
     @Override
     public Collection<Integer> translateForStreamingInternal(
             final ReduceTransformation<IN, KEY> transformation, final Context context) {
-        StreamGroupedReduceOperator<IN> groupedReduce =
+        StreamGroupedReduceOperator<IN> groupedReduce =  //获取reduce的operator
                 new StreamGroupedReduceOperator<>(
                         transformation.getReducer(),
                         transformation

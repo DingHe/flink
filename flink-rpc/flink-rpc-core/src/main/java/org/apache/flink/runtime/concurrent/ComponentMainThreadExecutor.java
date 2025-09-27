@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
  * org.apache.flink.runtime.rpc.RpcEndpoint}.
  */
 public interface ComponentMainThreadExecutor extends ScheduledExecutor {
-
+    //判断要在指定线程执行
     /** Returns true if the method was called in the thread of this executor. */
     void assertRunningInMainThread();
 

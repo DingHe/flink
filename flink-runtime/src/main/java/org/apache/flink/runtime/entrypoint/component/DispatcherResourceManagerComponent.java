@@ -45,7 +45,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
-/**
+/** 用于在同一个进程中启动和管理 Dispatcher（任务调度器）、ResourceManager（资源管理器）和 WebMonitorEndpoint（Web监控端点）
  * Component which starts a {@link Dispatcher}, {@link ResourceManager} and {@link
  * WebMonitorEndpoint} in the same process.
  */
@@ -53,19 +53,19 @@ public class DispatcherResourceManagerComponent implements AutoCloseableAsync {
 
     private static final Logger LOG =
             LoggerFactory.getLogger(DispatcherResourceManagerComponent.class);
-
+    //负责启动并管理 Dispatcher 的生命周期，调度 Flink 的任务
     @Nonnull private final DispatcherRunner dispatcherRunner;
-
+    //管理 Flink 集群的资源分配和容错能力
     @Nonnull private final ResourceManagerService resourceManagerService;
-
+    //用于检索当前 Dispatcher 的领导者信息（在 HA 模式下尤为重要）
     @Nonnull private final LeaderRetrievalService dispatcherLeaderRetrievalService;
 
     @Nonnull private final LeaderRetrievalService resourceManagerRetrievalService;
-
+    //提供 Web 界面和 REST API 端点，用于监控和管理 Flink 集群
     @Nonnull private final RestService webMonitorEndpoint;
-
+    //标记组件的终止状态，所有子组件关闭后，该 future 会完成
     private final CompletableFuture<Void> terminationFuture;
-
+    //标记应用程序关闭的状态，包括退出码等信息
     private final CompletableFuture<ApplicationStatus> shutDownFuture;
 
     private final AtomicBoolean isRunning = new AtomicBoolean(true);
@@ -92,8 +92,8 @@ public class DispatcherResourceManagerComponent implements AutoCloseableAsync {
         this.shutDownFuture = new CompletableFuture<>();
         this.dispatcherOperationCaches = dispatcherOperationCaches;
 
-        registerShutDownFuture();
-        handleUnexpectedResourceManagerTermination();
+        registerShutDownFuture();  //将dispatcherRunner的返回值关联到shutDownFuture属性上
+        handleUnexpectedResourceManagerTermination(); //resourceManagerService终止后，如果服务还运行(isRunning is true），则抛出异常
     }
 
     private void handleUnexpectedResourceManagerTermination() {
@@ -146,18 +146,18 @@ public class DispatcherResourceManagerComponent implements AutoCloseableAsync {
             final Supplier<CompletableFuture<?>> additionalShutdownAction) {
         if (isRunning.compareAndSet(true, false)) {
             final CompletableFuture<Void> operationsConsumedFuture =
-                    dispatcherOperationCaches.closeAsync();
+                    dispatcherOperationCaches.closeAsync(); //关闭所有缓存Future
             final CompletableFuture<Void> webMonitorShutdownFuture =
-                    FutureUtils.composeAfterwards(
+                    FutureUtils.composeAfterwards(  //确认operationsConsumedFuture关闭后，再关闭webMonitorEndpoint
                             operationsConsumedFuture, webMonitorEndpoint::closeAsync);
             final CompletableFuture<Void> closeWebMonitorAndAdditionalShutdownActionFuture =
-                    FutureUtils.composeAfterwards(
+                    FutureUtils.composeAfterwards( //确认webMonitorShutdownFuture关闭后，关闭传入的参数additionalShutdownAction
                             webMonitorShutdownFuture, additionalShutdownAction);
 
             return FutureUtils.composeAfterwards(
                     closeWebMonitorAndAdditionalShutdownActionFuture, this::closeAsyncInternal);
         } else {
-            return terminationFuture;
+            return terminationFuture;  //如果isRunning false，则直接返回
         }
     }
 

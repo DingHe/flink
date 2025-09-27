@@ -158,7 +158,7 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
     protected final FunctionCatalog functionCatalog;
     protected final Planner planner;
     private final boolean isStreamingMode;
-    private final ExecutableOperation.Context operationCtx;
+    private final ExecutableOperation.Context operationCtx; //上下文包含列catalogManager  FunctionCatalog ModuleManager等信息
 
     private static final String UNSUPPORTED_QUERY_IN_EXECUTE_SQL_MSG =
             "Unsupported SQL query! executeSql() only accepts a single SQL statement of type "
@@ -200,9 +200,9 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
                                 UnresolvedIdentifier unresolvedIdentifier =
                                         getParser().parseIdentifier(path);
                                 Optional<SourceQueryOperation> catalogQueryOperation =
-                                        scanInternal(unresolvedIdentifier);
+                                        scanInternal(unresolvedIdentifier); //根据表名查找表，然后转成Operation
                                 return catalogQueryOperation.map(
-                                        t -> ApiExpressionUtils.tableRef(path, t));
+                                        t -> ApiExpressionUtils.tableRef(path, t)); //结合表名和Operation生成表引用
                             } catch (SqlParserException ex) {
                                 // The TableLookup is used during resolution of expressions and it
                                 // actually might not be an
@@ -236,12 +236,12 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
         final MutableURLClassLoader userClassLoader =
                 FlinkUserCodeClassLoaders.create(
                         new URL[0], settings.getUserClassLoader(), settings.getConfiguration());
-
+         //获取executor
         final ExecutorFactory executorFactory =
                 FactoryUtil.discoverFactory(
                         userClassLoader, ExecutorFactory.class, ExecutorFactory.DEFAULT_IDENTIFIER);
         final Executor executor = executorFactory.create(settings.getConfiguration());
-
+        //catalog工厂
         final CatalogStoreFactory catalogStoreFactory =
                 TableFactoryUtil.findAndCreateCatalogStoreFactory(
                         settings.getConfiguration(), userClassLoader);
@@ -249,7 +249,7 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
                 TableFactoryUtil.buildCatalogStoreFactoryContext(
                         settings.getConfiguration(), userClassLoader);
         catalogStoreFactory.open(context);
-        final CatalogStore catalogStore =
+        final CatalogStore catalogStore =   //创建了catalog存储器，从这里的代码可以看出，在构建配置的时候，可以自己指定catalogStore
                 settings.getCatalogStore() != null
                         ? settings.getCatalogStore()
                         : catalogStoreFactory.createCatalogStore();
@@ -261,13 +261,13 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
 
         final ResourceManager resourceManager =
                 new ResourceManager(settings.getConfiguration(), userClassLoader);
-        final ModuleManager moduleManager = new ModuleManager();
-        final CatalogManager catalogManager =
+        final ModuleManager moduleManager = new ModuleManager();  //模块管理器
+        final CatalogManager catalogManager =   //初始化CatalogManager管理器
                 CatalogManager.newBuilder()
                         .classLoader(userClassLoader)
                         .config(tableConfig)
                         .defaultCatalog(
-                                settings.getBuiltInCatalogName(),
+                                settings.getBuiltInCatalogName(), //默认default_catalog
                                 new GenericInMemoryCatalog(
                                         settings.getBuiltInCatalogName(),
                                         settings.getBuiltInDatabaseName()))
@@ -543,7 +543,7 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
                                                 "Table %s was not found.", unresolvedIdentifier)));
     }
 
-    @Override
+    @Override  //根据path解析出表名，然后把表映射成SourceQueryOperation
     public Table from(String path) {
         UnresolvedIdentifier unresolvedIdentifier = getParser().parseIdentifier(path);
         return scanInternal(unresolvedIdentifier)
@@ -847,7 +847,7 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
                 ReplaceTableAsOperation rtasOperation = (ReplaceTableAsOperation) modify;
                 mapOperations.add(getModifyOperation(rtasOperation, jobStatusHookList));
             } else {
-                boolean isRowLevelModification = isRowLevelModification(modify);
+                boolean isRowLevelModification = isRowLevelModification(modify); //判断是否删除和更新
                 if (isRowLevelModification) {
                     String modifyType =
                             ((SinkModifyOperation) modify).isDelete() ? "DELETE" : "UPDATE";
@@ -870,7 +870,7 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
                 mapOperations.add(modify);
             }
         }
-
+        //Operation翻译成Transformation
         List<Transformation<?>> transformations = translate(mapOperations);
         List<String> sinkIdentifierNames = extractSinkIdentifierNames(mapOperations);
         return executeInternal(transformations, sinkIdentifierNames, jobStatusHookList);
@@ -1020,7 +1020,7 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
         final String defaultJobName = "insert-into_" + String.join(",", sinkIdentifierNames);
 
         resourceManager.addJarConfiguration(tableConfig);
-
+        //根据Transformation生成StreamGraph，然后就是正常的Flink流程了
         // We pass only the configuration to avoid reconfiguration with the rootConfiguration
         Pipeline pipeline =
                 execEnv.createPipeline(
@@ -1095,7 +1095,7 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
         }
     }
 
-    @Override
+    @Override  //执行Operation操作，主要是调用ExecutableOperation接口的execute方法
     public TableResultInternal executeInternal(Operation operation) {
         // delegate execution to Operation if it implements ExecutableOperation
         if (operation instanceof ExecutableOperation) {
@@ -1303,7 +1303,7 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
     protected void validateTableSource(TableSource<?> tableSource) {
         TableSourceValidation.validateTableSource(tableSource, tableSource.getTableSchema());
     }
-
+    //利用StreamPlanner把Operatioin翻译成Transformation
     protected List<Transformation<?>> translate(List<ModifyOperation> modifyOperations) {
         return planner.translate(modifyOperations);
     }
@@ -1391,13 +1391,13 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
                 .map(ContextResolvedTable::getResolvedTable);
     }
 
-    @VisibleForTesting
+    @VisibleForTesting  //根据Operation创建表Table对象
     public TableImpl createTable(QueryOperation tableOperation) {
         return TableImpl.createTable(
                 this,
                 tableOperation,
                 operationTreeBuilder,
-                functionCatalog.asLookup(getParser()::parseIdentifier));
+                functionCatalog.asLookup(getParser()::parseIdentifier));//asLookup接收一个函数，这个函数接受一个字符串，然后返回UnresolvedIdentifier，根据这个函数的解析生成FunctionLookup
     }
 
     @Override

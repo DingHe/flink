@@ -33,7 +33,7 @@ import java.util.Optional;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/**
+/** 通过函数名或者全限定名标识系统函数
  * Identifies a system function with function name or a catalog function with a fully qualified
  * identifier. Function catalog is responsible for resolving an identifier to a function.
  */
@@ -42,9 +42,9 @@ public final class FunctionIdentifier implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    private final @Nullable ObjectIdentifier objectIdentifier;
+    private final @Nullable ObjectIdentifier objectIdentifier; //全限定名
 
-    private final @Nullable String functionName;
+    private final @Nullable String functionName; //函数名
 
     public static FunctionIdentifier of(ObjectIdentifier oi) {
         return new FunctionIdentifier(oi);
@@ -68,7 +68,7 @@ public final class FunctionIdentifier implements Serializable {
         this.objectIdentifier = null;
     }
 
-    /** Normalize a function name. */
+    /** Normalize a function name. 函数名转为小写*/
     public static String normalizeName(String name) {
         return name.toLowerCase();
     }

@@ -34,14 +34,14 @@ import static org.apache.flink.table.utils.IntervalFreshnessUtils.convertFreshne
 
 /**
  * Represents the unresolved metadata of a materialized table in a {@link Catalog}.
- *
+ * 代表物化表的未解析元数据
  * <p>Materialized Table definition: In the context of streaming-batch unified storage, it provides
  * full history data and incremental changelog. By defining the data's production business logic and
  * freshness, data refresh is achieved through continuous or full refresh pipeline, while also
  * possessing the capability for both batch and incremental consumption.
  *
  * <p>The metadata for {@link CatalogMaterializedTable} includes the following four main parts:
- *
+ * 元数据包括： 1、schecma等 2、数据生产方式  3、业务逻辑 4、后台刷新管道
  * <ul>
  *   <li>Schema, comments, options and partition keys.
  *   <li>Data freshness, which determines when the data is generated and becomes visible for user.
@@ -66,7 +66,7 @@ public interface CatalogMaterializedTable extends CatalogBaseTable {
 
     /**
      * Check if the table is partitioned or not.
-     *
+     * 是否分区
      * @return true if the table is partitioned; otherwise, false
      */
     boolean isPartitioned();
@@ -74,7 +74,7 @@ public interface CatalogMaterializedTable extends CatalogBaseTable {
     /**
      * Get the partition keys of the table. This will be an empty set if the table is not
      * partitioned.
-     *
+     * 分区键
      * @return partition keys of the table
      */
     List<String> getPartitionKeys();
@@ -82,7 +82,7 @@ public interface CatalogMaterializedTable extends CatalogBaseTable {
     /**
      * Returns a copy of this {@code CatalogMaterializedTable} with given table options {@code
      * options}.
-     *
+     * 表参数
      * @return a new copy of this table with replaced table options
      */
     CatalogMaterializedTable copy(Map<String, String> options);
@@ -109,12 +109,12 @@ public interface CatalogMaterializedTable extends CatalogBaseTable {
      * with a query {@code select * from test1}, the expanded query text might become {@code select
      * `test1`.`name`, `test1`.`value` from `default`.`test1`}, where table test1 resides in
      * database "default" and has two columns ("name" and "value").
-     *
+     * 业务逻辑
      * @return the materialized table definition in expanded text.
      */
     String getDefinitionQuery();
 
-    /**
+    /** 刷新时间
      * Get the definition freshness of materialized table which is used to determine the physical
      * refresh mode.
      */
@@ -127,7 +127,7 @@ public interface CatalogMaterializedTable extends CatalogBaseTable {
     default Duration getFreshness() {
         return convertFreshnessToDuration(getDefinitionFreshness());
     }
-
+    //更新方式
     /** Get the logical refresh mode of materialized table. */
     LogicalRefreshMode getLogicalRefreshMode();
 

@@ -26,7 +26,7 @@ import java.util.List;
 
 /**
  * Expression that has been fully resolved and validated.
- *
+ * 代表已经解析和校验的表达式
  * <p>Compared to {@link Expression}, resolved expressions do not contain unresolved subexpressions
  * anymore and provide an output data type for the computation result.
  *
@@ -53,9 +53,9 @@ public interface ResolvedExpression extends Expression {
                                 + "originated from a SQL expression have a well-defined string representation.",
                         asSummaryString()));
     }
-
+    //计算的结果类型
     /** Returns the data type of the computation result. */
     DataType getOutputDataType();
-
+    //已解析的子表达式
     List<ResolvedExpression> getResolvedChildren();
 }

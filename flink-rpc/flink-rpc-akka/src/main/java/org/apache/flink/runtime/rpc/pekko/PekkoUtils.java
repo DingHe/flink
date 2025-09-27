@@ -152,7 +152,7 @@ class PekkoUtils {
                 .add("}")
                 .build();
     }
-
+    //actor的配置信息
     public static Config getForkJoinExecutorConfig(
             RpcSystem.ForkJoinExecutorConfiguration configuration) {
         final double parallelismFactor = configuration.getParallelismFactor();

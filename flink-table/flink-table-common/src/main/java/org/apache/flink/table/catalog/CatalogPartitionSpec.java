@@ -33,7 +33,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  */
 @PublicEvolving
 public class CatalogPartitionSpec {
-
+    //记录分区的key和value
     // An unmodifiable map as <partition key, value>
     private final Map<String, String> partitionSpec;
 

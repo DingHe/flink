@@ -78,9 +78,9 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * An {@code ExecutionJobVertex} is part of the {@link ExecutionGraph}, and the peer to the {@link
  * JobVertex}.
- *
+ *表示作业中一个逻辑算子的并行化实现
  * <p>The {@code ExecutionJobVertex} corresponds to a parallelized operation. It contains an {@link
- * ExecutionVertex} for each parallel instance of that operation.
+ * ExecutionVertex} for each parallel instance of that operation. 通过Archiveable接口，ExecutionJobVertex可以变为归档ArchivedExecutionJobVertex
  */
 public class ExecutionJobVertex
         implements AccessExecutionJobVertex, Archiveable<ArchivedExecutionJobVertex> {
@@ -90,38 +90,38 @@ public class ExecutionJobVertex
 
     private final Object stateMonitor = new Object();
 
-    private final InternalExecutionGraphAccessor graph;
-
+    private final InternalExecutionGraphAccessor graph;  //表示当前任务所属的 ExecutionGraph
+    //JobGraph的顶点
     private final JobVertex jobVertex;
-
+    //表示每个并行子任务的执行单元
     @Nullable private ExecutionVertex[] taskVertices;
-
+    //表示当前任务产生的所有中间结果
     @Nullable private IntermediateResult[] producedDataSets;
-
+    //表示当前任务的所有输入
     @Nullable private List<IntermediateResult> inputs;
-
+    //存储并行度及最大并行度信息
     private final VertexParallelismInformation parallelismInfo;
-
+     //任务的 Slot 共享组，用于优化资源使用
     private final SlotSharingGroup slotSharingGroup;
-
+    //控制多个任务的协同调度
     @Nullable private final CoLocationGroup coLocationGroup;
-
+    //表示当前任务的输入分片，用于数据分片和分配
     @Nullable private InputSplit[] inputSplits;
-
+     //描述此任务的资源需求（CPU、内存等）
     private final ResourceProfile resourceProfile;
-
+     //记录已完成的执行子任务数量
     private int numExecutionVertexFinished;
 
     /**
      * Either store a serialized task information, which is for all sub tasks the same, or the
      * permanent blob key of the offloaded task information BLOB containing the serialized task
-     * information.
+     * information.存储任务信息或其对应的永久 Blob 键
      */
     private Either<SerializedValue<TaskInformation>, PermanentBlobKey> taskInformationOrBlobKey =
             null;
-
+    //当前任务中所有算子的协调器集合
     private final Collection<OperatorCoordinatorHolder> operatorCoordinators;
-
+    //为任务分配输入分片的分配器
     @Nullable private InputSplitAssigner splitAssigner;
 
     @VisibleForTesting
@@ -304,7 +304,7 @@ public class ExecutionJobVertex
     public boolean isInitialized() {
         return taskVertices != null;
     }
-
+    //判断并行度是否已确定
     public boolean isParallelismDecided() {
         return parallelismInfo.getParallelism() > 0;
     }
@@ -659,7 +659,7 @@ public class ExecutionJobVertex
             return ExecutionState.CREATED;
         }
     }
-
+   //创建执行图顶点的工厂
     /** Factory to create {@link ExecutionJobVertex}. */
     public static class Factory {
         ExecutionJobVertex createExecutionJobVertex(

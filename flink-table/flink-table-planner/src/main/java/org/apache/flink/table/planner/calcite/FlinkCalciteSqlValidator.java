@@ -92,21 +92,21 @@ import java.util.stream.Stream;
 import static org.apache.calcite.sql.type.SqlTypeName.DECIMAL;
 import static org.apache.flink.table.expressions.resolver.lookups.FieldReferenceLookup.includeExpandedColumn;
 import static org.apache.flink.util.Preconditions.checkNotNull;
-
+//专门用于处理 Flink 的 SQL 验证。它的主要作用是对 Flink SQL 查询进行验证，确保查询符合 Flink 特定的规则和语义约束
 /** Extends Calcite's {@link SqlValidator} by Flink-specific behavior. */
 @Internal
 public final class FlinkCalciteSqlValidator extends SqlValidatorImpl {
 
     // Enables CallContext#getOutputDataType() when validating SQL expressions.
-    private SqlNode sqlNodeForExpectedOutputType;
-    private RelDataType expectedOutputType;
-
+    private SqlNode sqlNodeForExpectedOutputType; //希望输出的SqlNode
+    private RelDataType expectedOutputType; //希望输出的数据类型
+    //它为查询优化过程提供了一个上下文环境。你可以把它想象成一个“优化器的工作台”，在这个工作台上，优化器可以访问各种工具和资源来完成优化任务
     private final RelOptCluster relOptCluster;
-
+    //SqlNode转为RelNode的上下文
     private final RelOptTable.ToRelContext toRelContext;
-
+    //配置 SQL 框架，它是底层 Calcite 查询规划和优化框架的一部分
     private final FrameworkConfig frameworkConfig;
-
+    //列扩展策略列表
     private final List<ColumnExpansionStrategy> columnExpansionStrategies;
 
     public FlinkCalciteSqlValidator(
@@ -125,7 +125,7 @@ public final class FlinkCalciteSqlValidator extends SqlValidatorImpl {
                 ShortcutUtils.unwrapTableConfig(relOptCluster)
                         .get(TableConfigOptions.TABLE_COLUMN_EXPANSION_STRATEGY);
     }
-
+    //设置希望输出的SqlNode和数据类型
     public void setExpectedOutputType(SqlNode sqlNode, RelDataType expectedOutputType) {
         this.sqlNodeForExpectedOutputType = sqlNode;
         this.expectedOutputType = expectedOutputType;
@@ -137,7 +137,7 @@ public final class FlinkCalciteSqlValidator extends SqlValidatorImpl {
         }
         return Optional.empty();
     }
-
+    //重写了 validateLiteral 方法，检查 DECIMAL 类型字面量的精度是否超过 Flink 配置的最大精度（DecimalType.MAX_PRECISION）
     @Override
     public void validateLiteral(SqlLiteral literal) {
         if (literal.getTypeName() == DECIMAL) {
@@ -150,7 +150,7 @@ public final class FlinkCalciteSqlValidator extends SqlValidatorImpl {
         super.validateLiteral(literal);
     }
 
-    @Override
+    @Override  //处理了与表值函数（TVFs）结合使用的左外连接的特殊情况，避免了某些谓词在连接条件中不合法的情况，解决了 Calcite 中存在的一个已知问题（FLINK-7865）
     protected void validateJoin(SqlJoin join, SqlValidatorScope scope) {
         // Due to the improper translation of lateral table left outer join in Calcite, we need to
         // temporarily forbid the common predicates until the problem is fixed (see FLINK-7865).
@@ -181,7 +181,7 @@ public final class FlinkCalciteSqlValidator extends SqlValidatorImpl {
         super.validateJoin(join, scope);
     }
 
-    @Override
+    @Override //用于处理函数中的列列表参数。Flink 不支持列列表，因此它将这些参数转化为未知类型，从而在验证过程中忽略它们
     public void validateColumnListParams(
             SqlFunction function, List<RelDataType> argTypes, List<SqlNode> operands) {
         // we don't support column lists and translate them into the unknown type in the type
@@ -190,7 +190,7 @@ public final class FlinkCalciteSqlValidator extends SqlValidatorImpl {
         // see also SqlFunction#deriveType
     }
 
-    @Override
+    @Override //此方法特别处理了时间旅行的场景，确保时间旅行表达式是有效的时间戳，并使用正确的 schema 版本
     protected void registerNamespace(
             @Nullable SqlValidatorScope usingScope,
             @Nullable String alias,
@@ -285,7 +285,7 @@ public final class FlinkCalciteSqlValidator extends SqlValidatorImpl {
      * is usually SqlSnapshot. However, if we encounter a situation with an "as" operator, we need
      * to identify whether the enclosingNode is an "as" call and if its first operand is
      * SqlSnapshot.
-     *
+     * 辅助方法，用于从给定的命名空间中获取 SqlSnapshot 节点。时间旅行查询需要这种快照表达式，以便在特定时间点查询历史数据
      * @param ns The namespace used to find SqlSnapshot
      * @return SqlSnapshot found in {@param ns}, empty if not found
      */
@@ -306,7 +306,7 @@ public final class FlinkCalciteSqlValidator extends SqlValidatorImpl {
         }
         return Optional.empty();
     }
-
+    //创建一个 SqlToRelConverter，该转换器负责将 SQL 节点转换为关系表达式（如 RelNode），用于后续的查询优化
     private SqlToRelConverter createSqlToRelConverter() {
         return new SqlToRelConverter(
                 toRelContext,
@@ -317,7 +317,7 @@ public final class FlinkCalciteSqlValidator extends SqlValidatorImpl {
                 frameworkConfig.getSqlToRelConverterConfig());
     }
 
-    @Override
+    @Override  //该方法用于将列添加到 SELECT 列表中。它包括处理列扩展策略的逻辑。如果定义了列扩展策略，并且列是有效的，它将被添加到 SELECT 列表中；否则，列会被忽略
     protected void addToSelectList(
             List<SqlNode> list,
             Set<String> aliases,
@@ -350,7 +350,7 @@ public final class FlinkCalciteSqlValidator extends SqlValidatorImpl {
         super.addToSelectList(list, aliases, fieldList, exp, scope, includeSystemVars);
     }
 
-    @Override
+    @Override //该方法执行 SQL 节点的无条件重写，处理了窗口表值函数（TVFs）的特殊情况。例如，在 TUMBLE 等窗口函数中，它会重写表表达式，确保必要的描述符列得到正确扩展
     protected @PolyNull SqlNode performUnconditionalRewrites(
             @PolyNull SqlNode node, boolean underFrom) {
 
@@ -406,7 +406,7 @@ public final class FlinkCalciteSqlValidator extends SqlValidatorImpl {
     // Column expansion
     // --------------------------------------------------------------------------------------------
 
-    /**
+    /** 这是一个特殊的 SqlSelect 子类，用于捕获 TVF 操作数中的显式表表达式。它帮助处理 TVF 中表和描述符之间的关系
      * A special {@link SqlSelect} to capture the origin of a {@link SqlKind#EXPLICIT_TABLE} within
      * TVF operands.
      */
@@ -432,7 +432,7 @@ public final class FlinkCalciteSqlValidator extends SqlValidatorImpl {
         }
     }
 
-    /**
+    /** 该方法检查给定的列是否在 TVF 操作数中的描述符部分声明
      * Returns whether the given column has been declared in a {@link SqlKind#DESCRIPTOR} next to a
      * {@link SqlKind#EXPLICIT_TABLE} within TVF operands.
      */
@@ -446,7 +446,7 @@ public final class FlinkCalciteSqlValidator extends SqlValidatorImpl {
                 .anyMatch(id -> id.equals(column.getName()));
     }
 
-    /**
+    /** 该方法识别 TVF 操作数中的显式表表达式，这对于正确重写和验证查询非常重要
      * Returns all {@link SqlKind#EXPLICIT_TABLE} operands within TVF operands. A list entry is
      * {@code null} if the operand is not an {@link SqlKind#EXPLICIT_TABLE}.
      */
@@ -469,7 +469,7 @@ public final class FlinkCalciteSqlValidator extends SqlValidatorImpl {
                 .map(FlinkCalciteSqlValidator::extractExplicitTable)
                 .collect(Collectors.toList());
     }
-
+    //该方法从 SQL 节点中提取描述符（如 DESCRIPTOR(metadata_virtual)），特别是在 TVF 操作数中
     private static @Nullable SqlIdentifier extractExplicitTable(SqlNode op) {
         if (op.getKind() == SqlKind.EXPLICIT_TABLE) {
             final SqlBasicCall opCall = (SqlBasicCall) op;

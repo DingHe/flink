@@ -34,20 +34,24 @@ import org.apache.flink.util.Preconditions;
  * @param <N> The type of the namespace.
  * @param <SV> The type of the values in the state.
  */
+// Flink 基于堆内存（Heap）的状态后端中，所有 键控状态（Keyed State） 实现的抽象基类。
+// 它为所有基于 Java Heap 实现的状态类型（如 ValueState, ListState 等）提供了一个通用的底层框架
 public abstract class AbstractHeapState<K, N, SV> implements InternalKvState<K, N, SV> {
 
     /** Map containing the actual key/value pairs. */
+    //状态的底层存储结构
     protected final StateTable<K, N, SV> stateTable;
 
     /** The current namespace, which the access methods will refer to. */
+    //存储当前正在操作的命名空间。这个值由 Flink 运行时通过 setCurrentNamespace() 方法设置
     protected N currentNamespace;
-
+    //用于序列化和反序列化键、值和命名空间的序列化器
     protected final TypeSerializer<K> keySerializer;
 
     protected TypeSerializer<SV> valueSerializer;
 
     protected TypeSerializer<N> namespaceSerializer;
-
+    //存储在创建状态时指定的默认值
     private SV defaultValue;
 
     /**
@@ -86,7 +90,7 @@ public abstract class AbstractHeapState<K, N, SV> implements InternalKvState<K, 
         this.currentNamespace =
                 Preconditions.checkNotNull(namespace, "Namespace must not be null.");
     }
-
+    //根据传入的序列化键和命名空间，获取序列化后的状态值
     @Override
     public byte[] getSerializedValue(
             final byte[] serializedKeyAndNamespace,
@@ -99,16 +103,17 @@ public abstract class AbstractHeapState<K, N, SV> implements InternalKvState<K, 
         Preconditions.checkNotNull(safeKeySerializer);
         Preconditions.checkNotNull(safeNamespaceSerializer);
         Preconditions.checkNotNull(safeValueSerializer);
-
+        //将传入的字节数组反序列化为键和命名空间
         Tuple2<K, N> keyAndNamespace =
                 KvStateSerializer.deserializeKeyAndNamespace(
                         serializedKeyAndNamespace, safeKeySerializer, safeNamespaceSerializer);
-
+        //获取对应的值
         SV result = stateTable.get(keyAndNamespace.f0, keyAndNamespace.f1);
 
         if (result == null) {
             return null;
         }
+        //将获取到的值序列化成字节数组并返回
         return KvStateSerializer.serializeValue(result, safeValueSerializer);
     }
 

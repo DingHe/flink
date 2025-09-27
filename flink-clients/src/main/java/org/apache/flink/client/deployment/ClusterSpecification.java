@@ -20,9 +20,9 @@ package org.apache.flink.client.deployment;
 
 /** Description of the cluster to start by the {@link ClusterDescriptor}. */
 public final class ClusterSpecification {
-    private final int masterMemoryMB;
-    private final int taskManagerMemoryMB;
-    private final int slotsPerTaskManager;
+    private final int masterMemoryMB;   //master的内存
+    private final int taskManagerMemoryMB;  //task的内存
+    private final int slotsPerTaskManager;   //每个task多少slot
 
     private ClusterSpecification(
             int masterMemoryMB, int taskManagerMemoryMB, int slotsPerTaskManager) {

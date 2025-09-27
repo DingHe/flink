@@ -30,6 +30,8 @@ import org.apache.flink.annotation.Public;
  *
  * @param <T> The type of the elements to which this assigner assigns timestamps.
  */
+//为流中的数据元素分配事件时间时间戳的核心接口
+    //作用就是从数据元素中提取或生成这个时间戳
 @Public
 @FunctionalInterface
 public interface TimestampAssigner<T> {
@@ -38,6 +40,7 @@ public interface TimestampAssigner<T> {
      * The value that is passed to {@link #extractTimestamp} when there is no previous timestamp
      * attached to the record.
      */
+    //代表一个记录没有被分配过时间戳的状态
     long NO_TIMESTAMP = Long.MIN_VALUE;
 
     /**
@@ -54,5 +57,8 @@ public interface TimestampAssigner<T> {
      *     no timestamp has been assigned yet.
      * @return The new timestamp.
      */
+    //用于提取或分配时间戳
+    //T element：要分配时间戳的数据元素
+    //long recordTimestamp：该元素之前已经分配的时间戳。如果这是第一次分配，它的值为 NO_TIMESTAMP
     long extractTimestamp(T element, long recordTimestamp);
 }

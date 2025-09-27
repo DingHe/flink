@@ -27,7 +27,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
  *
  * @param <T> Type of the elements in the Stream
  */
-@Internal
+@Internal //将数据直接转发给下游的下一个算子
 public class ForwardPartitioner<T> extends StreamPartitioner<T> {
     private static final long serialVersionUID = 1L;
 

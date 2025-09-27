@@ -36,9 +36,9 @@ public class WorkerRegistration<WorkerType extends ResourceIDRetrievable>
     private final int jmxPort;
 
     private final HardwareDescription hardwareDescription;
-
+    //TaskManager的内存配置
     private final TaskExecutorMemoryConfiguration memoryConfiguration;
-
+    //资源
     private final ResourceProfile totalResourceProfile;
 
     private final ResourceProfile defaultSlotResourceProfile;

@@ -44,7 +44,7 @@ public interface ProcessingTimeService
 
     /**
      * Registers a task to be executed repeatedly at a fixed rate.
-     *
+     * 固定频率执行
      * <p>This call behaves similar to {@link ScheduledExecutor#scheduleAtFixedRate(Runnable, long,
      * long, TimeUnit)}.
      *
@@ -58,7 +58,7 @@ public interface ProcessingTimeService
 
     /**
      * Registers a task to be executed repeatedly with a fixed delay.
-     *
+     * 延迟后按照固定频率执行
      * <p>This call behaves similar to {@link ScheduledExecutor#scheduleWithFixedDelay(Runnable,
      * long, long, TimeUnit)}.
      *
@@ -80,5 +80,5 @@ public interface ProcessingTimeService
      * returned. Otherwise, the future returned will be completed when all running timers have
      * finished.
      */
-    CompletableFuture<Void> quiesce();
+    CompletableFuture<Void> quiesce(); //静默
 }

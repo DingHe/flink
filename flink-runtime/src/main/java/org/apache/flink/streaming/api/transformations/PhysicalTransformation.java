@@ -32,7 +32,7 @@ import org.apache.flink.streaming.api.operators.ChainingStrategy;
  */
 @Internal
 public abstract class PhysicalTransformation<T> extends Transformation<T> {
-
+    //true：该操作符支持并发执行尝试。也就是说，在任务失败时，Flink 可以尝试多次执行这个操作符的任务，可能会有多个执行尝试并发进行，直到某个执行尝试成功
     private boolean supportsConcurrentExecutionAttempts = true;
 
     /**

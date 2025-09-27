@@ -87,9 +87,9 @@ public class MetricRegistryImpl implements MetricRegistry, AutoCloseableAsync {
     private final CompletableFuture<Void> terminationFuture;
 
     private final long maximumFramesize;
-
+    //继承自RpcEndpoint，实现网管接口
     @Nullable private MetricQueryService queryService;
-
+    //RpcService
     @Nullable private RpcService metricQueryServiceRpcService;
 
     private ViewUpdater viewUpdater;

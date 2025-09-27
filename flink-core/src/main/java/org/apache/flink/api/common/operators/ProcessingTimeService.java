@@ -27,9 +27,13 @@ import java.util.concurrent.ScheduledFuture;
  * A service that allows to get the current processing time and register timers that will execute
  * the given {@link ProcessingTimeCallback} when firing.
  */
+//为 Flink 的运行时提供一个基于系统时钟的定时服务
+    //获取当前时间：提供一个方法来获取当前机器的系统时间，即处理时间
+    //注册定时任务：允许在未来的某个处理时间点，执行一个预定的回调函数（ProcessingTimeCallback）
 @PublicEvolving
-public interface ProcessingTimeService {
+public interface ProcessingTimeService { //处理时间服务
     /** Returns the current processing time. */
+    //返回当前的处理时间
     long getCurrentProcessingTime();
 
     /**
@@ -40,6 +44,7 @@ public interface ProcessingTimeService {
      * @return The future that represents the scheduled task. This always returns some future, even
      *     if the timer was shut down
      */
+    //注册一个在未来特定处理时间触发的定时任务
     ScheduledFuture<?> registerTimer(long timestamp, ProcessingTimeCallback target);
 
     /**

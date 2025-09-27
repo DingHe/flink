@@ -40,7 +40,7 @@ import java.util.Optional;
 public class CatalogDescriptor {
 
     /* Catalog name */
-    private final String catalogName;
+    private final String catalogName; //名字
 
     /* The configuration used to discover and construct the catalog. */
     private final Configuration configuration;

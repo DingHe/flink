@@ -65,29 +65,29 @@ import java.util.stream.Stream;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
-
+//将底层的执行图（ExecutionGraph）映射为高层次的调度拓扑（SchedulingTopology），以便调度器能够高效地执行作业的计算任务
 /** Adapter of {@link ExecutionGraph} to {@link SchedulingTopology}. */
 public class DefaultExecutionTopology implements SchedulingTopology {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultExecutionTopology.class);
-
+    //映射每个 ExecutionVertexID 到其对应的 DefaultExecutionVertex。ExecutionVertex 是 Flink 作业执行中的最小单位，表示作业图中的一个执行任务
     private final Map<ExecutionVertexID, DefaultExecutionVertex> executionVerticesById;
-
+    //包含所有执行顶点的列表。它存储了调度拓扑中的所有 ExecutionVertex，并且是有序的
     private final List<DefaultExecutionVertex> executionVerticesList;
-
+    //用于存储作业的结果分区。每个 IntermediateResultPartition 被分配一个唯一标识符（IntermediateResultPartitionID）
     private final Map<IntermediateResultPartitionID, DefaultResultPartition> resultPartitionsById;
-
+    //将每个执行顶点映射到其所属的调度管道区域。调度管道区域（SchedulingPipelinedRegion）是作业中的计算任务的逻辑分组
     private final Map<ExecutionVertexID, DefaultSchedulingPipelinedRegion> pipelinedRegionsByVertex;
-
+    //表示所有的调度管道区域。每个管道区域包含一组执行顶点，它们之间有数据流关系
     private final List<DefaultSchedulingPipelinedRegion> pipelinedRegions;
-
+    //用于管理作业图中的边（即任务之间的数据流）。它帮助确定任务之间的依赖关系，并在调度时处理任务的执行顺序
     private final EdgeManager edgeManager;
-
+    //提供一个已排序的 ExecutionVertexID 列表。它用于控制执行顶点的执行顺序
     private final Supplier<List<ExecutionVertexID>> sortedExecutionVertexIds;
-
+    //将 JobVertexID 映射到逻辑管道区域（LogicalPipelinedRegion）。LogicalPipelinedRegion 是 Flink 作业的逻辑分区，表示一组可以并行执行的任务
     private final Map<JobVertexID, DefaultLogicalPipelinedRegion>
             logicalPipelinedRegionsByJobVertexId;
-
+    //监听调度拓扑更新的监听器列表。当调度拓扑发生变化时，所有注册的监听器都会被通知
     /** Listeners that will be notified whenever the scheduling topology is updated. */
     private final List<SchedulingTopologyListener> schedulingTopologyListeners = new ArrayList<>();
 
@@ -231,7 +231,7 @@ public class DefaultExecutionTopology implements SchedulingTopology {
             listener.notifySchedulingTopologyUpdated(this, newVertexIds);
         }
     }
-
+    //从执行图构建调度拓扑图
     public static DefaultExecutionTopology fromExecutionGraph(
             DefaultExecutionGraph executionGraph) {
         checkNotNull(executionGraph, "execution graph can not be null");

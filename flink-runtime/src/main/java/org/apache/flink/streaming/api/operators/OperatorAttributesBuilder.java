@@ -22,8 +22,8 @@ import org.apache.flink.annotation.Experimental;
 /** The builder class for {@link OperatorAttributes}. */
 @Experimental
 public class OperatorAttributesBuilder {
-    private boolean outputOnlyAfterEndOfStream = false;
-    private boolean internalSorterSupported = false;
+    private boolean outputOnlyAfterEndOfStream = false; //一个布尔值，表示运算符是否仅在所有输入流结束之后才会发出记录。默认值为 false
+    private boolean internalSorterSupported = false; //一个布尔值，表示运算符是否支持内部排序。默认值为 false
 
     /**
      * Set to true if and only if the operator only emits records after all its inputs have ended.

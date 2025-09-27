@@ -31,13 +31,16 @@ import java.io.Serializable;
  * <p>This interface is {@link Serializable} because the supplier may be shipped to workers during
  * distributed execution.
  */
+//创建 TimestampAssigner 实例的工厂接口。
+// 其主要作用是为了解决 TimestampAssigner 接口本身无需实现 Serializable 接口的问题，从而提高 Flink 的灵活性和代码的整洁性
 @PublicEvolving
 @FunctionalInterface
 public interface TimestampAssignerSupplier<T> extends Serializable {
 
     /** Instantiates a {@link TimestampAssigner}. */
+    //用于实例化并返回一个 TimestampAssigner 对象
     TimestampAssigner<T> createTimestampAssigner(Context context);
-
+    //用于方便地从一个已经实现了 Serializable 的 TimestampAssigner 创建 TimestampAssignerSupplier
     static <T> TimestampAssignerSupplier<T> of(SerializableTimestampAssigner<T> assigner) {
         return new SupplierFromSerializableTimestampAssigner<>(assigner);
     }

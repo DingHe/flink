@@ -50,7 +50,7 @@ public interface SlotPoolServiceSchedulerFactory {
 
     /**
      * Creates a {@link SlotPoolService}.
-     *
+     *  SlotPoolService负责管理集群中的Slot资源，Scheduler根据SlotPoolService提供的资源信息进行任务调度
      * @param jid jid is the JobID to pass to the service
      * @param declarativeSlotPoolFactory the declarative slot pool factory
      * @param componentMainThreadExecutor component main thread executor.
@@ -63,14 +63,14 @@ public interface SlotPoolServiceSchedulerFactory {
 
     /**
      * Returns the scheduler type this factory is creating.
-     *
+     * 调度类型
      * @return the scheduler type this factory is creating.
      */
     JobManagerOptions.SchedulerType getSchedulerType();
 
     /**
      * Creates a {@link SchedulerNG}.
-     *
+     * 主要负责创建调度器（Scheduler）实例。调度器是Flink任务调度系统的核心组件，负责将任务分配到集群中的资源（Slot）上
      * @return created SchedulerNG
      * @throws Exception if the scheduler creation fails
      */

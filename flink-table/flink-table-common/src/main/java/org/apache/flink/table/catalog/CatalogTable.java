@@ -49,7 +49,7 @@ import java.util.Optional;
  */
 @PublicEvolving
 public interface CatalogTable extends CatalogBaseTable {
-
+//CatalogTable 接口在 Flink 中代表一个未解析的表元数据，它包含了 SQL CREATE TABLE 语句中可以表达的所有特性。该接口的实例会被框架解析为 ResolvedCatalogTable，然后传递给 DynamicTableFactory 用于创建连接器与外部系统连接
     /** Builder for configuring and creating instances of {@link CatalogTable}. */
     @PublicEvolving
     static CatalogTable.Builder newBuilder() {
@@ -166,12 +166,12 @@ public interface CatalogTable extends CatalogBaseTable {
     /** Builder for configuring and creating instances of {@link CatalogTable}. */
     @PublicEvolving
     class Builder {
-        private @Nullable Schema schema;
-        private @Nullable String comment;
-        private List<String> partitionKeys = Collections.emptyList();
-        private Map<String, String> options = Collections.emptyMap();
-        private @Nullable Long snapshot;
-        private @Nullable TableDistribution distribution;
+        private @Nullable Schema schema; //设置表的 schema
+        private @Nullable String comment; //可选地设置表的注释
+        private List<String> partitionKeys = Collections.emptyList(); //设置表的分区键
+        private Map<String, String> options = Collections.emptyMap(); //设置表的选项（外部系统的配置）
+        private @Nullable Long snapshot; //可选地设置表的 snapshot ID
+        private @Nullable TableDistribution distribution; //可选地设置表的分布信息
 
         private Builder() {}
 

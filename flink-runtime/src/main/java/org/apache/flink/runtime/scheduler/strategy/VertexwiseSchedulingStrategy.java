@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/**
+/** 仅仅支持批处理
  * {@link SchedulingStrategy} instance which schedules tasks in granularity of vertex (which
  * indicates this strategy only supports batch jobs). Note that this strategy implements {@link
  * SchedulingTopologyListener}, so it can handle the updates of scheduling topology.

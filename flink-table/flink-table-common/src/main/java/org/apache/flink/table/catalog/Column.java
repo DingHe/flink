@@ -42,7 +42,7 @@ import java.util.Optional;
 public abstract class Column {
 
     protected final String name;
-
+    //flink table的数据类型
     protected final DataType dataType;
 
     protected final @Nullable String comment;

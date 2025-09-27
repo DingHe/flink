@@ -58,12 +58,12 @@ import static org.apache.flink.table.types.logical.utils.LogicalTypeChecks.canBe
 import static org.apache.flink.table.types.logical.utils.LogicalTypeChecks.getPrecision;
 import static org.apache.flink.table.types.logical.utils.LogicalTypeChecks.isProctimeAttribute;
 import static org.apache.flink.table.types.utils.DataTypeUtils.replaceLogicalType;
-
+//默认的schema解析器
 /** Default implementation of {@link SchemaResolver}. */
 @Internal
 class DefaultSchemaResolver implements SchemaResolver {
 
-    private final boolean isStreamingMode;
+    private final boolean isStreamingMode; //是否streaming
     private final DataTypeFactory dataTypeFactory;
     private final ExpressionResolverBuilder resolverBuilder;
 
@@ -76,7 +76,7 @@ class DefaultSchemaResolver implements SchemaResolver {
         this.resolverBuilder = resolverBuilder;
     }
 
-    @Override
+    @Override  //解析列，每个列添加上物理的数据类型
     public ResolvedSchema resolve(Schema schema) {
         final List<Column> columns = resolveColumns(schema.getColumns());
 
@@ -113,7 +113,7 @@ class DefaultSchemaResolver implements SchemaResolver {
                         "Unknown unresolved column type: " + unresolvedColumn.getClass().getName());
             }
         }
-        // fill in computed columns
+        // fill in computed columns，处理计算列的数据类型
         final List<Column> sourceColumns =
                 Stream.of(resolvedColumns).filter(Objects::nonNull).collect(Collectors.toList());
         for (int pos = 0; pos < unresolvedColumns.size(); pos++) {

@@ -79,7 +79,7 @@ class PekkoInvocationHandler implements InvocationHandler, PekkoBasedEndpoint, R
 
     /** Hostname of the host, {@link #rpcEndpoint} is running on. */
     private final String hostname;
-
+    //通过RpcService里面的startServer构建，持有PekkoRpcActor引用
     private final ActorRef rpcEndpoint;
 
     private final ClassLoader flinkClassLoader;
@@ -190,8 +190,8 @@ class PekkoInvocationHandler implements InvocationHandler, PekkoBasedEndpoint, R
         }
     }
 
-    @Override
-    public void start() {
+    @Override  //actorRef.tell(message, sender)。sender: 消息的发送者（ActorRef 类型）。在典型的 Actor 模型中，这个参数通常是调用 self()，表示当前 Actor 是消息的发送者，当 noSender() 被传递为 sender 时，表示没有明确的发送者
+    public void start() { //给PekkoRpcActor发送Start消息
         rpcEndpoint.tell(ControlMessages.START, ActorRef.noSender());
     }
 

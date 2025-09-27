@@ -40,6 +40,9 @@ import java.util.Collection;
  * @param <T> The type of elements that this WindowAssigner can assign windows to.
  * @param <W> The type of {@code Window} that this assigner assigns.
  */
+//主要作用是将数据流中的每一个元素分配给一个或多个窗口。它是 Flink 窗口机制的第一步，决定了流中的元素如何被逻辑地分组
+//T是元素的类型
+//W是window的类型
 @PublicEvolving
 public abstract class WindowAssigner<T, W extends Window> implements Serializable {
     private static final long serialVersionUID = 1L;
@@ -51,6 +54,10 @@ public abstract class WindowAssigner<T, W extends Window> implements Serializabl
      * @param timestamp The timestamp of the element.
      * @param context The {@link WindowAssignerContext} in which the assigner operates.
      */
+    //用于为单个元素分配窗口
+    //element: 要分配窗口的输入元素
+    //timestamp: 元素的事件时间戳
+    //context: 一个上下文对象 (WindowAssignerContext)，提供了当前的处理时间信息
     public abstract Collection<W> assignWindows(
             T element, long timestamp, WindowAssignerContext context);
 
@@ -63,6 +70,7 @@ public abstract class WindowAssigner<T, W extends Window> implements Serializabl
      * getDefaultTrigger(StreamExecutionEnvironment env)} will be invoked in the default
      * implementation of the {@code getDefaultTrigger()}.
      */
+    //返回与此 WindowAssigner 关联的默认触发器
     public Trigger<T, W> getDefaultTrigger() {
         return getDefaultTrigger(new StreamExecutionEnvironment());
     }
@@ -81,6 +89,7 @@ public abstract class WindowAssigner<T, W extends Window> implements Serializabl
      * @see <a href="https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=263425229">
      *     FLIP-343: Remove parameter in WindowAssigner#getDefaultTrigger() </a>
      */
+    //getDefaultTrigger() 的旧版本，在 Flink 1.19 版本中已被弃用
     @Deprecated
     public abstract Trigger<T, W> getDefaultTrigger(StreamExecutionEnvironment env);
 
@@ -88,12 +97,14 @@ public abstract class WindowAssigner<T, W extends Window> implements Serializabl
      * Returns a {@link TypeSerializer} for serializing windows that are assigned by this {@code
      * WindowAssigner}.
      */
+    //返回用于序列化该 WindowAssigner 分配的窗口的类型序列化器
     public abstract TypeSerializer<W> getWindowSerializer(ExecutionConfig executionConfig);
 
     /**
      * Returns {@code true} if elements are assigned to windows based on event time, {@code false}
      * otherwise.
      */
+    //指示此 WindowAssigner 是基于事件时间（Event Time）还是处理时间（Processing Time）来分配窗口
     public abstract boolean isEventTime();
 
     /**
@@ -104,6 +115,7 @@ public abstract class WindowAssigner<T, W extends Window> implements Serializabl
      * org.apache.flink.streaming.runtime.operators.windowing.WindowOperator}, which, in turn, gets
      * it from the containing {@link org.apache.flink.streaming.runtime.tasks.StreamTask}.
      */
+    //提供当前的处理时间信息
     @PublicEvolving
     public abstract static class WindowAssignerContext {
 

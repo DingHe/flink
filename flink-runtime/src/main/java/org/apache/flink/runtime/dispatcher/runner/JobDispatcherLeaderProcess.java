@@ -31,7 +31,7 @@ import javax.annotation.Nullable;
 
 import java.util.UUID;
 
-/** {@link DispatcherLeaderProcess} implementation for the per-job mode. */
+/** {@link DispatcherLeaderProcess} implementation for the per-job mode.主要用于 单作业模式（Per-Job 模式）。它专注于管理一个特定的作业，从其恢复、启动到结束。适合需要独立运行单个作业的场景 */
 public class JobDispatcherLeaderProcess extends AbstractDispatcherLeaderProcess {
 
     private final DispatcherGatewayServiceFactory dispatcherGatewayServiceFactory;

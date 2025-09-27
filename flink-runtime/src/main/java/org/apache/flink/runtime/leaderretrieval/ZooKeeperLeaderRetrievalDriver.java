@@ -51,20 +51,20 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  */
 public class ZooKeeperLeaderRetrievalDriver implements LeaderRetrievalDriver {
     private static final Logger LOG = LoggerFactory.getLogger(ZooKeeperLeaderRetrievalDriver.class);
-
+    //这是与 ZooKeeper 集群的连接客户端，通过它与 ZooKeeper 进行交互,CuratorFramework 是 Curator 库中提供的一个高级 API，用于简化与 ZooKeeper 的交互
     /** Connection to the used ZooKeeper quorum. */
     private final CuratorFramework client;
-
+    //TreeCache 是 Curator 提供的一种缓存机制，用于缓存 ZooKeeper 树形结构中的节点变化。它监控一个特定的 ZooKeeper 节点（在这里是包含领导者信息的节点），并在节点变化时触发事件回调
     /** Curator recipe to watch changes of a specific ZooKeeper node. */
     private final TreeCache cache;
-
+    //ZooKeeper 中存储领导者信息的节点路径。这个路径是通过调用 ZooKeeperUtils.generateConnectionInformationPath(path) 生成的
     private final String connectionInformationPath;
-
+    //监听 ZooKeeper 连接状态的变化，例如连接成功、连接丢失或重连等。在连接状态发生变化时，会调用 handleStateChange 方法处理不同的状态
     private final ConnectionStateListener connectionStateListener =
             (client, newState) -> handleStateChange(newState);
-
+    //处理领导者地址变化的事件。每当领导者发生变化时，会通过该对象通知监听器
     private final LeaderRetrievalEventHandler leaderRetrievalEventHandler;
-
+    //控制何时清除领导者信息，并通知监听器。如果连接状态发生变化（例如丢失或挂起），会根据这个策略决定是否清除当前的领导者信息
     private final LeaderInformationClearancePolicy leaderInformationClearancePolicy;
 
     private final FatalErrorHandler fatalErrorHandler;

@@ -24,7 +24,7 @@ import org.apache.flink.table.planner.plan.fusion.OpFusionCodegenSpecGenerator;
 
 /** A {@link ExecNode} which support operator fusion codegen. */
 public interface FusionCodegenExecNode {
-
+    //是否支持代码融合
     /** Whether this ExecNode supports OFCG or not. */
     boolean supportFusionCodegen();
 

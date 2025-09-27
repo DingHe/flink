@@ -91,7 +91,7 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
             final List<Execution> executionsToDeploy,
             final Map<ExecutionVertexID, ExecutionVertexVersion> requiredVersionByVertex) {
         validateExecutionStates(executionsToDeploy);
-
+        //状态转移到 SCHEDULED
         transitionToScheduled(executionsToDeploy);
 
         final Map<ExecutionAttemptID, ExecutionSlotAssignment> executionSlotAssignmentMap =

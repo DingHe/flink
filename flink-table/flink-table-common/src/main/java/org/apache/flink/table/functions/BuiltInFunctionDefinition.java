@@ -53,11 +53,11 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 @Internal
 public final class BuiltInFunctionDefinition implements SpecializedFunction {
 
-    private final String name;
+    private final String name; //函数名
 
-    private final @Nullable Integer version;
+    private final @Nullable Integer version; //版本
 
-    private final FunctionKind kind;
+    private final FunctionKind kind; //类型
 
     private final TypeInference typeInference;
 
@@ -65,11 +65,11 @@ public final class BuiltInFunctionDefinition implements SpecializedFunction {
 
     private final boolean isRuntimeProvided;
 
-    private final @Nullable String runtimeClass;
+    private final @Nullable String runtimeClass; //运行时类
 
     private final boolean isInternal;
 
-    private final SqlCallSyntax sqlCallSyntax;
+    private final SqlCallSyntax sqlCallSyntax; //sql调用语法
 
     private final String sqlName;
 

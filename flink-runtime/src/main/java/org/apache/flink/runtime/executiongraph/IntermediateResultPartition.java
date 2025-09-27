@@ -30,28 +30,28 @@ import java.util.List;
 import java.util.Set;
 
 import static org.apache.flink.util.Preconditions.checkState;
-
+//更多地是作为一个元数据对象来管理和描述数据的生产、消费和状态信息，而不直接存储数据本身
 public class IntermediateResultPartition {
 
     static final int NUM_SUBPARTITIONS_UNKNOWN = -1;
-
+    //当前分区所属的中间结果对象
     private final IntermediateResult totalResult;
 
     private final ExecutionVertex producer;
-
+   //当前分区的唯一标识符
     private final IntermediateResultPartitionID partitionId;
-
+   //管理着各个 IntermediateResultPartition 和消费者之间的连接（Edge）。它协调消费者和生产者之间的数据流
     private final EdgeManager edgeManager;
-
+   //对于动态图（如流式计算），分区的子分区数量是动态计算的，这个属性表示计算出的子分区数
     /** Number of subpartitions for dynamic graph. */
     private final int numberOfSubpartitionsForDynamicGraph;
-
+    //在动态图中，消费者数目是动态的，因此该属性用于标记是否已经定义了该分区的消费者数目
     private boolean isNumberOfPartitionConsumersUndefined = false;
-
+   //标记数据是否已完全生产。当数据完全生产时，标记为 true，这通常意味着生产者已完成数据的生成
     /** Whether this partition has produced all data. */
     private boolean dataAllProduced = false;
 
-    /**
+    /**用于追踪哪些消费分区组可以被释放。如果一个分区组的所有消费任务都已完成，它就可以被释放，清理资源
      * Releasable {@link ConsumedPartitionGroup}s for this result partition. This result partition
      * can be released if all {@link ConsumedPartitionGroup}s are releasable.
      */

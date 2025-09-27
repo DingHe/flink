@@ -31,7 +31,7 @@ import org.apache.flink.table.types.DataType;
 /**
  * The {@link Table} object is the core abstraction of the Table API. Similar to how the DataStream
  * API has {@code DataStream}s, the Table API is built around {@link Table}s.
- *
+ * 一个Table对象描述类数据transformations的Pipeline ，相当于sql语句里面的view
  * <p>A {@link Table} object describes a pipeline of data transformations. It does not contain the
  * data itself in any way. Instead, it describes how to read data from a {@link DynamicTableSource}
  * and how to eventually write data to a {@link DynamicTableSink}. The declared pipeline can be

@@ -30,11 +30,12 @@ import java.io.Serializable;
  *
  * <p>This interface is {@link Serializable} because the supplier may be shipped to workers during
  * distributed execution.
+ * 创建 WatermarkGenerator 实例的工厂接口
  */
 @PublicEvolving
 @FunctionalInterface
 public interface WatermarkGeneratorSupplier<T> extends Serializable {
-
+   //用于实例化并返回一个 WatermarkGenerator 对象
     /** Instantiates a {@link WatermarkGenerator}. */
     WatermarkGenerator<T> createWatermarkGenerator(Context context);
 
@@ -54,6 +55,7 @@ public interface WatermarkGeneratorSupplier<T> extends Serializable {
          *
          * @see MetricGroup
          */
+        //用于在 WatermarkGenerator 内部注册自定义度量（Metrics）。这使得开发者可以监控水印生成器的行为，例如跟踪处理的事件数量、水印延迟等
         MetricGroup getMetricGroup();
 
         /**
@@ -63,6 +65,7 @@ public interface WatermarkGeneratorSupplier<T> extends Serializable {
          *
          * @see RelativeClock
          */
+        //用于衡量流的实际活跃时间
         RelativeClock getInputActivityClock();
     }
 }

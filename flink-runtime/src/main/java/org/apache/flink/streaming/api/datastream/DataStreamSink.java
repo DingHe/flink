@@ -63,7 +63,7 @@ public class DataStreamSink<T> {
                         sinkOperator,
                         executionEnvironment.getParallelism(),
                         false);
-        if (sinkFunction instanceof LineageVertexProvider) {
+        if (sinkFunction instanceof LineageVertexProvider) { //如果实现了血缘，则设置
             transformation.setLineageVertex(
                     ((LineageVertexProvider) sinkFunction).getLineageVertex());
         }

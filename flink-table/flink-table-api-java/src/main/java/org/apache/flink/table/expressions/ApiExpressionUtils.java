@@ -270,12 +270,12 @@ public final class ApiExpressionUtils {
                 resolvedFunction,
                 args.stream().map(ApiExpressionUtils::unwrapFromApi).collect(Collectors.toList()));
     }
-
+    //跟下面的函数一样
     public static UnresolvedCallExpression unresolvedCall(
             FunctionDefinition functionDefinition, Expression... args) {
         return unresolvedCall(functionDefinition, Arrays.asList(args));
     }
-
+    //接收多个函数参数，返回未解析的函数调用表达式UnresolvedCallExpression
     public static UnresolvedCallExpression unresolvedCall(
             FunctionDefinition functionDefinition, List<Expression> args) {
         return new UnresolvedCallExpression(
@@ -288,7 +288,7 @@ public final class ApiExpressionUtils {
     }
 
     public static TableReferenceExpression tableRef(String name, QueryOperation queryOperation) {
-        return new TableReferenceExpression(name, queryOperation);
+        return new TableReferenceExpression(name, queryOperation); //生成表引用表达式
     }
 
     public static LookupCallExpression lookupCall(String name, Expression... args) {

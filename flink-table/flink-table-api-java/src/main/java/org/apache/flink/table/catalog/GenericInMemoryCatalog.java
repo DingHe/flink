@@ -207,7 +207,7 @@ public class GenericInMemoryCatalog extends AbstractCatalog {
 
     // ------ tables ------
 
-    @Override
+    @Override  //创建表，把表存入tables变量
     public void createTable(ObjectPath tablePath, CatalogBaseTable table, boolean ignoreIfExists)
             throws TableAlreadyExistException, DatabaseNotExistException {
         checkNotNull(tablePath);

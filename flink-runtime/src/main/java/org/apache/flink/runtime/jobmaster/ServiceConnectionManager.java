@@ -16,7 +16,7 @@
  */
 
 package org.apache.flink.runtime.jobmaster;
-
+//管理连接或者端口某个service
 /** Base interface for managers of services that are explicitly connected to / disconnected from. */
 public interface ServiceConnectionManager<S> {
 

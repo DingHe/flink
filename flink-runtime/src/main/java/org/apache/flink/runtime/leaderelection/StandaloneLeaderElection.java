@@ -47,7 +47,7 @@ public class StandaloneLeaderElection implements LeaderElection {
                     leaderContender == null,
                     "No LeaderContender should have been registered with this LeaderElection, yet.");
             this.leaderContender = contender;
-
+            //直接授权
             this.leaderContender.grantLeadership(sessionID);
         }
     }
@@ -57,7 +57,7 @@ public class StandaloneLeaderElection implements LeaderElection {
 
     @Override
     public boolean hasLeadership(UUID leaderSessionId) {
-        synchronized (lock) {
+        synchronized (lock) {  //sessionID相等即可
             return this.leaderContender != null && this.sessionID.equals(leaderSessionId);
         }
     }

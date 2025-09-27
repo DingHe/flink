@@ -29,11 +29,11 @@ public enum JobStatus {
      */
     INITIALIZING(TerminalState.NON_TERMINAL),
 
-    /** Job is newly created, no task has started to run. */
+    /** Job is newly created, no task has started to run. 作业被创建但尚未提交*/
     CREATED(TerminalState.NON_TERMINAL),
 
     /** Some tasks are scheduled or running, some may be pending, some may be finished. */
-    RUNNING(TerminalState.NON_TERMINAL),
+    RUNNING(TerminalState.NON_TERMINAL), //作业正在运行
 
     /** The job has failed and is currently waiting for the cleanup to complete. */
     FAILING(TerminalState.NON_TERMINAL),
@@ -47,7 +47,7 @@ public enum JobStatus {
     /** Job has been cancelled. */
     CANCELED(TerminalState.GLOBALLY),
 
-    /** All of the job's tasks have successfully finished. */
+    /** All of the job's tasks have successfully finished. 作业成功完成*/
     FINISHED(TerminalState.GLOBALLY),
 
     /** The job is currently undergoing a reset and total restart. */

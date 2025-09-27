@@ -96,7 +96,7 @@ public class TaskExecutorResourceUtils {
                     "The required configuration option %s is not set", option);
         }
     }
-
+    //妈的，要相等，干嘛还要设置最大最小值
     private static void checkTaskExecutorNetworkConfigSet(ReadableConfig config) {
         if (!config.get(TaskManagerOptions.NETWORK_MEMORY_MIN)
                 .equals(config.get(TaskManagerOptions.NETWORK_MEMORY_MAX))) {
@@ -164,7 +164,7 @@ public class TaskExecutorResourceUtils {
         Preconditions.checkArgument(config.contains(TaskManagerOptions.MANAGED_MEMORY_SIZE));
         Preconditions.checkArgument(config.contains(TaskManagerOptions.FRAMEWORK_HEAP_MEMORY));
         Preconditions.checkArgument(config.contains(TaskManagerOptions.FRAMEWORK_OFF_HEAP_MEMORY));
-        Preconditions.checkArgument(
+        Preconditions.checkArgument(  //为啥网络最大和最小内存要相等
                 config.get(TaskManagerOptions.NETWORK_MEMORY_MAX)
                         .equals(config.get(TaskManagerOptions.NETWORK_MEMORY_MIN)));
         return config.get(TaskManagerOptions.TASK_HEAP_MEMORY)
@@ -180,7 +180,7 @@ public class TaskExecutorResourceUtils {
         Preconditions.checkArgument(config.contains(TaskManagerOptions.JVM_METASPACE));
         Preconditions.checkArgument(config.contains(TaskManagerOptions.JVM_OVERHEAD_MAX));
         Preconditions.checkArgument(config.contains(TaskManagerOptions.JVM_OVERHEAD_MIN));
-        Preconditions.checkArgument(
+        Preconditions.checkArgument(  //为啥要相等
                 config.get(TaskManagerOptions.JVM_OVERHEAD_MAX)
                         .equals(config.get(TaskManagerOptions.JVM_OVERHEAD_MIN)));
         return calculateTotalFlinkMemoryFromComponents(config)

@@ -30,7 +30,7 @@ public interface CacheSupportedPipelineExecutor extends PipelineExecutor {
 
     /**
      * Return a set of ids of the completed cluster dataset.
-     *
+     *  已完成的数据集通常是指作业执行过程中生成的缓存数据集，这个方法的目的是列出所有已经完成的缓存数据集的 ID。在 Flink 中，某些作业的中间数据集可以被缓存，以便重用。这些缓存的数据集在执行作业时可以加速后续的计算
      * @param configuration the {@link Configuration} with the required parameters
      * @param userCodeClassloader the {@link ClassLoader} to deserialize usercode
      * @return A set of ids of the completely cached intermediate dataset.
@@ -41,7 +41,7 @@ public interface CacheSupportedPipelineExecutor extends PipelineExecutor {
 
     /**
      * Invalidate the cluster dataset with the given id.
-     *
+     * 此方法使得指定的集群数据集失效，即它从缓存中被移除。如果之后需要使用该数据集，Flink 将需要重新计算该数据集，而不是直接使用缓存的结果
      * @param clusterDatasetId id of the cluster dataset to be invalidated.
      * @param configuration the {@link Configuration} with the required parameters
      * @param userCodeClassloader the {@link ClassLoader} to deserialize usercode

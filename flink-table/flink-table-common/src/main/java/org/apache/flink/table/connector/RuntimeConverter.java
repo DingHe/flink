@@ -31,6 +31,9 @@ import java.io.Serializable;
  * <p>Because runtime converters are {@link Serializable}, instances can be directly passed into a
  * runtime implementation, stored in a member variable, and used when it comes to the execution.
  */
+//Flink Table API 中用于在运行时执行数据转换的基础接口
+//核心作用是抽象出不同数据结构之间进行转换或映射的逻辑
+//例如，一个转换器可能负责将 Java 集合类型的数据转换为 Flink 内部高效的 RowData 类型，或者将 RowData 转换为外部系统所需的 Java String 对象
 @PublicEvolving
 public interface RuntimeConverter extends Serializable {
 
@@ -39,6 +42,7 @@ public interface RuntimeConverter extends Serializable {
      *
      * <p>This should be called in the {@code open()} method of a runtime class.
      */
+    //在运行时初始化转换器
     void open(Context context);
 
     /** Context for conversions during runtime. */

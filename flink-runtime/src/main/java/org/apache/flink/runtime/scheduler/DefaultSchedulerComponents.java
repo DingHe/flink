@@ -69,7 +69,7 @@ public class DefaultSchedulerComponents {
     ExecutionSlotAllocatorFactory getAllocatorFactory() {
         return allocatorFactory;
     }
-
+    //创建调度器需要的一些组件
     static DefaultSchedulerComponents createSchedulerComponents(
             final JobType jobType,
             final boolean isApproximateLocalRecoveryEnabled,
@@ -89,7 +89,7 @@ public class DefaultSchedulerComponents {
             final Configuration jobMasterConfiguration,
             final SlotPool slotPool,
             final Time slotRequestTimeout) {
-
+        //slot的选择策略
         final SlotSelectionStrategy slotSelectionStrategy =
                 SlotSelectionStrategyUtils.selectSlotSelectionStrategy(
                         jobType, jobMasterConfiguration);

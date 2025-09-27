@@ -51,7 +51,7 @@ public interface Executor {
 
     /**
      * Translates the given transformations to a {@link Pipeline}.
-     *
+     * 创建StreamGraph
      * @param transformations list of transformations
      * @param tableConfiguration table-specific configuration options
      * @param defaultJobName default job name if not specified via {@link PipelineOptions#NAME}
@@ -80,7 +80,7 @@ public interface Executor {
 
     /**
      * Executes the given pipeline.
-     *
+     * 执行StreamGraph
      * @param pipeline the pipeline to execute
      * @return The result of the job execution, containing elapsed time and accumulators.
      * @throws Exception which occurs during job execution.

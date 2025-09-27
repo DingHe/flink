@@ -27,13 +27,13 @@ import java.util.concurrent.CompletableFuture;
  */
 @Internal
 public interface AvailabilityProvider {
-    /**
+    /** 一个已经完成的常量，用于优化性能，避免频繁地调用 CompletableFuture#isDone()（会涉及 volatile 变量的访问开销）。在性能敏感的场景下，可以快速判断是否可用
      * Constant that allows to avoid volatile checks {@link CompletableFuture#isDone()}. Check
      * {@link #isAvailable()} and {@link #isApproximatelyAvailable()} for more explanation.
      */
     CompletableFuture<?> AVAILABLE = CompletableFuture.completedFuture(null);
 
-    /** @return a future that is completed if the respective provider is available. */
+    /** @return a future that is completed if the respective provider is available. 返回一个 CompletableFuture，当组件可用时，这个 Future 会被标记为完成状态（complete）*/
     CompletableFuture<?> getAvailableFuture();
 
     /**
@@ -43,7 +43,7 @@ public interface AvailabilityProvider {
      *
      * <p>It is always safe to use this method in performance nonsensitive scenarios to get the
      * precise state.
-     *
+     *  判断当前组件是否可用
      * @return true if this instance is available for further processing.
      */
     default boolean isAvailable() {
@@ -60,13 +60,13 @@ public interface AvailabilityProvider {
      * <p>This method is still safe to get the precise state if {@link #getAvailableFuture()} was
      * touched via (.get(), .wait(), .isDone(), ...) before, which also has a "happen-before"
      * relationship with this call.
-     *
+     * 判断当前组件是否“近似可用”（approximate availability）
      * @return true if this instance is available for further processing.
      */
     default boolean isApproximatelyAvailable() {
         return getAvailableFuture() == AVAILABLE;
     }
-
+    //生成一个新的 CompletableFuture，当 first 和 second 都完成时，新的 Future 才会完成
     static CompletableFuture<?> and(CompletableFuture<?> first, CompletableFuture<?> second) {
         if (first == AVAILABLE && second == AVAILABLE) {
             return AVAILABLE;
@@ -78,7 +78,7 @@ public interface AvailabilityProvider {
             return CompletableFuture.allOf(first, second);
         }
     }
-
+   //生成一个新的 CompletableFuture，当 first 或 second 任何一个完成时，新的 Future 会完成
     static CompletableFuture<?> or(CompletableFuture<?> first, CompletableFuture<?> second) {
         if (first == AVAILABLE || second == AVAILABLE) {
             return AVAILABLE;
@@ -86,7 +86,7 @@ public interface AvailabilityProvider {
         return CompletableFuture.anyOf(first, second);
     }
 
-    /**
+    /** AvailabilityHelper 是 AvailabilityProvider 的一个具体实现，提供了额外的状态管理方法，允许组件动态切换“可用”和“不可用”状态
      * A availability implementation for providing the helpful functions of resetting the
      * available/unavailable states.
      */

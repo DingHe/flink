@@ -249,9 +249,9 @@ public class PekkoRpcServiceUtils {
         private final Logger logger;
         @Nullable private final String externalAddress;
         @Nullable private final String externalPortRange;
-
+        //获取flink actor system的名字，实际为flink
         private String actorSystemName = PekkoUtils.getFlinkActorSystemName();
-
+        //Pekko系统的配置，例如{"pekko":{"actor":{"default-dispatcher":{"executor":"fork-join-executor","fork-join-executor":{"parallelism-factor":2,"parallelism-max":64,"parallelism-min":8}}}}}
         @Nullable private Config actorSystemExecutorConfiguration = null;
 
         @Nullable private Config customConfig = null;
@@ -329,7 +329,7 @@ public class PekkoRpcServiceUtils {
         public PekkoRpcService createAndStart(
                 TriFunction<ActorSystem, PekkoRpcServiceConfiguration, ClassLoader, PekkoRpcService>
                         constructor)
-                throws Exception {
+                throws Exception { //actor system的配置信息
             if (actorSystemExecutorConfiguration == null) {
                 actorSystemExecutorConfiguration =
                         PekkoUtils.getForkJoinExecutorConfig(
@@ -340,7 +340,7 @@ public class PekkoRpcServiceUtils {
             final ActorSystem actorSystem;
 
             // pekko internally caches the context class loader
-            // make sure it uses the plugin class loader
+            // make sure it uses the plugin class loader  这段代码读取配置信息，生成remote的actor system
             try (TemporaryClassLoaderContext ignored =
                     TemporaryClassLoaderContext.of(getClass().getClassLoader())) {
                 if (externalAddress == null) {
@@ -367,7 +367,7 @@ public class PekkoRpcServiceUtils {
                                     customConfig);
                 }
             }
-
+            //构建rpcService
             return constructor.apply(
                     actorSystem,
                     PekkoRpcServiceConfiguration.fromConfiguration(configuration),

@@ -47,5 +47,5 @@ public interface ParallelismProvider {
      */
     default Optional<Integer> getParallelism() {
         return Optional.empty();
-    }
+    } //默认返回空
 }

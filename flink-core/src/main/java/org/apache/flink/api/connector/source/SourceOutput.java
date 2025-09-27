@@ -30,6 +30,7 @@ import org.apache.flink.api.common.eventtime.WatermarkOutput;
  * Splits</i>. That way, streams of events from different splits can be identified and treated
  * separately, for example for watermark generation, or event-time skew handling.
  */
+//SourceReader 向 Flink 运行时发送数据记录和水印的“网关”
 @Public
 public interface SourceOutput<T> extends WatermarkOutput {
 
@@ -46,6 +47,9 @@ public interface SourceOutput<T> extends WatermarkOutput {
      *
      * @param record the record to emit.
      */
+    //发送一条不带时间戳的数据记录
+    //当数据源中的记录没有内嵌时间戳时使用。例如，从文件中读取的普通 JSON 记录。
+    // 在这种情况下，时间戳的分配工作会留给下游的 TimestampAssigner，它会根据记录的内容（如某个字段）来提取或生成时间戳
     void collect(T record);
 
     /**
@@ -63,5 +67,9 @@ public interface SourceOutput<T> extends WatermarkOutput {
      * @param record the record to emit.
      * @param timestamp the timestamp of the record.
      */
+    //发送一条带时间戳的数据记录
+    //long timestamp：数据记录的时间戳
+    // 当数据源本身（如 Kafka、Kinesis）就为每条记录附加了时间戳时使用。
+    // 虽然这些记录通常仍会经过 TimestampAssigner，但 TimestampAssigner 可能会选择直接使用这个时间戳，而不是自己重新生成
     void collect(T record, long timestamp);
 }

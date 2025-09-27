@@ -90,18 +90,18 @@ import scala.collection.mutable
  *   Determines if the planner should work in a batch (false}) or streaming (true) mode.
  */
 abstract class PlannerBase(
-    executor: Executor,
+    executor: Executor, //执行器
     tableConfig: TableConfig,
-    val moduleManager: ModuleManager,
+    val moduleManager: ModuleManager, //模块管理器
     val functionCatalog: FunctionCatalog,
-    val catalogManager: CatalogManager,
+    val catalogManager: CatalogManager,  //catalog管理器
     isStreamingMode: Boolean,
     classLoader: ClassLoader)
   extends Planner {
 
   private var parserFactory: ParserFactory = _
   private var parser: Parser = _
-  private var currentDialect: SqlDialect = getTableConfig.getSqlDialect
+  private var currentDialect: SqlDialect = getTableConfig.getSqlDialect  //现在支持default and hive
   // the transformations generated in translateToPlan method, they are not connected
   // with sink transformations but also are needed in the final graph.
   private[flink] val extraTransformations = new util.ArrayList[Transformation[_]]()
@@ -173,15 +173,15 @@ abstract class PlannerBase(
 
   override def translate(
       modifyOperations: util.List[ModifyOperation]): util.List[Transformation[_]] = {
-    beforeTranslation()
+    beforeTranslation() //在tableConfig添加一些配置信息
     if (modifyOperations.isEmpty) {
       return List.empty[Transformation[_]]
     }
-
+    //把Operation节点转为RelNode节点
     val relNodes = modifyOperations.map(translateToRel)
-    val optimizedRelNodes = optimize(relNodes)
-    val execGraph = translateToExecNodeGraph(optimizedRelNodes, isCompiled = false)
-    val transformations = translateToPlan(execGraph)
+    val optimizedRelNodes = optimize(relNodes)  //优化 RelNode
+    val execGraph = translateToExecNodeGraph(optimizedRelNodes, isCompiled = false)  //翻译成执行图
+    val transformations = translateToPlan(execGraph) //转换为底层的 Transformation 算子
     afterTranslation()
     transformations
   }
@@ -236,7 +236,7 @@ abstract class PlannerBase(
           .writeValueAsString(execNodeGraph),
       execNodeGraph)
   }
-
+  //把Operation树转化为RelNode树，Operation已经记录了RelNode节点
   /** Converts a relational tree of [[ModifyOperation]] into a Calcite relational expression. */
   @VisibleForTesting
   private[flink] def translateToRel(modifyOperation: ModifyOperation): RelNode = {
@@ -277,7 +277,7 @@ abstract class PlannerBase(
           stagedSink.getDynamicTableSink)
 
       case catalogSink: SinkModifyOperation =>
-        val input = createRelBuilder.queryOperation(modifyOperation.getChild).build()
+        val input = createRelBuilder.queryOperation(modifyOperation.getChild).build() //得到对应的RelNode节点
         val dynamicOptions = catalogSink.getDynamicOptions
         getTableSink(catalogSink.getContextResolvedTable, dynamicOptions).map {
           case (table, sink: TableSink[_]) =>
@@ -519,7 +519,7 @@ abstract class PlannerBase(
       planner.operatorTable
     )
   }
-
+  //在tableConfig添加一些配置信息
   protected def beforeTranslation(): Unit = {
     // Add query start time to TableConfig, these config are used internally,
     // these configs will be used by temporal functions like CURRENT_TIMESTAMP,LOCALTIMESTAMP.

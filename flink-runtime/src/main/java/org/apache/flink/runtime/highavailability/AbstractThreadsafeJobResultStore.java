@@ -43,7 +43,7 @@ public abstract class AbstractThreadsafeJobResultStore implements JobResultStore
 
     private static final Logger LOG =
             LoggerFactory.getLogger(AbstractThreadsafeJobResultStore.class);
-
+    //允许多个线程同时读取数据，但在写入数据时，只允许一个线程进行操作
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
 
     private final Executor ioExecutor;
@@ -130,7 +130,7 @@ public abstract class AbstractThreadsafeJobResultStore implements JobResultStore
                 },
                 ioExecutor);
     }
-
+    //上write lock
     private void withWriteLock(ThrowingRunnable<IOException> runnable) throws IOException {
         readWriteLock.writeLock().lock();
         try {
@@ -144,7 +144,7 @@ public abstract class AbstractThreadsafeJobResultStore implements JobResultStore
             SupplierWithException<T, IOException> runnable) {
         return FutureUtils.supplyAsync(() -> withReadLock(runnable), ioExecutor);
     }
-
+   //上read lock
     private <T> T withReadLock(SupplierWithException<T, IOException> supplier) throws IOException {
         readWriteLock.readLock().lock();
         try {

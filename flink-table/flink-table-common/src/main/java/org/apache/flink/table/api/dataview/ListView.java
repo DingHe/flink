@@ -89,6 +89,10 @@ import java.util.Objects;
  *
  * @param <T> element type
  */
+// Flink Table API 中为聚合函数（AggregateFunction）提供的一种特殊数据视图（DataView）。
+// 它的核心作用是在聚合器（Accumulator）中提供类似 List 的功能，同时能够利用 Flink 的状态后端来处理大量数据，特别是在无界流处理场景中
+// ListView 会智能地将对 add()、get() 等方法的调用委托给底层的**ListState**，从而实现高效、可扩展的状态管理。
+// 这使得开发者可以像使用普通 List 一样编写代码，而无需关心底层的状态管理复杂性
 @TypeInfo(ListViewTypeInfoFactory.class)
 @PublicEvolving
 public class ListView<T> implements DataView {

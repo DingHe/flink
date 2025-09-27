@@ -24,7 +24,7 @@ import org.apache.flink.runtime.jobmaster.SlotInfo;
 
 import java.util.Collection;
 import java.util.Optional;
-
+//负责维护分配的slot
 /** The slot pool is responsible for maintaining a set of {@link AllocatedSlot AllocatedSlots}. */
 public interface AllocatedSlotPool {
 

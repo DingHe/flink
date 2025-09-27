@@ -28,7 +28,7 @@ import java.util.stream.IntStream;
 /**
  * The {@code SubtaskStateMapper} narrows down the subtasks that need to be read during rescaling to
  * recover from a particular subtask when in-flight data has been stored in the checkpoint.
- *
+ * 主要用于在任务并行度发生变化或故障恢复时，定义子任务之间状态的映射关系。它决定了哪些旧子任务的状态需要恢复到新的子任务上
  * <p>Mappings of old subtasks to new subtasks may be unique or non-unique. A unique assignment
  * means that a particular old subtask is only assigned to exactly one new subtask. Non-unique
  * assignments require filtering downstream. That means that the receiver side has to cross-verify
@@ -42,7 +42,7 @@ public enum SubtaskStateMapper {
 
     /**
      * Extra state is redistributed to other subtasks without any specific guarantee (only that up-
-     * and downstream are matched).
+     * and downstream are matched).任意分配：没有特定的分配策略，通常采用轮询的方式分配
      */
     ARBITRARY {
         @Override
@@ -54,7 +54,7 @@ public enum SubtaskStateMapper {
         }
     },
 
-    /** Restores extra subtasks to the first subtask. */
+    /** Restores extra subtasks to the first subtask. 首个子任务：所有旧子任务的状态都分配给第一个新的子任务*/
     FIRST {
         @Override
         public int[] getOldSubtasks(
@@ -66,7 +66,7 @@ public enum SubtaskStateMapper {
     /**
      * Replicates the state to all subtasks. This rescaling causes a huge overhead and completely
      * relies on filtering the data downstream.
-     *
+     *  全量复制：将所有旧子任务的状态复制给每个新的子任务。这种方式开销较大，通常不推荐使用
      * <p>This strategy should only be used as a fallback.
      */
     FULL {
@@ -97,7 +97,7 @@ public enum SubtaskStateMapper {
      *
      * <p>For all upscale from n to [n+1 .. 2*n-1], most subtasks get two old subtasks assigned,
      * except the two outermost.
-     *
+     *  范围分区：根据状态的键范围进行分区，将状态按照范围分配给新的子任务
      * <p>Larger scale factors ({@code <n/2}, {@code >2*n}), will increase the number of old
      * subtasks accordingly. However, they will also create more unique assignment, where an old
      * subtask is exclusively assigned to a new subtask. Thus, the number of non-unique mappings is
@@ -149,7 +149,7 @@ public enum SubtaskStateMapper {
      * <p>For {@code oldParallelism > newParallelism}, new indexes get multiple assignments by
      * wrapping around assignments in a round-robin fashion. For example if oldParallelism = 10 and
      * newParallelism = 4.
-     *
+     *  轮询分配：将旧子任务的状态轮询分配给新的子任务
      * <table>
      *     <thead><td>New index</td><td>Old indexes</td></thead>
      *     <tr><td>0</td><td>0, 4, 8</td></tr>
@@ -172,7 +172,7 @@ public enum SubtaskStateMapper {
             return subtasks.toArray();
         }
     },
-
+    //不支持的模式，通常用于不支持状态恢复的算子
     UNSUPPORTED {
         @Override
         public int[] getOldSubtasks(

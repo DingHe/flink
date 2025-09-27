@@ -46,16 +46,16 @@ import java.util.concurrent.Executor;
  *   <li>Persistence for the BLOB store
  *   <li>Registry that marks a job's status
  *   <li>Naming of RPC endpoints
- * </ul>
+ * </ul>  Retrieval是服务发现，Election是服务选举，ha还要实现的一个是状态保存Store，主要依靠共享存储，例如hdfs
  */
 public interface HighAvailabilityServices
         extends ClientHighAvailabilityServices, GloballyCleanableResource {
-
+   //参考链接 https://blog.jrwang.me/2020/2020-12-26-flink-ha/
     // ------------------------------------------------------------------------
     //  Constants
     // ------------------------------------------------------------------------
-
-    /**
+    //LeaderElectionService  有四个组件需要用到选举服务：Dispatcher，ResourceManager，JobManager(每个作业有一个)，RestEndpoint
+    /**  LeaderRetrievalService 获取各个服务的地址，例如 Client 提交作业时需要获取 RestEndpoint，TaskManager 获取 ResourceManager 地址用于注册、提供计算资源
      * This UUID should be used when no proper leader election happens, but a simple pre-configured
      * leader is used. That is for example the case in non-highly-available standalone setups.
      */
@@ -72,12 +72,12 @@ public interface HighAvailabilityServices
     //  Services
     // ------------------------------------------------------------------------
 
-    /** Gets the leader retriever for the cluster's resource manager. */
+    /** Gets the leader retriever for the cluster's resource manager. 获取 ResourceManager 的领导者信息*/
     LeaderRetrievalService getResourceManagerLeaderRetriever();
 
     /**
      * Gets the leader retriever for the dispatcher. This leader retrieval service is not always
-     * accessible.
+     * accessible.获取 Dispatcher 的领导者信息
      */
     LeaderRetrievalService getDispatcherLeaderRetriever();
 
@@ -87,7 +87,7 @@ public interface HighAvailabilityServices
      * @param jobID The identifier of the job.
      * @return Leader retrieval service to retrieve the job manager for the given job
      * @deprecated This method should only be used by the legacy code where the JobManager acts as
-     *     the master.
+     *     the master. 为指定作业获取 JobManager 的领导者信息（废弃的旧版方法）
      */
     @Deprecated
     LeaderRetrievalService getJobManagerLeaderRetriever(JobID jobID);
@@ -97,7 +97,7 @@ public interface HighAvailabilityServices
      *
      * @param jobID The identifier of the job.
      * @param defaultJobManagerAddress JobManager address which will be returned by a static leader
-     *     retrieval service.
+     *     retrieval service.为指定作业获取 JobManager 的领导者信息，可以指定默认地址
      * @return Leader retrieval service to retrieve the job manager for the given job
      */
     LeaderRetrievalService getJobManagerLeaderRetriever(
@@ -121,7 +121,7 @@ public interface HighAvailabilityServices
                         + "implemented by your HighAvailabilityServices implementation.");
     }
 
-    /** Gets the {@link LeaderElection} for the cluster's resource manager. */
+    /** Gets the {@link LeaderElection} for the cluster's resource manager. 获取 ResourceManager 的领导者选举服务*/
     LeaderElection getResourceManagerLeaderElection();
 
     /** Gets the {@link LeaderElection} for the cluster's dispatcher. */
@@ -155,14 +155,14 @@ public interface HighAvailabilityServices
     /**
      * Gets the submitted job graph store for the job manager.
      *
-     * @return Submitted job graph store
+     * @return Submitted job graph store 获取 JobGraphStore，用于存储和检索作业图，用途：在高可用模式下，存储正在运行的作业信息，以支持作业恢复
      * @throws Exception if the submitted job graph store could not be created
      */
     JobGraphStore getJobGraphStore() throws Exception;
 
     /**
      * Gets the store that holds information about the state of finished jobs.
-     *
+     * 获取job结果的存储的地方
      * @return Store of finished job results
      * @throws Exception if job result store could not be created
      */
@@ -171,7 +171,7 @@ public interface HighAvailabilityServices
     /**
      * Creates the BLOB store in which BLOBs are stored in a highly-available fashion.
      *
-     * @return Blob store
+     * @return Blob store  创建一个 BlobStore，用于存储和检索分布式 BLOB（如依赖的 JAR 文件），用途：支持分布式运行环境中用户代码的分发和管理
      * @throws IOException if the blob store could not be created
      */
     BlobStore createBlobStore() throws IOException;

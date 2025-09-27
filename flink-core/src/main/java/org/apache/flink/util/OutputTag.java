@@ -43,13 +43,15 @@ import java.util.Objects;
  *
  * @param <T> the type of elements in the side-output stream.
  */
+//用于**标识和类型化侧输出流（Side Output）**的工具。在流处理中，一个算子（operator）通常只有一个主输出流，但有时你可能需要将某些数据分流到其他流中
+//作用就是为这些侧输出流提供一个唯一的标识符（ID）和一个类型信息
 @PublicEvolving
 public class OutputTag<T> implements Serializable {
 
     private static final long serialVersionUID = 2L;
-
+    //侧输出流的唯一标识符
     private final String id;
-
+    //侧输出流中数据元素的类型信息
     private final TypeInformation<T> typeInfo;
 
     /**
@@ -85,7 +87,7 @@ public class OutputTag<T> implements Serializable {
         this.id = id;
         this.typeInfo = Preconditions.checkNotNull(typeInfo, "TypeInformation cannot be null.");
     }
-
+    //用于检查一个 OutputTag 是否与另一个 OutputTag 相同
     public static boolean isResponsibleFor(
             @Nullable OutputTag<?> owner, @Nonnull OutputTag<?> other) {
         return other.equals(owner);

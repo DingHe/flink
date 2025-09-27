@@ -32,7 +32,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * The {@code AllocatedSlot} represents a slot that the JobMaster allocated from a TaskExecutor. It
  * represents a slice of allocated resources from the TaskExecutor.
- *
+ * 示一个由 JobMaster 从 TaskExecutor 分配的槽位，表示从 TaskExecutor 分配的资源的一部分
  * <p>To allocate an {@code AllocatedSlot}, the requests a slot from the ResourceManager. The
  * ResourceManager picks (or starts) a TaskExecutor that will then allocate the slot to the
  * JobMaster and notify the JobMaster.
@@ -42,22 +42,22 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * JobManager. All slots had a default unknown resource profile.
  */
 class AllocatedSlot implements PhysicalSlot {
-
+  //槽位的唯一标识符，用于标识该槽位的分配
     /** The ID under which the slot is allocated. Uniquely identifies the slot. */
     private final AllocationID allocationId;
-
+  //用于标识槽位所在的 TaskManager，提供访问 TaskManager 的信息
     /** The location information of the TaskManager to which this slot belongs. */
     private final TaskManagerLocation taskManagerLocation;
-
+   //槽位所提供的资源配置（例如内存、CPU 核心数等）
     /** The resource profile of the slot provides. */
     private final ResourceProfile resourceProfile;
-
+    //通过 TaskManagerGateway，JobMaster 可以与 TaskManager 进行通信，获取任务执行的状态，分配任务等
     /** RPC gateway to call the TaskManager that holds this slot. */
     private final TaskManagerGateway taskManagerGateway;
-
+   //用于标识该槽位在 TaskManager 上的具体位置。虽然这个编号是信息性的，但有助于理解槽位的物理分布
     /** The number of the slot on the TaskManager to which slot belongs. Purely informational. */
     private final int physicalSlotNumber;
-
+    //通过该属性，管理槽位的使用情况。如果槽位被占用，payloadReference 会指向一个非 null 的 Payload 对象
     private final AtomicReference<Payload> payloadReference;
 
     // ------------------------------------------------------------------------
@@ -105,7 +105,7 @@ class AllocatedSlot implements PhysicalSlot {
         return resourceProfile;
     }
 
-    @Override
+    @Override  //检查该槽位是否将被长期占用（例如，当前任务是否需要长时间使用该槽位）
     public boolean willBeOccupiedIndefinitely() {
         return isUsed() && payloadReference.get().willOccupySlotIndefinitely();
     }
@@ -120,7 +120,7 @@ class AllocatedSlot implements PhysicalSlot {
         return taskManagerGateway;
     }
 
-    @Override
+    @Override //返回该槽位在 TaskManager 上的编号
     public int getPhysicalSlotNumber() {
         return physicalSlotNumber;
     }
@@ -134,7 +134,7 @@ class AllocatedSlot implements PhysicalSlot {
         return payloadReference.get() != null;
     }
 
-    @Override
+    @Override //如果槽位未被占用（即 payloadReference 为 null），则分配该负载并返回 true；否则返回 false
     public boolean tryAssignPayload(Payload payload) {
         return payloadReference.compareAndSet(null, payload);
     }

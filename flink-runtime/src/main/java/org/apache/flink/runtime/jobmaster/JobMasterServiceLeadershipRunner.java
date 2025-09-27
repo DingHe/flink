@@ -77,36 +77,36 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
             LoggerFactory.getLogger(JobMasterServiceLeadershipRunner.class);
 
     private final Object lock = new Object();
-
+    //用于创建 JobMasterServiceProcess 实例
     private final JobMasterServiceProcessFactory jobMasterServiceProcessFactory;
-
+    //管理领导选举的对象，通过它授予或撤销领导权
     private final LeaderElection leaderElection;
-
+    //存储作业结果的组件，用于检查作业是否已经完成
     private final JobResultStore jobResultStore;
-
+    //用于管理作业运行时类加载器的生命周期，释放资源以避免内存泄漏
     private final LibraryCacheManager.ClassLoaderLease classLoaderLease;
 
     private final FatalErrorHandler fatalErrorHandler;
-
+    //一个 CompletableFuture<Void>，表示组件终止操作的结果
     private final CompletableFuture<Void> terminationFuture = new CompletableFuture<>();
-
+    //表示 JobMasterServiceProcess 的最终结果（包括成功、失败或异常）
     private final CompletableFuture<JobManagerRunnerResult> resultFuture =
             new CompletableFuture<>();
 
-    @GuardedBy("lock")
+    @GuardedBy("lock") //一个枚举类型的属性，表示当前组件的状态（RUNNING、STOPPED、JOB_COMPLETED）
     private State state = State.RUNNING;
 
-    @GuardedBy("lock")
+    @GuardedBy("lock")  //用来串行化所有领导权相关的操作（如授予或撤销领导权）
     private CompletableFuture<Void> sequentialOperation = FutureUtils.completedVoidFuture();
 
-    @GuardedBy("lock")
+    @GuardedBy("lock") //当前的 JobMasterServiceProcess 实例，用于运行作业
     private JobMasterServiceProcess jobMasterServiceProcess =
-            JobMasterServiceProcess.waitingForLeadership();
+            JobMasterServiceProcess.waitingForLeadership(); //初始化为空实现
 
-    @GuardedBy("lock")
+    @GuardedBy("lock") //表示当前 JobMasterServiceProcess 的网关
     private CompletableFuture<JobMasterGateway> jobMasterGatewayFuture = new CompletableFuture<>();
 
-    @GuardedBy("lock")
+    @GuardedBy("lock") //一个布尔值，标志当前领导节点是否已经取消了作业
     private boolean hasCurrentLeaderBeenCancelled = false;
 
     public JobMasterServiceLeadershipRunner(
@@ -115,14 +115,14 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
             JobResultStore jobResultStore,
             LibraryCacheManager.ClassLoaderLease classLoaderLease,
             FatalErrorHandler fatalErrorHandler) {
-        this.jobMasterServiceProcessFactory = jobMasterServiceProcessFactory;
+        this.jobMasterServiceProcessFactory = jobMasterServiceProcessFactory; //创建 JobMasterServiceProcess 的工厂
         this.leaderElection = leaderElection;
         this.jobResultStore = jobResultStore;
         this.classLoaderLease = classLoaderLease;
         this.fatalErrorHandler = fatalErrorHandler;
     }
 
-    @Override
+    @Override //异步关闭组件并释放所有资源，包括 JobMasterServiceProcess 和领导选举
     public CompletableFuture<Void> closeAsync() {
         final CompletableFuture<Void> processTerminationFuture;
         synchronized (lock) {
@@ -161,7 +161,7 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
         return terminationFuture;
     }
 
-    @Override
+    @Override //启动领导选举，尝试成为领导者
     public void start() throws Exception {
         LOG.debug("Start leadership runner for job {}.", getJobID());
         leaderElection.startLeaderElection(this);
@@ -184,7 +184,7 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
         return jobMasterServiceProcessFactory.getJobId();
     }
 
-    @Override
+    @Override //取消当前执行的作业
     public CompletableFuture<Acknowledge> cancel(Time timeout) {
         synchronized (lock) {
             hasCurrentLeaderBeenCancelled = true;
@@ -200,7 +200,7 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
         }
     }
 
-    @Override
+    @Override //请求当前作业的状态。
     public CompletableFuture<JobStatus> requestJobStatus(Time timeout) {
         return requestJob(timeout)
                 .thenApply(
@@ -208,7 +208,7 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
                                 executionGraphInfo.getArchivedExecutionGraph().getState());
     }
 
-    @Override
+    @Override //请求当前作业的详细信息。
     public CompletableFuture<JobDetails> requestJobDetails(Time timeout) {
         return requestJob(timeout)
                 .thenApply(
@@ -217,7 +217,7 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
                                         executionGraphInfo.getArchivedExecutionGraph()));
     }
 
-    @Override
+    @Override //请求当前作业的执行图信息
     public CompletableFuture<ExecutionGraphInfo> requestJob(Time timeout) {
         synchronized (lock) {
             if (state == State.RUNNING) {
@@ -237,14 +237,14 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
         }
     }
 
-    @Override
+    @Override //检查当前 JobMasterServiceProcess 是否已初始化并运行
     public boolean isInitialized() {
         synchronized (lock) {
             return jobMasterServiceProcess.isInitializedAndRunning();
         }
     }
 
-    @Override
+    @Override //授予组件领导权，启动 JobMasterServiceProcess
     public void grantLeadership(UUID leaderSessionID) {
         runIfStateRunning(
                 () -> startJobMasterServiceProcessAsync(leaderSessionID),
@@ -329,7 +329,7 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
                                         new JobAlreadyDoneException(getJobID())))));
     }
 
-    @GuardedBy("lock")
+    @GuardedBy("lock")  //创建JobMasterServiceProcess
     private void createNewJobMasterServiceProcess(UUID leaderSessionId) throws FlinkException {
         Preconditions.checkState(jobMasterServiceProcess.closeAsync().isDone());
 
@@ -339,7 +339,7 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
                 getJobID(),
                 leaderSessionId,
                 JobMasterServiceProcess.class.getSimpleName());
-
+        //在这里面已经异步创建了JobMaster以及创建了执行图
         jobMasterServiceProcess = jobMasterServiceProcessFactory.create(leaderSessionId);
 
         forwardIfValidLeader(
@@ -496,7 +496,7 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
     private boolean isRunning() {
         return state == State.RUNNING;
     }
-
+    //如果领导者有效，则运行action，否则运行noLeaderFallback
     private void runIfValidLeader(
             UUID expectedLeaderId, Runnable action, Runnable noLeaderFallback) {
         synchronized (lock) {
@@ -525,13 +525,13 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
         final CompletableFuture<T> resultFuture = new CompletableFuture<>();
         runIfValidLeader(
                 expectedLeaderId,
-                () -> FutureUtils.forward(supplier.get(), resultFuture),
+                () -> FutureUtils.forward(supplier.get(), resultFuture), //如果supplier正常结束，则用resultFuture返回结果，否则用resultFuture处理失败
                 () -> FutureUtils.forward(noLeaderFallback.get(), resultFuture));
 
         return resultFuture;
     }
 
-    @GuardedBy("lock")
+    @GuardedBy("lock") //判断领导者是否生效
     private boolean isValidLeader(UUID expectedLeaderId) {
         return isRunning()
                 && leaderElection != null

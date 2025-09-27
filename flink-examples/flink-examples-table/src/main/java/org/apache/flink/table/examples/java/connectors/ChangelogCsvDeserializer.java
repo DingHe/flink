@@ -37,11 +37,19 @@ import java.util.regex.Pattern;
  *
  * <p>The final conversion step converts those into internal data structures.
  */
+// 示例反序列化器，它实现了 DeserializationSchema<RowData> 接口。
+// 它的核心作用是将一个字节数组（通常是来自 CSV 文件的行）解析并转换为 Flink 内部的 RowData 数据结构
+//带有变更日志（Changelog）信息的 CSV 数据而设计。
+// 它假定每一行 CSV 数据的第一个字段是 RowKind（如 INSERT、DELETE），后面的字段才是实际的数据。
+// 它将这些字符串数据解析为 Java 对象（例如 Integer 和 String），然后利用一个 DataStructureConverter 将这些 Java 对象最终转换为 Flink 内部高效的 RowData 格式
 public final class ChangelogCsvDeserializer implements DeserializationSchema<RowData> {
-
+    //存储需要解析的每个字段的逻辑类型
     private final List<LogicalType> parsingTypes;
+    //将解析后的 Java 对象（Row）转换为 Flink 内部的 RowData
     private final DataStructureConverter converter;
+    //存储 Flink 核心接口所需的 TypeInformation
     private final TypeInformation<RowData> producedTypeInfo;
+    //定义 CSV 行中列与列之间的分隔符
     private final String columnDelimiter;
 
     public ChangelogCsvDeserializer(
@@ -66,7 +74,7 @@ public final class ChangelogCsvDeserializer implements DeserializationSchema<Row
         // converters must be opened
         converter.open(Context.create(ChangelogCsvDeserializer.class.getClassLoader()));
     }
-
+    //将给定的字节数组反序列化为 RowData
     @Override
     public RowData deserialize(byte[] message) {
         // parse the columns including a changelog flag

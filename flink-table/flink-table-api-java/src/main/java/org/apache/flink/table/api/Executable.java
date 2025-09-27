@@ -21,7 +21,7 @@ package org.apache.flink.table.api;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.table.api.config.TableConfigOptions;
 
-/**
+/** 代表可以执行的工件
  * Represents an artifact that can be executed.
  *
  * @see #execute()

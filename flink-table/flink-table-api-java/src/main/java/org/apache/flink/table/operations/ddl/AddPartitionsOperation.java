@@ -38,8 +38,8 @@ import java.util.Map;
 public class AddPartitionsOperation extends AlterTableOperation {
 
     private final boolean ignoreIfPartitionExists;
-    private final List<CatalogPartitionSpec> partitionSpecs;
-    private final List<CatalogPartition> catalogPartitions;
+    private final List<CatalogPartitionSpec> partitionSpecs; //分区的key和value
+    private final List<CatalogPartition> catalogPartitions;  //代表catalog中的分区对象
 
     public AddPartitionsOperation(
             ObjectIdentifier tableIdentifier,

@@ -91,13 +91,13 @@ public class PekkoRpcService implements RpcService {
     static final int VERSION = 2;
 
     private final Object lock = new Object();
-
+    //actor system，属于rpcService持有,PekkoRpcActor也在这里启动
     private final ActorSystem actorSystem;
     private final PekkoRpcServiceConfiguration configuration;
 
     private final ClassLoader flinkClassLoader;
 
-    @GuardedBy("lock")
+    @GuardedBy("lock")  //actorref和服务对应关系
     private final Map<ActorRef, RpcEndpoint> actors = CollectionUtil.newHashMapWithExpectedSize(4);
 
     private final String address;
@@ -123,7 +123,7 @@ public class PekkoRpcService implements RpcService {
             final ActorSystem actorSystem,
             final PekkoRpcServiceConfiguration configuration,
             final ClassLoader flinkClassLoader) {
-        this.actorSystem = checkNotNull(actorSystem, "actor system");
+        this.actorSystem = checkNotNull(actorSystem, "actor system");  //持有actor system，已经启动
         this.configuration = checkNotNull(configuration, "pekko rpc service configuration");
         this.flinkClassLoader = checkNotNull(flinkClassLoader, "flinkClassLoader");
 
@@ -148,16 +148,16 @@ public class PekkoRpcService implements RpcService {
         // we must ensure that the context class loader is set to the Flink class loader when we
         // call into Flink
         // otherwise we could leak the plugin class loader or poison the context class loader of
-        // external threads (because they inherit the current threads context class loader)
+        // external threads (because they inherit the current threads context class loader) //创建调度executor
         internalScheduledExecutor =
                 new ActorSystemScheduledExecutorAdapter(actorSystem, flinkClassLoader);
 
         terminationFuture = new CompletableFuture<>();
 
         stopped = false;
-
+        //启动监控actor，名字为rpc
         supervisor = startSupervisorActor();
-        startDeadLettersActor();
+        startDeadLettersActor(); //启动deadLetter actor,名字为deadLettersActor
     }
 
     private void startDeadLettersActor() {
@@ -171,7 +171,7 @@ public class PekkoRpcService implements RpcService {
                 Executors.newSingleThreadExecutor(
                         new ExecutorThreadFactory(
                                 "RpcService-Supervisor-Termination-Future-Executor"));
-        final ActorRef actorRef =
+        final ActorRef actorRef =         //名字为rpc
                 SupervisorActor.startSupervisorActor(
                         actorSystem,
                         withContextClassLoader(terminationFutureExecutor, flinkClassLoader));
@@ -263,7 +263,7 @@ public class PekkoRpcService implements RpcService {
     public <C extends RpcEndpoint & RpcGateway> RpcServer startServer(
             C rpcEndpoint, Map<String, String> loggingContext) {
         checkNotNull(rpcEndpoint, "rpc endpoint");
-
+        //注册PekkoRpcActor
         final SupervisorActor.ActorRegistration actorRegistration =
                 registerRpcActor(rpcEndpoint, loggingContext);
         final ActorRef actorRef = actorRegistration.getActorRef();
@@ -344,15 +344,15 @@ public class PekkoRpcService implements RpcService {
         if (rpcEndpoint instanceof FencedRpcEndpoint) {
             rpcActorType = FencedPekkoRpcActor.class;
         } else {
-            rpcActorType = PekkoRpcActor.class;
+            rpcActorType = PekkoRpcActor.class;   //启动PekkoRpcActor
         }
 
         synchronized (lock) {
             checkState(!stopped, "RpcService is stopped");
-
+            //通过SupervisorActor启动PekkoRpcActor 或者 FencedPekkoRpcActor
             final SupervisorActor.StartRpcActorResponse startRpcActorResponse =
                     SupervisorActor.startRpcActor(
-                            supervisor.getActor(),
+                            supervisor.getActor(),  //获取到监控器的actor
                             actorTerminationFuture ->
                                     Props.create(
                                             rpcActorType,

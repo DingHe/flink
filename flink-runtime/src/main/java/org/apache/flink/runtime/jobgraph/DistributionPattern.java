@@ -30,10 +30,10 @@ import org.apache.flink.runtime.executiongraph.IntermediateResultPartition;
  * in {@link EdgeManagerBuildUtil}
  */
 public enum DistributionPattern {
-
+    //这种模式表示生产者任务的每个输出分区都会被传递给所有消费者任务，在并行度相同的情况下，所有下游消费者都将接收生产者的所有数据分区
     /** Each producing sub task is connected to each sub task of the consuming task. */
     ALL_TO_ALL,
-
+  //数据会按照一定的规则进行分发。通常，生产者的每个输出分区只会被发送到与之对应的消费者分区，这种模式实现的是数据一对一的传递
     /** Each producing sub task is connected to one or more subtask(s) of the consuming task. */
     POINTWISE
 }

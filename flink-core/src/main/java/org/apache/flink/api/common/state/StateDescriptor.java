@@ -56,6 +56,8 @@ import static org.apache.flink.util.Preconditions.checkState;
  * @param <S> The type of the State objects created from this {@code StateDescriptor}.
  * @param <T> The type of the value of the state object described by this state descriptor.
  */
+//描述和配置一个状态实例。它本身并不存储状态，而是作为创建和管理状态的“蓝图”或“元数据”。
+// 在 Flink 中，当你在一个 RichFunction 中通过 RuntimeContext.getState() 方法请求一个状态时，你必须传入一个 StateDescriptor
 @PublicEvolving
 public abstract class StateDescriptor<S extends State, T> implements Serializable {
     private static final Logger LOG = LoggerFactory.getLogger(StateDescriptor.class);
@@ -83,12 +85,14 @@ public abstract class StateDescriptor<S extends State, T> implements Serializabl
     // ------------------------------------------------------------------------
 
     /** Name that uniquely identifies state created from this StateDescriptor. */
+    //状态的唯一名称。在一个算子（operator）中，你可以通过这个名字来获取对应的状态实例
     protected final String name;
 
     /**
      * The serializer for the type. May be eagerly initialized in the constructor, or lazily once
      * the {@link #initializeSerializerUnlessSet(ExecutionConfig)} method is called.
      */
+    //一个线程安全的引用，用于存储状态值的类型序列化器
     private final AtomicReference<TypeSerializer<T>> serializerAtomicReference =
             new AtomicReference<>();
 
@@ -96,12 +100,15 @@ public abstract class StateDescriptor<S extends State, T> implements Serializabl
      * The type information describing the value type. Only used to if the serializer is created
      * lazily.
      */
+    //存储状态值的类型信息。在没有直接提供序列化器时，Flink 会使用这个类型信息来推断并创建序列化器
     @Nullable private TypeInformation<T> typeInfo;
 
     /** Name for queries against state created from this StateDescriptor. */
+    //用于**可查询状态（Queryable State）**的名称。这个功能允许外部应用查询 Flink 正在运行的状态
     @Nullable private String queryableStateName;
 
     /** The configuration of state time-to-live(TTL), it is disabled by default. */
+    //配置状态的存活时间（Time-to-live, TTL）。如果启用，状态将会在一定时间后自动过期和清理
     @Nonnull private StateTtlConfig ttlConfig = StateTtlConfig.DISABLED;
 
     /**
@@ -110,6 +117,7 @@ public abstract class StateDescriptor<S extends State, T> implements Serializabl
      * @deprecated To make the semantics more clear, user should manually manage the default value
      *     if the contents of the state is {@code null}
      */
+    //状态的默认值
     @Nullable @Deprecated protected transient T defaultValue;
 
     // ------------------------------------------------------------------------
@@ -380,7 +388,7 @@ public abstract class StateDescriptor<S extends State, T> implements Serializabl
     // ------------------------------------------------------------------------
     //  Serialization
     // ------------------------------------------------------------------------
-
+    //被用来手动序列化和反序列化默认值
     private void writeObject(final ObjectOutputStream out) throws IOException {
         // write all the non-transient fields
         out.defaultWriteObject();

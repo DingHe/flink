@@ -34,7 +34,7 @@ import javax.annotation.Nullable;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-
+//SingleLogicalSlot 实现了 PhysicalSlot.Payload 接口，就是说说 SingleLogicalSlot 可以作为 payload 被分配给 PhysicalSlot
 /** Implementation of the {@link LogicalSlot}. */
 public class SingleLogicalSlot implements LogicalSlot, PhysicalSlot.Payload {
 

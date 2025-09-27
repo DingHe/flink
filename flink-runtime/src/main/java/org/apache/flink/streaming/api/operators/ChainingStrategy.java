@@ -37,23 +37,23 @@ public enum ChainingStrategy {
      * <p>To optimize performance, it is generally a good practice to allow maximal chaining and
      * increase operator parallelism.
      */
-    ALWAYS,
+    ALWAYS, //操作符会尽可能地被连接到前一个操作符，即 总是链式连接
 
     /** The operator will not be chained to the preceding or succeeding operators. */
-    NEVER,
+    NEVER,  //操作符 不会与前一个或后续操作符进行链式连接，即 不进行操作符链连接
 
     /**
      * The operator will not be chained to the predecessor, but successors may chain to this
      * operator.
      */
-    HEAD,
+    HEAD,  //当设置为 HEAD 时，操作符 不会与前一个操作符链在一起，但是它允许后续操作符与其链在一起
 
     /**
      * This operator will run at the head of a chain (similar as in {@link #HEAD}, but it will
      * additionally try to chain source inputs if possible. This allows multi-input operators to be
      * chained with multiple sources into one task.
      */
-    HEAD_WITH_SOURCES;
+    HEAD_WITH_SOURCES;  //但是它 会尽可能尝试将多输入的操作符链到多个源（source）中。也就是说，除了将后续操作符链到头部操作符之后外，它还会尝试将输入源（例如 Source 操作符）与头部操作符进行链式连接
 
     public static final ChainingStrategy DEFAULT_CHAINING_STRATEGY = ALWAYS;
 }

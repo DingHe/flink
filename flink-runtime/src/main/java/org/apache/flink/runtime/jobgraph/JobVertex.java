@@ -55,7 +55,7 @@ public class JobVertex implements java.io.Serializable {
     // Members that define the structure / topology of the graph
     // --------------------------------------------------------------------------------------------
 
-    /** The ID of the vertex. */
+    /** The ID of the vertex. 顶点id*/
     private final JobVertexID id;
 
     /**
@@ -69,7 +69,7 @@ public class JobVertex implements java.io.Serializable {
      *   \    \
      *    C    E
      * </pre>
-     *
+     * 自动生成的id和手动指定的id的映射
      * <p>This is the same order that operators are stored in the {@code StreamTask}.
      */
     private final List<OperatorIDPair> operatorIDs;
@@ -77,7 +77,7 @@ public class JobVertex implements java.io.Serializable {
     /** Produced data sets, one per writer. */
     private final Map<IntermediateDataSetID, IntermediateDataSet> results = new LinkedHashMap<>();
 
-    /** List of edges with incoming data. One per Reader. */
+    /** List of edges with incoming data. One per Reader. 输入数据*/
     private final List<JobEdge> inputs = new ArrayList<>();
 
     /** The list of factories for operator coordinators. */
@@ -99,7 +99,7 @@ public class JobVertex implements java.io.Serializable {
     /** Custom configuration passed to the assigned task at runtime. */
     private Configuration configuration;
 
-    /** The class of the invokable. */
+    /** The class of the invokable.调用的类名称 */
     private String invokableClassName;
 
     /** Indicates of this job vertex is stoppable or not. */

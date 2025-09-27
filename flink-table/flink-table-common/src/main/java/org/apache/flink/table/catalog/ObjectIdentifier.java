@@ -39,7 +39,7 @@ import static org.apache.flink.table.utils.EncodingUtils.escapeIdentifier;
  *
  * <p>While {@link ObjectPath} is used within the same catalog, instances of this class can be used
  * across catalogs.
- *
+ * catalog中的对象标识，表，视图，函数或者类型
  * <p>Two objects are considered equal if they share the same object identifier in a stable session
  * context.
  */

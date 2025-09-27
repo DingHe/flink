@@ -41,7 +41,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
+/** 文件存储的形式，每个catalog一个文件
  * A {@link CatalogStore} that stores all catalog configuration to a directory. Configuration of
  * every catalog will be saved into a single file. The file name will be {catalogName}.yaml by
  * default.
@@ -56,7 +56,7 @@ public class FileCatalogStore extends AbstractCatalogStore {
     /** The YAML mapper to use when reading and writing catalog files. */
     private static final YAMLMapper YAML_MAPPER =
             new YAMLMapper().disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER);
-
+    //存储的路径
     /** The directory path where catalog configurations will be stored. */
     private final Path catalogStorePath;
 
@@ -123,7 +123,7 @@ public class FileCatalogStore extends AbstractCatalogStore {
                                 "Catalog %s's store file %s is already exist.",
                                 catalogName, catalogPath));
             }
-
+            //写入catalog的信息
             try (FSDataOutputStream os = fs.create(catalogPath, WriteMode.NO_OVERWRITE)) {
                 YAML_MAPPER.writeValue(os, catalog.getConfiguration().toFileWritableMap());
             }
@@ -258,7 +258,7 @@ public class FileCatalogStore extends AbstractCatalogStore {
                     e);
         }
     }
-
+    //获取catalog的路径，以catalogname为名称
     private Path getCatalogPath(String catalogName) {
         return new Path(catalogStorePath, catalogName + FILE_EXTENSION);
     }

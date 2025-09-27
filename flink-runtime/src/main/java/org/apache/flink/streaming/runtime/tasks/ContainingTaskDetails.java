@@ -25,8 +25,8 @@ import org.apache.flink.runtime.execution.Environment;
 /** Details about the operator containing task (such as {@link StreamTask}). */
 @Internal
 public interface ContainingTaskDetails extends EnvironmentProvider {
-
-    default ClassLoader getUserCodeClassLoader() {
+   //它为运行中的任务提供了关于其执行环境的详细信息
+    default ClassLoader getUserCodeClassLoader() {  //获取用户自定义代码的类加载器
         return getEnvironment().getUserCodeClassLoader().asClassLoader();
     }
 
@@ -38,7 +38,7 @@ public interface ContainingTaskDetails extends EnvironmentProvider {
         return this.getEnvironment().getJobConfiguration();
     }
 
-    default int getIndexInSubtaskGroup() {
+    default int getIndexInSubtaskGroup() { //获取当前任务在其子任务组中的索引。这个信息可以用于任务之间的协调
         return this.getEnvironment().getTaskInfo().getIndexOfThisSubtask();
     }
 }

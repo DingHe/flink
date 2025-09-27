@@ -41,14 +41,14 @@ import static org.apache.flink.core.memory.MemoryUtils.getByteBufferAddress;
 
 /**
  * This class represents a piece of memory managed by Flink.
- *
+ * MemorySegment 是Flink中内存管理的最小单位，它代表了一段固定长度的内存区域。Flink将数据序列化后存储在MemorySegment中，从而实现高效的内存管理
  * <p>The memory can be on-heap, off-heap direct or off-heap unsafe. This is transparently handled
  * by this class.
- *
+ * Flink会将堆内存或堆外内存划分成多个MemorySegment，作为内存分配的基本单元。序列化后的数据会被存储在MemorySegment中，以便后续的处理
  * <p>This class fulfills conceptually a similar purpose as Java's {@link java.nio.ByteBuffer}. We
  * add this specialized class for various reasons:
- *
- * <ul>
+ *  每个MemorySegment的大小是固定的，通常为32KB，MemorySegment提供了高效的读写方法，直接操作内存，避免了频繁的JVM对象创建和垃圾回收
+ * <ul> MemorySegment可以管理堆内内存和堆外内存，以满足不同的内存需求
  *   <li>It offers additional binary compare, swap, and copy methods.
  *   <li>It uses collapsed checks for range check and memory segment disposal.
  *   <li>It offers absolute positioning methods for bulk put/get methods, to guarantee thread safe
@@ -77,11 +77,11 @@ public final class MemorySegment {
             System.getProperties().containsKey(CHECK_MULTIPLE_FREE_PROPERTY);
 
     /** The unsafe handle for transparent memory copied (heap / off-heap). */
-    @SuppressWarnings("restriction")
+    @SuppressWarnings("restriction") //通过反射的方式获取Unsafe类
     private static final sun.misc.Unsafe UNSAFE = MemoryUtils.UNSAFE;
 
     /** The beginning of the byte array contents, relative to the byte array object. */
-    @SuppressWarnings("restriction")
+    @SuppressWarnings("restriction") //arrayBaseOffset： 表示数组第一个元素的起始地址，arrayIndexScale： 表示数组中每个元素的偏移量，也就是相邻两个元素的地址差
     private static final long BYTE_ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
 
     /**
@@ -113,7 +113,7 @@ public final class MemorySegment {
      * The address to the data, relative to the heap memory byte array. If the heap memory byte
      * array is <tt>null</tt>, this becomes an absolute memory address outside the heap.
      */
-    private long address;
+    private long address; //数组第一个元素的地址
 
     /**
      * The address one byte after the last addressable byte, i.e. <tt>address + size</tt> while the

@@ -34,7 +34,7 @@ public class PekkoRpcSystem implements RpcSystem {
         return PekkoRpcServiceUtils.localServiceBuilder(configuration);
     }
 
-    @Override
+    @Override  //根据配置信息配置ServiceBuilder
     public RpcServiceBuilder remoteServiceBuilder(
             Configuration configuration,
             @Nullable String externalAddress,

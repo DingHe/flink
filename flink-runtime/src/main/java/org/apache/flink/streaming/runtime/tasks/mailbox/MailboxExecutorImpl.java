@@ -32,10 +32,10 @@ import java.util.concurrent.RejectedExecutionException;
 
 /** Implementation of an executor service build around a mailbox-based execution model. */
 @Internal
-public final class MailboxExecutorImpl implements MailboxExecutor {
+public final class MailboxExecutorImpl implements MailboxExecutor { //主要作用是向 TaskMailbox 中投递 Mail
 
     /** The mailbox that manages the submitted runnable objects. */
-    @Nonnull private final TaskMailbox mailbox;
+    @Nonnull private final TaskMailbox mailbox; //邮箱
 
     private final int priority;
 
@@ -65,7 +65,7 @@ public final class MailboxExecutorImpl implements MailboxExecutor {
                 && mailbox.getState().isAcceptingMails();
     }
 
-    @Override
+    @Override  //把邮件放入mailbox里面
     public void execute(
             MailOptions mailOptions,
             final ThrowingRunnable<? extends Exception> command,

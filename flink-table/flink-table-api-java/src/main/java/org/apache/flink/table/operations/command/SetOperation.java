@@ -33,7 +33,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  */
 @Internal
 public class SetOperation implements Operation {
-
+    //配置的key和value
     @Nullable private final String key;
     @Nullable private final String value;
 

@@ -179,12 +179,12 @@ public class StreamExecutionEnvironment implements AutoCloseable {
     private static final ThreadLocal<StreamExecutionEnvironmentFactory>
             threadLocalContextEnvironmentFactory = new ThreadLocal<>();
 
-    /** The default parallelism used when creating a local environment. */
+    /** The default parallelism used when creating a local environment. 等效于linux的nproc命令*/
     private static int defaultLocalParallelism = Runtime.getRuntime().availableProcessors();
 
     // ------------------------------------------------------------------------
 
-    /** The execution configuration for this environment. */
+    /** The execution configuration for this environment. 环境配置信息 */
     protected final ExecutionConfig config;
 
     /** Settings that control the checkpointing behavior. */
@@ -2316,7 +2316,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      */
     public JobExecutionResult execute(String jobName) throws Exception {
         final List<Transformation<?>> originalTransformations = new ArrayList<>(transformations);
-        StreamGraph streamGraph = getStreamGraph();
+        StreamGraph streamGraph = getStreamGraph();  //首先生成streamgraph
         if (jobName != null) {
             streamGraph.setJobName(jobName);
         }
@@ -2466,7 +2466,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
     @Internal
     public JobClient executeAsync(StreamGraph streamGraph) throws Exception {
         checkNotNull(streamGraph, "StreamGraph cannot be null.");
-        final PipelineExecutor executor = getPipelineExecutor();
+        final PipelineExecutor executor = getPipelineExecutor(); //根据配置信息获取不同的PipelineExecutor
 
         CompletableFuture<JobClient> jobClientFuture =
                 executor.execute(streamGraph, configuration, userClassloader);
@@ -2509,7 +2509,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @param clearTransformations Whether or not to clear previously registered transformations
      * @return The stream graph representing the transformations
      */
-    @Internal
+    @Internal  //生成streamgraph
     public StreamGraph getStreamGraph(boolean clearTransformations) {
         final StreamGraph streamGraph = getStreamGraph(transformations);
         if (clearTransformations) {
@@ -2673,6 +2673,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @return The execution environment of the context in which the program is executed.
      */
     public static StreamExecutionEnvironment getExecutionEnvironment(Configuration configuration) {
+        //resolveFactory从线程本地变量获取工厂或者直接获取静态变量
         return Utils.resolveFactory(threadLocalContextEnvironmentFactory, contextEnvironmentFactory)
                 .map(factory -> factory.createExecutionEnvironment(configuration))
                 .orElseGet(() -> StreamExecutionEnvironment.createLocalEnvironment(configuration));
@@ -2732,7 +2733,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
         } else {
             Configuration copyOfConfiguration = new Configuration();
             copyOfConfiguration.addAll(configuration);
-            copyOfConfiguration.set(CoreOptions.DEFAULT_PARALLELISM, defaultLocalParallelism);
+            copyOfConfiguration.set(CoreOptions.DEFAULT_PARALLELISM, defaultLocalParallelism); //默认并行度是机器的有效核数
             return new LocalStreamEnvironment(copyOfConfiguration);
         }
     }
@@ -2985,7 +2986,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
             invalidateClusterDataset(id);
         }
     }
-
+    //根据配置信息选择不同的PipelineExecutor
     private PipelineExecutor getPipelineExecutor() throws Exception {
         checkNotNull(
                 configuration.get(DeploymentOptions.TARGET),

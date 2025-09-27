@@ -100,10 +100,10 @@ public class DefaultJobMasterServiceFactory implements JobMasterServiceFactory {
                         () -> internalCreateJobMasterService(leaderSessionId, onCompletionActions)),
                 executor);
     }
-
+    //真正创建JobMaster的地方
     private JobMasterService internalCreateJobMasterService(
             UUID leaderSessionId, OnCompletionActions onCompletionActions) throws Exception {
-
+        //JobMaster实现了JobMasterService接口
         final JobMaster jobMaster =
                 new JobMaster(
                         rpcService,
@@ -129,7 +129,7 @@ public class DefaultJobMasterServiceFactory implements JobMasterServiceFactory {
                                 jobMasterConfiguration.getConfiguration()),
                         failureEnrichers,
                         initializationTimestamp);
-
+        //JobMaster启动
         jobMaster.start();
 
         return jobMaster;

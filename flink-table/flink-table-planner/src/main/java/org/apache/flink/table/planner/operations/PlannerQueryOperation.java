@@ -40,7 +40,7 @@ import java.util.function.Supplier;
 @Internal
 public class PlannerQueryOperation implements QueryOperation {
 
-    private final RelNode calciteTree;
+    private final RelNode calciteTree; //关系节点
     private final ResolvedSchema resolvedSchema;
 
     private final Supplier<String> toSqlString;

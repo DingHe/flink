@@ -2828,7 +2828,7 @@ public final class BuiltInFunctionDefinitions {
 
     public static final List<FunctionDefinition> ORDERING = Arrays.asList(ORDER_ASC, ORDER_DESC);
 
-    @Internal
+    @Internal  //反射获得函数定义列表
     public static List<BuiltInFunctionDefinition> getDefinitions() {
         final Field[] fields = BuiltInFunctionDefinitions.class.getFields();
         final List<BuiltInFunctionDefinition> list = new ArrayList<>(fields.length);

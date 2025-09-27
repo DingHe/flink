@@ -37,9 +37,11 @@ import static org.apache.flink.table.types.logical.utils.LogicalTypeUtils.toInte
  *
  * @see DataTypes for a list of supported data types
  */
+// Flink 表生态系统中用于表示包含字段的复合数据类型（例如 ROW 和结构化类型）的具体实现类。
+// 它的核心作用是为像 ROW<name STRING, age INT> 这样的数据类型提供一个具体的、可实例化的 DataType 对象
 @PublicEvolving
 public final class FieldsDataType extends DataType {
-
+    //存储该行或结构化类型的字段的数据类型列表
     private final List<DataType> fieldDataTypes;
 
     public FieldsDataType(

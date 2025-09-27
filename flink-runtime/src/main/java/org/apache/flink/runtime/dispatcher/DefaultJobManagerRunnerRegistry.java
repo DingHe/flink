@@ -39,7 +39,7 @@ import java.util.concurrent.Executor;
  * JobManagerRunnerRegistry} interface.
  */
 public class DefaultJobManagerRunnerRegistry implements JobManagerRunnerRegistry {
-
+    //JobID和JobManagerRunner的映射
     @VisibleForTesting final Map<JobID, JobManagerRunner> jobManagerRunners;
 
     public DefaultJobManagerRunnerRegistry(int initialCapacity) {
@@ -47,12 +47,12 @@ public class DefaultJobManagerRunnerRegistry implements JobManagerRunnerRegistry
         jobManagerRunners = CollectionUtil.newHashMapWithExpectedSize(initialCapacity);
     }
 
-    @Override
+    @Override //如果已经包含，则是注册了
     public boolean isRegistered(JobID jobId) {
         return jobManagerRunners.containsKey(jobId);
     }
 
-    @Override
+    @Override  //注册任务
     public void register(JobManagerRunner jobManagerRunner) {
         Preconditions.checkArgument(
                 !isRegistered(jobManagerRunner.getJobID()),
@@ -91,7 +91,7 @@ public class DefaultJobManagerRunnerRegistry implements JobManagerRunnerRegistry
         return FutureUtils.completedVoidFuture();
     }
 
-    @Override
+    @Override  //未注册，就是把信息删除
     public JobManagerRunner unregister(JobID jobId) {
         assertJobRegistered(jobId);
         return this.jobManagerRunners.remove(jobId);

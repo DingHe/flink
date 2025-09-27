@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 /** Provides a format for unparsing {@link BuiltInFunctionDefinitions} into a SQL string. */
 @Internal
 public interface SqlCallSyntax {
-
+    //operands代表参数
     String unparse(String sqlName, List<ResolvedExpression> operands);
 
     /**

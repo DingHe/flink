@@ -37,10 +37,10 @@ public final class FlinkPipelineTranslationUtil {
             Pipeline pipeline,
             Configuration optimizerConfiguration,
             int defaultParallelism) {
-
+        //streamgraph -> jobgraph的转换器 StreamGraphTranslator
         FlinkPipelineTranslator pipelineTranslator =
                 getPipelineTranslator(userClassloader, pipeline);
-
+         //真正转换的地方
         JobGraph jobGraph =
                 pipelineTranslator.translateToJobGraph(
                         pipeline, optimizerConfiguration, defaultParallelism);

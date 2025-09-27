@@ -29,7 +29,7 @@ import java.util.concurrent.Executor;
 /** Factory for the {@link SessionDispatcherLeaderProcessFactory}. */
 public class SessionDispatcherLeaderProcessFactoryFactory
         implements DispatcherLeaderProcessFactoryFactory {
-
+    //Dispatcher 创建工厂
     private final DispatcherFactory dispatcherFactory;
 
     private SessionDispatcherLeaderProcessFactoryFactory(DispatcherFactory dispatcherFactory) {

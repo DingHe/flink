@@ -28,7 +28,7 @@ import java.util.Set;
 /**
  * Definition of a function. Instances of this class provide all details necessary to validate a
  * function call and perform planning.
- *
+ * 函数定义，不包含运行时实现
  * <p>A pure function definition doesn't have to contain a runtime implementation. This can be
  * provided by the planner at later stages. A {@link UserDefinedFunction} is a function definition
  * that includes a runtime implementation already.
@@ -37,7 +37,7 @@ import java.util.Set;
  */
 @PublicEvolving
 public interface FunctionDefinition {
-
+   //函数类型
     /** Returns the kind of function this definition describes. */
     FunctionKind getKind();
 
@@ -54,7 +54,7 @@ public interface FunctionDefinition {
      * <p>See {@link BuiltInFunctionDefinitions} for concrete usage examples.
      */
     TypeInference getTypeInference(DataTypeFactory typeFactory);
-
+    //限定需求
     /** Returns the set of requirements this definition demands. */
     default Set<FunctionRequirement> getRequirements() {
         return Collections.emptySet();
@@ -67,7 +67,7 @@ public interface FunctionDefinition {
      * always return the same result given the same parameters. <code>true</code> is assumed by
      * default. If the function is not purely functional like <code>random(), date(), now(), ...
      * </code> this method must return <code>false</code>.
-     *
+     * 函数结果是否确定
      * <p>Furthermore, return <code>false</code> if the planner should always execute this function
      * on the cluster side. In other words: the planner should not perform constant expression
      * reduction during planning for constant calls to this function.
@@ -76,7 +76,7 @@ public interface FunctionDefinition {
         return true;
     }
 
-    /**
+    /** 是否支持常量展开
      * If the constant-folding should be run during planning time on calls to this function. If not,
      * the expression will be left as-is and the call will be made during runtime.
      */

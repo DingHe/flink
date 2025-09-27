@@ -48,6 +48,8 @@ import org.apache.flink.util.OutputTag;
  * @param <I> Type of the input elements.
  * @param <O> Type of the output elements.
  */
+//DataStream API 中一个非常强大的底层函数，
+// 它提供了对流数据的细粒度控制，包括访问事件的时间戳、注册定时器（timers）以及访问键控状态（keyed state）
 @PublicEvolving
 public abstract class ProcessFunction<I, O> extends AbstractRichFunction {
 
@@ -67,6 +69,10 @@ public abstract class ProcessFunction<I, O> extends AbstractRichFunction {
      * @throws Exception This method may throw exceptions. Throwing an exception will cause the
      *     operation to fail and may trigger recovery.
      */
+    //每当一个数据元素到达时都会被调用。你需要在子类中实现这个方法来定义处理逻辑
+    //I value：当前正在处理的输入数据元素
+    //Context ctx：一个上下文对象，提供了访问时间戳、定时器服务和侧输出流等功能
+    //Collector<O> out：一个收集器（collector），用于向主输出流发送零个或多个结果
     public abstract void processElement(I value, Context ctx, Collector<O> out) throws Exception;
 
     /**
@@ -81,12 +87,16 @@ public abstract class ProcessFunction<I, O> extends AbstractRichFunction {
      * @throws Exception This method may throw exceptions. Throwing an exception will cause the
      *     operation to fail and may trigger recovery.
      */
+    //当一个之前注册的定时器触发时，此方法会被调用
+    //long timestamp：触发定时器的目标时间戳
+    //OnTimerContext ctx：一个特殊的上下文对象，除了提供基本功能外，还包含了定时器的**时间域（TimeDomain）**信息
     public void onTimer(long timestamp, OnTimerContext ctx, Collector<O> out) throws Exception {}
 
     /**
      * Information available in an invocation of {@link #processElement(Object, Context, Collector)}
      * or {@link #onTimer(long, OnTimerContext, Collector)}.
      */
+    //为 processElement 方法提供上下文信息和工具
     public abstract class Context {
 
         /**
@@ -95,9 +105,11 @@ public abstract class ProcessFunction<I, O> extends AbstractRichFunction {
          * <p>This might be {@code null}, for example if the time characteristic of your program is
          * set to {@link org.apache.flink.streaming.api.TimeCharacteristic#ProcessingTime}.
          */
+        //获取当前数据元素的时间戳。在事件时间模式下，这是元素的事件时间；在处理时间模式下，它可能为 null
         public abstract Long timestamp();
 
         /** A {@link TimerService} for querying time and registering timers. */
+        //返回一个 TimerService 实例，你可以用它来注册和删除定时器，以及查询当前的处理时间或水印（watermark）
         public abstract TimerService timerService();
 
         /**
@@ -106,6 +118,7 @@ public abstract class ProcessFunction<I, O> extends AbstractRichFunction {
          * @param outputTag the {@code OutputTag} that identifies the side output to emit to.
          * @param value The record to emit.
          */
+        //将数据发送到侧输出流。你需要通过 OutputTag 来标识具体的侧输出流
         public abstract <X> void output(OutputTag<X> outputTag, X value);
     }
 
@@ -114,6 +127,7 @@ public abstract class ProcessFunction<I, O> extends AbstractRichFunction {
      */
     public abstract class OnTimerContext extends Context {
         /** The {@link TimeDomain} of the firing timer. */
+        //获取触发定时器的时间域，即是事件时间（EventTime）定时器还是处理时间（ProcessingTime）定时器
         public abstract TimeDomain timeDomain();
     }
 }

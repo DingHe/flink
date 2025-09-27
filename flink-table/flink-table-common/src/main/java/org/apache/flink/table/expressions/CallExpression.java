@@ -58,13 +58,13 @@ public final class CallExpression implements ResolvedExpression {
 
     private final boolean isTemporary;
 
-    private final @Nullable FunctionIdentifier functionIdentifier;
+    private final @Nullable FunctionIdentifier functionIdentifier; //函数标识
 
-    private final FunctionDefinition functionDefinition;
+    private final FunctionDefinition functionDefinition; //函数定义
 
-    private final List<ResolvedExpression> args;
+    private final List<ResolvedExpression> args; //函数参数
 
-    private final DataType dataType;
+    private final DataType dataType;//返回数据类型
 
     @Internal
     public CallExpression(
@@ -83,7 +83,7 @@ public final class CallExpression implements ResolvedExpression {
         this.dataType = Preconditions.checkNotNull(dataType, "Data type must not be null.");
     }
 
-    /**
+    /** 持久化函数
      * Creates a {@link CallExpression} to a permanent function (persisted in a {@link Catalog} or
      * provided by a {@link Module}).
      */
@@ -102,7 +102,7 @@ public final class CallExpression implements ResolvedExpression {
                 dataType);
     }
 
-    /**
+    /** 持久化内置函数
      * Creates a {@link CallExpression} to a resolved built-in function. It assumes that the {@link
      * BuiltInFunctionDefinition} instance is provided by the framework (usually the core module).
      */
@@ -138,7 +138,7 @@ public final class CallExpression implements ResolvedExpression {
                 dataType);
     }
 
-    /**
+    /** 匿名函数
      * Creates a {@link CallExpression} to an anonymous function that has been declared inline
      * without a {@link FunctionIdentifier}.
      */

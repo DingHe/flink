@@ -33,7 +33,7 @@ import java.util.Collections;
 /** Operation to describe an ADD JAR statement. */
 @Internal
 public class AddJarOperation implements Operation, ExecutableOperation {
-
+    //jar 的路径
     private final String path;
 
     public AddJarOperation(String path) {
@@ -52,7 +52,7 @@ public class AddJarOperation implements Operation, ExecutableOperation {
     @Override
     public TableResultInternal execute(Context ctx) {
         ResourceUri resourceUri = new ResourceUri(ResourceType.JAR, getPath());
-        try {
+        try {  //执行实际就是把jar的路径添加到ResourceManager
             ctx.getResourceManager().registerJarResources(Collections.singletonList(resourceUri));
             return TableResultImpl.TABLE_RESULT_OK;
         } catch (IOException e) {

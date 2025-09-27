@@ -26,12 +26,18 @@ import org.apache.flink.annotation.Internal;
  * @param <K> Type of the keys to which timers are scoped.
  * @param <N> Type of the namespace to which timers are scoped.
  */
+//用于定义能够对 定时器（Timers） 事件做出响应的组件
+    //作用就是声明一个组件可以被 Flink 的定时器服务（InternalTimerService）调用，并在定时器触发时执行相应的业务逻辑
+    //K：代表 Key（键） 的类型
+    //N：代表 Namespace（命名空间） 的类型。命名空间是 Flink 窗口（Window）机制中的一个概念。它可以是窗口对象本身，用于将定时器限定在某个具体的窗口实例内
 @Internal
 public interface Triggerable<K, N> {
 
     /** Invoked when an event-time timer fires. */
+    //在一个 事件时间（event-time）定时器 触发时被调用
     void onEventTime(InternalTimer<K, N> timer) throws Exception;
 
     /** Invoked when a processing-time timer fires. */
+    //在一个 处理时间（processing-time）定时器 触发时被调用
     void onProcessingTime(InternalTimer<K, N> timer) throws Exception;
 }

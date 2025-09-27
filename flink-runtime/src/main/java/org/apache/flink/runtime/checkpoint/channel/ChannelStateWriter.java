@@ -103,7 +103,7 @@ public interface ChannelStateWriter extends Closeable {
      */
     int SEQUENCE_NUMBER_UNKNOWN = -2;
 
-    /** Initiate write of channel state for the given checkpoint id. */
+    /** Initiate write of channel state for the given checkpoint id. 初始化一个新的检查点写入操作*/
     void start(long checkpointId, CheckpointOptions checkpointOptions);
 
     /**
@@ -117,12 +117,12 @@ public interface ChannelStateWriter extends Closeable {
      * @param data zero or more <b>data</b> buffers ordered by their sequence numbers
      * @see org.apache.flink.runtime.checkpoint.channel.ChannelStateWriter#SEQUENCE_NUMBER_RESTORED
      * @see org.apache.flink.runtime.checkpoint.channel.ChannelStateWriter#SEQUENCE_NUMBER_UNKNOWN
-     */
+     */ //将来自输入通道的数据添加到当前检查点的状态中
     void addInputData(
             long checkpointId,
             InputChannelInfo info,
-            int startSeqNum,
-            CloseableIterator<Buffer> data);
+            int startSeqNum, //表示数据的起始序列号，用于增量快照
+            CloseableIterator<Buffer> data); //表示一个可关闭的缓冲区迭代器，包含了需要写入状态的数据
 
     /**
      * Add in-flight buffers from the {@link
@@ -137,7 +137,7 @@ public interface ChannelStateWriter extends Closeable {
      *     a buffer}
      * @see org.apache.flink.runtime.checkpoint.channel.ChannelStateWriter#SEQUENCE_NUMBER_RESTORED
      * @see org.apache.flink.runtime.checkpoint.channel.ChannelStateWriter#SEQUENCE_NUMBER_UNKNOWN
-     */
+     */ //将来自输出通道的数据添加到当前检查点的状态中
     void addOutputData(
             long checkpointId, ResultSubpartitionInfo info, int startSeqNum, Buffer... data)
             throws IllegalArgumentException;
@@ -163,7 +163,7 @@ public interface ChannelStateWriter extends Closeable {
      * #start(long, CheckpointOptions)} and all of the input data of the given checkpoint added.
      * When both {@link #finishInput} and {@link #finishOutput} were called the results can be
      * (eventually) obtained using {@link #getAndRemoveWriteResult}
-     */
+     */ //分别表示输入通道和输出通道的数据写入完成
     void finishInput(long checkpointId);
 
     /**
@@ -171,7 +171,7 @@ public interface ChannelStateWriter extends Closeable {
      * #start(long, CheckpointOptions)} and all of the output data of the given checkpoint added.
      * When both {@link #finishInput} and {@link #finishOutput} were called the results can be
      * (eventually) obtained using {@link #getAndRemoveWriteResult}
-     */
+     *///分别表示输入通道和输出通道的数据写入完成
     void finishOutput(long checkpointId);
 
     /**
@@ -179,14 +179,14 @@ public interface ChannelStateWriter extends Closeable {
      *
      * @param cleanup true if {@link #getAndRemoveWriteResult(long)} is not supposed to be called
      *     afterwards.
-     */
+     */ //中断当前检查点的写入操作，并清理相关的资源
     void abort(long checkpointId, Throwable cause, boolean cleanup);
 
     /**
      * Must be called after {@link #start(long, CheckpointOptions)} once.
      *
      * @throws IllegalArgumentException if the passed checkpointId is not known.
-     */
+     */ //获取当前检查点写入的结果，并从内部状态中移除。结果包含了输入通道和输出通道的状态句柄
     ChannelStateWriteResult getAndRemoveWriteResult(long checkpointId)
             throws IllegalArgumentException;
 

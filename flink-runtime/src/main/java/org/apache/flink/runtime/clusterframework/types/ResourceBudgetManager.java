@@ -35,9 +35,9 @@ public class ResourceBudgetManager {
 
     private static final Logger LOG = LoggerFactory.getLogger(ResourceBudgetManager.class);
 
-    private final ResourceProfile totalBudget;
+    private final ResourceProfile totalBudget; //总预算
 
-    private ResourceProfile availableBudget;
+    private ResourceProfile availableBudget; //有效的预算
 
     public ResourceBudgetManager(final ResourceProfile totalBudget) {
         checkResourceProfileNotNullOrUnknown(totalBudget);

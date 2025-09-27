@@ -57,7 +57,7 @@ import java.util.concurrent.CompletableFuture;
  * The execution graph is the central data structure that coordinates the distributed execution of a
  * data flow. It keeps representations of each parallel task, each intermediate stream, and the
  * communication between them.
- *
+ * 它表示一个作业的执行图，包括作业的所有任务（ExecutionVertex）、中间流（IntermediateResult）和它们之间的通信关系
  * <p>The execution graph consists of the following constructs:
  *
  * <ul>
@@ -77,11 +77,11 @@ import java.util.concurrent.CompletableFuture;
  * </ul>
  */
 public interface ExecutionGraph extends AccessExecutionGraph {
-
+    //通常在作业调度器准备好后调用，以开始作业的分布式执行
     void start(@Nonnull ComponentMainThreadExecutor jobMasterMainThreadExecutor);
-
+    //获取调度拓扑结构，这表示任务之间的依赖关系以及如何安排它们的执行
     SchedulingTopology getSchedulingTopology();
-
+   //启用作业的检查点功能
     void enableCheckpointing(
             CheckpointCoordinatorConfiguration chkConfig,
             List<MasterTriggerRestoreHook<?>> masterHooks,
@@ -93,9 +93,9 @@ public interface ExecutionGraph extends AccessExecutionGraph {
             CheckpointsCleaner checkpointsCleaner,
             String changelogStorage);
 
-    @Nullable
+    @Nullable //返回当前作业的 CheckpointCoordinator，如果没有，则返回 null
     CheckpointCoordinator getCheckpointCoordinator();
-
+    //用于查找作业中各个操作符的状态位置
     KvStateLocationRegistry getKvStateLocationRegistry();
 
     void setJsonPlan(String jsonPlan);
@@ -188,7 +188,7 @@ public interface ExecutionGraph extends AccessExecutionGraph {
 
     @VisibleForTesting
     JobStatus waitUntilTerminal() throws InterruptedException;
-
+    //用于状态转换，确保作业的状态转换符合逻辑，如从 RUNNING 到 FINISHED
     boolean transitionState(JobStatus current, JobStatus newState);
 
     void incrementRestarts();

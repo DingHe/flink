@@ -63,7 +63,7 @@ public class FileSystemJobResultStore extends AbstractThreadsafeJobResultStore {
     @VisibleForTesting static final String FILE_EXTENSION = ".json";
     @VisibleForTesting static final String DIRTY_FILE_EXTENSION = "_DIRTY" + FILE_EXTENSION;
 
-    @VisibleForTesting
+    @VisibleForTesting  //存在dirty job reslt的拓展名文件
     public static boolean hasValidDirtyJobResultStoreEntryExtension(String filename) {
         return filename.endsWith(DIRTY_FILE_EXTENSION);
     }

@@ -53,7 +53,7 @@ import static org.apache.flink.runtime.execution.ExecutionState.FINISHED;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/**
+/** 会被调度到TaskManager执行
  * The ExecutionVertex is a parallel subtask of the execution. It may be executed once, or several
  * times, each of which time it spawns an {@link Execution}.
  */

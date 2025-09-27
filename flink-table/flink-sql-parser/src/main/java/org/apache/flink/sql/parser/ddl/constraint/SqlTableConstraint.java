@@ -61,12 +61,12 @@ public class SqlTableConstraint extends SqlCall {
     private static final SqlOperator OPERATOR =
             new SqlSpecialOperator("SqlTableConstraint", SqlKind.OTHER);
 
-    private final SqlIdentifier constraintName;
+    private final SqlIdentifier constraintName; //约束名称
     private final SqlLiteral uniqueSpec;
-    private final SqlNodeList columns;
+    private final SqlNodeList columns; //列
     private final SqlLiteral enforcement;
     // Whether this is a table constraint, currently it is only used for SQL unparse.
-    private final boolean isTableConstraint;
+    private final boolean isTableConstraint; //是否表约束
 
     /**
      * Creates a table constraint node.

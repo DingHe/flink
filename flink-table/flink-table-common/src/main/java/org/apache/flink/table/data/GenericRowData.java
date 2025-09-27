@@ -129,7 +129,7 @@ public final class GenericRowData implements RowData {
         return this.fields[pos] == null;
     }
 
-    @Override
+    @Override //获取Object对象，然后转为对应的类型
     public boolean getBoolean(int pos) {
         return (boolean) this.fields[pos];
     }

@@ -61,7 +61,7 @@ public class DefaultLeaderRetrievalService
 
     /** Listener which will be notified about leader changes. */
     private volatile LeaderRetrievalListener leaderListener;
-
+    //监控leader的变化信息
     private LeaderRetrievalDriver leaderRetrievalDriver;
 
     /**

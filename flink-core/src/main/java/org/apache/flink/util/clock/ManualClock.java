@@ -34,7 +34,7 @@ public final class ManualClock extends Clock {
         this(0);
     }
 
-    public ManualClock(long startTime) {
+    public ManualClock(long startTime) {  //可以手动设置时间
         this.currentTime = new AtomicLong(startTime);
     }
 

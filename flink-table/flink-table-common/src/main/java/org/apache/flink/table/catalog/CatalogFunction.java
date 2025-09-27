@@ -33,7 +33,7 @@ public interface CatalogFunction {
      *
      * @return the full name of the class
      */
-    String getClassName();
+    String getClassName(); //函数的类名
 
     /**
      * Create a deep copy of the function.
@@ -47,7 +47,7 @@ public interface CatalogFunction {
      *
      * @return an optional short description of the function
      */
-    Optional<String> getDescription();
+    Optional<String> getDescription(); //函数描述
 
     /**
      * Get a detailed description of the function.
@@ -68,15 +68,15 @@ public interface CatalogFunction {
 
     /**
      * Get the language used for the definition of function.
-     *
+     * 支持java scala python
      * @return the language type of the function definition
      */
-    FunctionLanguage getFunctionLanguage();
+    FunctionLanguage getFunctionLanguage(); //函数编写的语言
 
     /**
      * Get a detailed resource description of the function.
      *
      * @return an {@link ResourceUri} list of the function
      */
-    List<ResourceUri> getFunctionResources();
+    List<ResourceUri> getFunctionResources(); //jar包路径
 }

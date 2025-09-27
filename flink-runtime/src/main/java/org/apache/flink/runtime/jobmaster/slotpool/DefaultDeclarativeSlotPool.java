@@ -96,10 +96,10 @@ public class DefaultDeclarativeSlotPool implements DeclarativeSlotPool {
     private final Duration rpcTimeout;
 
     private final JobID jobId;
-    protected final AllocatedSlotPool slotPool;
+    protected final AllocatedSlotPool slotPool; //负责维护分配的slot
 
     private final Map<AllocationID, ResourceProfile> slotToRequirementProfileMappings;
-
+    //总的资源需求
     private ResourceCounter totalResourceRequirements;
 
     private ResourceCounter fulfilledResourceRequirements;
@@ -124,7 +124,7 @@ public class DefaultDeclarativeSlotPool implements DeclarativeSlotPool {
             ComponentMainThreadExecutor componentMainThreadExecutor) {
 
         this.jobId = jobId;
-        this.slotPool = slotPool;
+        this.slotPool = slotPool; //负责维护分配的slot
         this.notifyNewResourceRequirements = notifyNewResourceRequirements;
         this.idleSlotTimeout = idleSlotTimeout;
         this.rpcTimeout = rpcTimeout;

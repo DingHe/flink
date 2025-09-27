@@ -40,7 +40,7 @@ import java.util.Optional;
 
 /**
  * Sink of a dynamic table to an external storage system.
- *
+ * 动态表每时每刻都在变
  * <p>Dynamic tables are the core concept of Flink's Table & SQL API for processing both bounded and
  * unbounded data in a unified fashion. By definition, a dynamic table can change over time.
  *
@@ -212,7 +212,7 @@ public interface DynamicTableSink {
 
     /**
      * Provides actual runtime implementation for writing the data.
-     *
+     * 提供真实的运行时实现写数据
      * <p>There might exist different interfaces for runtime implementation which is why {@link
      * SinkRuntimeProvider} serves as the base interface. Concrete {@link SinkRuntimeProvider}
      * interfaces might be located in other Flink modules.

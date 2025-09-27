@@ -55,19 +55,23 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @param <T> The type of emitted records.
  */
+//用于 向数据流发送带有时间戳和水印的记录 的内部实现类
+    //整合时间戳和水印生成逻辑：它将 TimestampAssigner（时间戳分配器）和 WatermarkGenerator（水印生成器）的逻辑封装在一起。每当有记录从数据源读取时，它会：
+    //使用 TimestampAssigner 为记录分配一个时间戳
+    //使用 WatermarkGenerator 根据新到达的事件更新水印
 @Internal
 public class SourceOutputWithWatermarks<T> implements SourceOutput<T> {
-
+    //记录输出的通道。所有带有时间戳的 StreamRecord 都会通过这个通道发送到下游算子
     private final PushingAsyncDataInput.DataOutput<T> recordsOutput;
-
+    //时间戳分配器。它负责为从数据源读取的每条记录分配一个事件时间戳
     private final TimestampAssigner<T> timestampAssigner;
-
+    //水印生成器。它根据事件的到达情况，生成事件时间水印
     private final WatermarkGenerator<T> watermarkGenerator;
-
+    //事件驱动水印的输出通道。WatermarkGenerator 在每次处理事件后生成的水印会通过这个通道发送
     private final WatermarkOutput onEventWatermarkOutput;
-
+    //周期性水印的输出通道。WatermarkGenerator 在定时器触发时生成的水印会通过这个通道发送
     private final WatermarkOutput periodicWatermarkOutput;
-
+    //可重用的 StreamRecord 对象。为了提高性能，它避免了每次处理记录时都创建新对象，而是通过 replace 方法来更新其内容
     private final StreamRecord<T> reusingRecord;
 
     /**
@@ -100,14 +104,17 @@ public class SourceOutputWithWatermarks<T> implements SourceOutput<T> {
     public final void collect(T record) {
         collect(record, TimestampAssigner.NO_TIMESTAMP);
     }
-
+    //用于发送带时间戳的记录
     @Override
     public final void collect(T record, long timestamp) {
         try {
+            //为记录分配一个最终的时间戳
             final long assignedTimestamp = timestampAssigner.extractTimestamp(record, timestamp);
 
             // IMPORTANT: The event must be emitted before the watermark generator is called.
+            //将带有新时间戳的记录发送到 recordsOutput 通道
             recordsOutput.emitRecord(reusingRecord.replace(record, assignedTimestamp));
+            //通知水印生成器新事件已到达，并可能由此生成一个新的水印
             watermarkGenerator.onEvent(record, assignedTimestamp, onEventWatermarkOutput);
         } catch (ExceptionInChainedOperatorException e) {
             throw e;

@@ -80,26 +80,26 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public final class CatalogManager implements CatalogRegistry, AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(CatalogManager.class);
 
-    // A map between names and catalogs.
+    // A map between names and catalogs. 存储catalog的map
     private final Map<String, Catalog> catalogs;
 
     // Those tables take precedence over corresponding permanent tables, thus they shadow
-    // tables coming from catalogs.
+    // tables coming from catalogs. 临时表会优先，来自catalog的表会被屏蔽
     private final Map<ObjectIdentifier, CatalogBaseTable> temporaryTables;
 
     // The name of the current catalog and database
-    private @Nullable String currentCatalogName;
+    private @Nullable String currentCatalogName; //当前的catalog名称
 
-    private @Nullable String currentDatabaseName;
+    private @Nullable String currentDatabaseName; //当前数据库的名称
 
-    private DefaultSchemaResolver schemaResolver;
+    private DefaultSchemaResolver schemaResolver; //schema解析器
 
     // The name of the built-in catalog
     private final String builtInCatalogName;
 
     private final DataTypeFactory typeFactory;
 
-    private final ManagedTableListener managedTableListener;
+    private final ManagedTableListener managedTableListener; //管理表监听器
 
     private final List<CatalogModificationListener> catalogModificationListeners;
 
@@ -945,7 +945,7 @@ public final class CatalogManager implements CatalogRegistry, AutoCloseable {
     /**
      * Returns the full name of the given table path, this name may be padded with current
      * catalog/database name based on the {@code identifier's} length.
-     *
+     * catalog没有默认default_catalog  database没有默认default_database
      * @param identifier an unresolved identifier
      * @return a fully qualified object identifier
      */
@@ -993,7 +993,7 @@ public final class CatalogManager implements CatalogRegistry, AutoCloseable {
 
     /**
      * Creates a table in a given fully qualified path.
-     *
+     * catalogManager里面建表
      * @param table The table to put in the given path.
      * @param objectIdentifier The fully qualified path where to put the table.
      * @param ignoreIfExists If false exception will be thrown if a table exists in the given path.
@@ -1010,7 +1010,7 @@ public final class CatalogManager implements CatalogRegistry, AutoCloseable {
                                     resolvedTable,
                                     false,
                                     ignoreIfExists);
-
+                    //把表存入catalog
                     catalog.createTable(path, resolvedListenedTable, ignoreIfExists);
                     if (resolvedListenedTable instanceof CatalogTable
                             || resolvedListenedTable instanceof CatalogMaterializedTable) {
@@ -1357,7 +1357,7 @@ public final class CatalogManager implements CatalogRegistry, AutoCloseable {
     }
 
     private void execute(
-            ModifyCatalog command,
+            ModifyCatalog command, //是一个接口，参数为Catalog catalog, ObjectPath path
             ObjectIdentifier objectIdentifier,
             boolean ignoreNoCatalog,
             String commandName) {
@@ -1381,7 +1381,7 @@ public final class CatalogManager implements CatalogRegistry, AutoCloseable {
     private String getErrorMessage(ObjectIdentifier objectIdentifier, String commandName) {
         return String.format("Could not execute %s in path %s", commandName, objectIdentifier);
     }
-
+    //解析就是列的数据类型没加上，就加上去
     /** Resolves a {@link CatalogBaseTable} to a validated {@link ResolvedCatalogBaseTable}. */
     public ResolvedCatalogBaseTable<?> resolveCatalogBaseTable(CatalogBaseTable baseTable) {
         Preconditions.checkNotNull(schemaResolver, "Schema resolver is not initialized.");
@@ -1402,9 +1402,9 @@ public final class CatalogManager implements CatalogRegistry, AutoCloseable {
         if (table instanceof ResolvedCatalogTable) {
             return (ResolvedCatalogTable) table;
         }
-
+        //列加上数据类型、解析watermark等
         final ResolvedSchema resolvedSchema = table.getUnresolvedSchema().resolve(schemaResolver);
-
+        //确认ditribution的key在physicalcolumns中
         // Validate distribution keys are included in physical columns
         final List<String> physicalColumns =
                 resolvedSchema.getColumns().stream()

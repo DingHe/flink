@@ -53,9 +53,14 @@ import java.util.function.Supplier;
  * does neither change the precision of a timestamp nor prune/expand strings to their defined
  * length. This might be the responsibility of data classes that are called transitively.
  */
+// 工具类和注册表，用于管理和提供 Flink Table API 中所有可用的数据结构转换器。
+// 它的核心作用是根据给定的 DataType（数据类型）自动创建并返回一个合适的 DataStructureConverter 实例
+// 维护了一个静态的映射表，将 Flink 的逻辑类型根（LogicalTypeRoot）与对应的 Java 转换类（conversionClass）关联起来。
+// 当需要一个转换器时，用户只需提供 DataType，DataStructureConverters 就会查找并返回一个预先注册好的、能够处理该类型转换的工厂。
+// 对于一些特殊情况，它还提供了额外的逻辑来处理复杂的类型（如 LIST, MAP, ROW）
 @Internal
 public final class DataStructureConverters {
-
+    //作为转换器的注册表
     private static final Map<ConverterIdentifier<?>, DataStructureConverterFactory> converters =
             new HashMap<>();
 
@@ -196,14 +201,16 @@ public final class DataStructureConverters {
     }
 
     /** Returns a converter for the given {@link DataType}. */
+    //获取并返回一个为指定 DataType 创建的转换器
     @SuppressWarnings("unchecked")
     public static DataStructureConverter<Object, Object> getConverter(DataType dataType) {
         // cast to Object for ease of use
         return (DataStructureConverter<Object, Object>) getConverterInternal(dataType);
     }
-
+    //实际执行转换器查找逻辑的私有方法
     private static DataStructureConverter<?, ?> getConverterInternal(DataType dataType) {
         final LogicalType logicalType = dataType.getLogicalType();
+        //首先根据 dataType 的逻辑类型根 (LogicalTypeRoot) 和转换类 (conversionClass) 创建一个 ConverterIdentifier
         final DataStructureConverterFactory factory =
                 converters.get(
                         new ConverterIdentifier<>(
@@ -240,16 +247,16 @@ public final class DataStructureConverters {
     // --------------------------------------------------------------------------------------------
     // Helper methods
     // --------------------------------------------------------------------------------------------
-
+    //向转换器注册表添加一个新的条目
     private static <E> void putConverter(
             LogicalTypeRoot root, Class<E> conversionClass, DataStructureConverterFactory factory) {
         converters.put(new ConverterIdentifier<>(root, conversionClass), factory);
     }
-
+    //创建一个特殊的工厂，用于返回**“恒等转换器”**
     private static DataStructureConverterFactory identity() {
         return constructor(IdentityConverter::new);
     }
-
+    //一个通用的工厂创建器
     private static DataStructureConverterFactory constructor(
             Supplier<DataStructureConverter<?, ?>> supplier) {
         return dataType -> supplier.get();
@@ -264,11 +271,11 @@ public final class DataStructureConverters {
     // --------------------------------------------------------------------------------------------
     // Helper classes
     // --------------------------------------------------------------------------------------------
-
+    //一个简单的复合键类，用于在 Map 中唯一标识一个转换器
     private static class ConverterIdentifier<E> {
-
+        //逻辑类型的根
         final LogicalTypeRoot root;
-
+        //转换器的java class
         final Class<E> conversionClass;
 
         ConverterIdentifier(LogicalTypeRoot root, Class<E> conversionClass) {

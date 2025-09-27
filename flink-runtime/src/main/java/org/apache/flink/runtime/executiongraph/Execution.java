@@ -115,12 +115,12 @@ public class Execution
         implements AccessExecution, Archiveable<ArchivedExecution>, LogicalSlot.Payload {
 
     private static final Logger LOG = DefaultExecutionGraph.LOG;
-
+    //定义取消任务时的最大重试次数，值为 3
     private static final int NUM_CANCEL_CALL_TRIES = 3;
 
     // --------------------------------------------------------------------------------------------
 
-    /** The executor which is used to execute futures. */
+    /** The executor which is used to execute futures. 行器，用于异步处理 Future 的回调逻辑*/
     private final Executor executor;
 
     /** The execution vertex whose task this execution executes. */
@@ -129,12 +129,12 @@ public class Execution
     /** The unique ID marking the specific execution instant of the task. */
     private ExecutionAttemptID attemptId;
 
-    /**
+    /** 任务状态执行开始时间
      * The timestamps when state transitions occurred, indexed by {@link ExecutionState#ordinal()}.
      */
     private final long[] stateTimestamps;
 
-    /**
+    /** 任务状态的执行结束时间
      * The end timestamps when state transitions occurred, indexed by {@link
      * ExecutionState#ordinal()}.
      */
@@ -144,28 +144,28 @@ public class Execution
 
     private final Collection<PartitionInfo> partitionInfos;
 
-    /** A future that completes once the Execution reaches a terminal ExecutionState. */
+    /** A future that completes once the Execution reaches a terminal ExecutionState.一个 Future，在任务到达终止状态（如 FINISHED, FAILED, CANCELED）时完成，提供任务结束的异步通知 */
     private final CompletableFuture<ExecutionState> terminalStateFuture;
-
+   //确保资源在任务结束后正确释放
     private final CompletableFuture<?> releaseFuture;
-
+    //表示任务分配的 TaskManager 的位置，异步获取
     private final CompletableFuture<TaskManagerLocation> taskManagerLocationFuture;
 
     /**
      * Gets completed successfully when the task switched to {@link ExecutionState#INITIALIZING} or
      * {@link ExecutionState#RUNNING}. If the task never switches to those state, but fails
-     * immediately, then this future never completes.
+     * immediately, then this future never completes.当任务进入 INITIALIZING 或 RUNNING 状态时完成，提供任务启动的异步通知
      */
     private final CompletableFuture<?> initializingOrRunningFuture;
-
+    //表示当前执行实例的状态，初始为 CREATED
     private volatile ExecutionState state = CREATED;
-
+    //表示任务在哪个物理或虚拟计算资源上运行
     private LogicalSlot assignedResource;
-
+   //用于记录任务失败的原因和时间点，帮助调试。一旦设置便不会更改
     private Optional<ErrorInfo> failureCause =
             Optional.empty(); // once an ErrorInfo is set, never changes
 
-    /**
+    /**用于任务在故障恢复时重新加载状态
      * Information to restore the task on recovery, such as checkpoint id and task state snapshot.
      */
     @Nullable private JobManagerTaskRestore taskRestore;
@@ -177,15 +177,15 @@ public class Execution
 
     /**
      * Lock for updating the accumulators atomically. Prevents final accumulators to be overwritten
-     * by partial accumulators on a late heartbeat.
+     * by partial accumulators on a late heartbeat.防止多个线程同时修改累加器时出现不一致
      */
     private final Object accumulatorLock = new Object();
-
+     //持续更新的用户定义累加器的集合
     /* Continuously updated map of user-defined accumulators */
     private Map<String, Accumulator<?, ?>> userAccumulators;
-
+    //用于监控任务的 I/O 性能
     private IOMetrics ioMetrics;
-
+   //管理任务的输出数据分区
     private Map<IntermediateResultPartitionID, ResultPartitionDeploymentDescriptor>
             producedPartitions;
 
@@ -614,7 +614,7 @@ public class Execution
                     vertex.getID(),
                     getAssignedResourceLocation(),
                     slot.getAllocationId());
-
+            //生成需要部署的task
             final TaskDeploymentDescriptor deployment =
                     vertex.getExecutionGraphAccessor()
                             .getTaskDeploymentDescriptorFactory()
@@ -636,7 +636,7 @@ public class Execution
             // We run the submission in the future executor so that the serialization of large TDDs
             // does not block
             // the main thread and sync back to the main thread once submission is completed.
-            CompletableFuture.supplyAsync(
+            CompletableFuture.supplyAsync(  //通过taskManagerGateway部署任务
                             () -> taskManagerGateway.submitTask(deployment, rpcTimeout), executor)
                     .thenCompose(Function.identity())
                     .whenCompleteAsync(

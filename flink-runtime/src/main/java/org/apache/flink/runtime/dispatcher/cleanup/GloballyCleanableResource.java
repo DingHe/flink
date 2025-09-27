@@ -26,7 +26,7 @@ import java.util.concurrent.Executor;
 /**
  * {@code GloballyCleanableResource} is supposed to be implemented by any class that provides
  * artifacts for a given job that need to be cleaned up after the job reached a global terminal
- * state.
+ * state.  当job达到全局结束状态时的清理需要实现这个接口
  *
  * @see LocallyCleanableResource
  * @see org.apache.flink.api.common.JobStatus

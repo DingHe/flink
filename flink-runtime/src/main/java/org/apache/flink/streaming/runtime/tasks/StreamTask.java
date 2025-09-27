@@ -154,7 +154,7 @@ import static org.apache.flink.util.ExceptionUtils.firstOrSuppressed;
 import static org.apache.flink.util.Preconditions.checkState;
 import static org.apache.flink.util.concurrent.FutureUtils.assertNoException;
 
-/**
+/** task是taskmanager本地部署和执行的基本单元
  * Base class for all streaming tasks. A task is the unit of local processing that is deployed and
  * executed by the TaskManagers. Each task runs one or more {@link StreamOperator}s which form the
  * Task's operator chain. Operators that are chained together execute synchronously in the same
@@ -203,7 +203,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
                 AsyncExceptionHandler,
                 ContainingTaskDetails {
 
-    /** The thread group that holds all trigger timer threads. */
+    /** The thread group that holds all trigger timer threads. 用于将多个线程组织成组，以便统一管理和控制Thread thread = new Thread(group, () -> {})*/
     public static final ThreadGroup TRIGGER_THREAD_GROUP = new ThreadGroup("Triggers");
 
     /** The logger used by the StreamTask and its subclasses. */
@@ -220,7 +220,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
      * <p>CheckpointLock is superseded by {@link MailboxExecutor}, with {@link
      * StreamTaskActionExecutor.SynchronizedStreamTaskActionExecutor
      * SynchronizedStreamTaskActionExecutor} to provide lock to {@link SourceStreamTask}.
-     */
+     */  //立即执行还是同步执行
     private final StreamTaskActionExecutor actionExecutor;
 
     /** The input processor. Initialized in {@link #init()} method. */
@@ -236,12 +236,12 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     protected final StreamConfig configuration;
 
     /** Our state backend. We use this to create a keyed state backend. */
-    protected final StateBackend stateBackend;
+    protected final StateBackend stateBackend; //状态后端
 
     /** Our checkpoint storage. We use this to create checkpoint streams. */
-    protected final CheckpointStorage checkpointStorage;
+    protected final CheckpointStorage checkpointStorage; //检查点存储
 
-    private final SubtaskCheckpointCoordinator subtaskCheckpointCoordinator;
+    private final SubtaskCheckpointCoordinator subtaskCheckpointCoordinator; //子任务检查点协调器
 
     /**
      * The internal {@link TimerService} used to define the current processing time (default =
@@ -287,11 +287,11 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     private boolean closedOperators;
 
     /** Thread pool for async snapshot workers. */
-    private final ExecutorService asyncOperationsThreadPool;
+    private final ExecutorService asyncOperationsThreadPool;//异步检查点线程池
 
-    protected final RecordWriterDelegate<SerializationDelegate<StreamRecord<OUT>>> recordWriter;
+    protected final RecordWriterDelegate<SerializationDelegate<StreamRecord<OUT>>> recordWriter; //记录输出
 
-    protected final MailboxProcessor mailboxProcessor;
+    protected final MailboxProcessor mailboxProcessor; //消息处理器
 
     final MailboxExecutor mainMailboxExecutor;
 
@@ -339,7 +339,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
      * Constructor for initialization, possibly with initial state (recovery / savepoint / etc).
      *
      * @param env The task environment for this task.
-     * @param timerService Optionally, a specific timer service to use.
+     * @param timerService Optionally, a specific timer service to use.时间服务
      */
     protected StreamTask(Environment env, @Nullable TimerService timerService) throws Exception {
         this(env, timerService, FatalExitExceptionHandler.INSTANCE);
@@ -459,8 +459,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             environment.setMainMailboxExecutor(mainMailboxExecutor);
             environment.setAsyncOperationsThreadPool(asyncOperationsThreadPool);
 
-            this.stateBackend = createStateBackend();
-            this.checkpointStorage = createCheckpointStorage(stateBackend);
+            this.stateBackend = createStateBackend(); //创建状态后端
+            this.checkpointStorage = createCheckpointStorage(stateBackend); //检查点
             this.changelogWriterAvailabilityProvider =
                     environment.getTaskStateManager().getStateChangelogStorage() == null
                             ? null
@@ -555,7 +555,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             throw ex;
         }
     }
-
+   //检查点完成时： 当一个检查点成功完成时，Flink会触发这个方法，开始合并状态文件  当任务从故障中恢复时，Flink会调用这个方法，将合并后的状态文件应用到任务中。
     private CheckpointStorageAccess tryApplyFileMergingCheckpoint(
             CheckpointStorageAccess checkpointStorageAccess,
             @Nullable FileMergingSnapshotManager fileMergingSnapshotManager) {
@@ -591,7 +591,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
                 new DispatcherThreadFactory(TRIGGER_THREAD_GROUP, timerThreadName);
         return new SystemProcessingTimeService(this::handleTimerException, timerThreadFactory);
     }
-
+   //这段代码的目的是将 ChannelStateWriter 注入到所有输入通道（InputGate）和支持通道状态的输出通道（ResultPartitionWriter）中。这样，在执行 Flink 的检查点操作时，输入和输出的通道都能够将它们的状态（例如缓存、缓冲区等）持久化到外部存储中，以确保在发生故障时能够恢复状态，保证 Flink 任务的容错性
     private void injectChannelStateWriterIntoChannels() {
         final Environment env = getEnvironment();
         final ChannelStateWriter channelStateWriter =
@@ -621,7 +621,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     // ------------------------------------------------------------------------
     //  Life cycle methods for specific implementations
     // ------------------------------------------------------------------------
-
+   //做特定 task 的初始化。这里所说的特定 task，取决于 task 的类型 (SourceTask、OneInputStreamTask 或 TwoInputStreamTask 等)
     protected abstract void init() throws Exception;
 
     protected void cancelTask() throws Exception {}
@@ -635,7 +635,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
      * @throws Exception on any problems in the action.
      */
     protected void processInput(MailboxDefaultAction.Controller controller) throws Exception {
-        DataInputStatus status = inputProcessor.processInput();
+        DataInputStatus status = inputProcessor.processInput(); //核心逻辑是通过 inputProcessor.processInput() 来获取输入数据的状态
         switch (status) {
             case MORE_AVAILABLE:
                 if (taskIsAvailable()) {
@@ -1697,7 +1697,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     }
 
     // ------------------------------------------------------------------------
-
+    //异步错误处理
     /** Utility class to encapsulate the handling of asynchronous exceptions. */
     static class StreamTaskAsyncExceptionHandler implements AsyncExceptionHandler {
         private final Environment environment;

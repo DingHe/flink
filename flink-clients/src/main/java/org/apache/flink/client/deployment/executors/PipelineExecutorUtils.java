@@ -83,7 +83,7 @@ public class PipelineExecutorUtils {
             jobGraph.setInitialClientHeartbeatTimeout(
                     configuration.get(ClientOptions.CLIENT_HEARTBEAT_TIMEOUT).toMillis());
         }
-
+        //给jobgraph添加上jar包和依赖包信息
         jobGraph.addJars(executionConfigAccessor.getJars());
         jobGraph.setClasspaths(executionConfigAccessor.getClasspaths());
         jobGraph.setSavepointRestoreSettings(executionConfigAccessor.getSavepointRestoreSettings());

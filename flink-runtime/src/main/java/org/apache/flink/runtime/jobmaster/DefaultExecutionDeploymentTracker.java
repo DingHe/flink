@@ -26,15 +26,15 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
+//跟踪任务执行部署状态的默认实现类
 /** Default {@link ExecutionDeploymentTracker} implementation. */
 public class DefaultExecutionDeploymentTracker implements ExecutionDeploymentTracker {
-
+    //用于存储当前处于挂起状态（尚未完成部署）的任务执行 ID（ExecutionAttemptID）。这些任务执行已经被调度，但尚未成功部署。
     private final Set<ExecutionAttemptID> pendingDeployments = new HashSet<>();
-    private final Map<ResourceID, Set<ExecutionAttemptID>> executionsByHost = new HashMap<>();
-    private final Map<ExecutionAttemptID, ResourceID> hostByExecution = new HashMap<>();
+    private final Map<ResourceID, Set<ExecutionAttemptID>> executionsByHost = new HashMap<>(); //该映射用于存储任务执行器上承载的所有任务执行，方便根据任务执行器查询其部署的任务
+    private final Map<ExecutionAttemptID, ResourceID> hostByExecution = new HashMap<>(); //每个任务执行应该部署在哪个任务执行器上
 
-    @Override
+    @Override  //开始跟踪一个任务执行的部署状态，当任务执行被调度并准备部署时，调用该方法开始追踪它
     public void startTrackingPendingDeploymentOf(
             ExecutionAttemptID executionAttemptId, ResourceID host) {
         pendingDeployments.add(executionAttemptId);
@@ -42,12 +42,12 @@ public class DefaultExecutionDeploymentTracker implements ExecutionDeploymentTra
         executionsByHost.computeIfAbsent(host, ignored -> new HashSet<>()).add(executionAttemptId);
     }
 
-    @Override
+    @Override //标记一个任务执行的部署已完成
     public void completeDeploymentOf(ExecutionAttemptID executionAttemptId) {
         pendingDeployments.remove(executionAttemptId);
     }
 
-    @Override
+    @Override //用于停止跟踪一个任务执行的部署
     public void stopTrackingDeploymentOf(ExecutionAttemptID executionAttemptId) {
         pendingDeployments.remove(executionAttemptId);
         ResourceID host = hostByExecution.remove(executionAttemptId);
@@ -62,7 +62,7 @@ public class DefaultExecutionDeploymentTracker implements ExecutionDeploymentTra
         }
     }
 
-    @Override
+    @Override //获取指定任务执行器上所有的任务执行及其部署状态
     public Map<ExecutionAttemptID, ExecutionDeploymentState> getExecutionsOn(ResourceID host) {
         return executionsByHost.getOrDefault(host, Collections.emptySet()).stream()
                 .collect(

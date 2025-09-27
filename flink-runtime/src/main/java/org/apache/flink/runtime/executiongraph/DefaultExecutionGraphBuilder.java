@@ -72,41 +72,41 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * JobGraph}.
  */
 public class DefaultExecutionGraphBuilder {
-
+    //在这里真正构建执行图
     public static DefaultExecutionGraph buildGraph(
             JobGraph jobGraph,
-            Configuration jobManagerConfig,
-            ScheduledExecutorService futureExecutor,
+            Configuration jobManagerConfig,  //与作业管理器相关的配置，如最大重试次数、检查点设置等
+            ScheduledExecutorService futureExecutor,  //用于调度异步任务的执行器
             Executor ioExecutor,
             ClassLoader classLoader,
-            CompletedCheckpointStore completedCheckpointStore,
-            CheckpointsCleaner checkpointsCleaner,
+            CompletedCheckpointStore completedCheckpointStore, //已完成检查点的存储，用于作业恢复
+            CheckpointsCleaner checkpointsCleaner,  //检查点清理器，用于清理过时的检查点
             CheckpointIDCounter checkpointIdCounter,
             Time rpcTimeout,
-            BlobWriter blobWriter,
+            BlobWriter blobWriter,  //用于写入二进制大对象（Blob）的工具类
             Logger log,
-            ShuffleMaster<?> shuffleMaster,
-            JobMasterPartitionTracker partitionTracker,
+            ShuffleMaster<?> shuffleMaster,  //负责处理数据洗牌操作的组件
+            JobMasterPartitionTracker partitionTracker, // 用于跟踪作业各个分区的状态
             TaskDeploymentDescriptorFactory.PartitionLocationConstraint partitionLocationConstraint,
             ExecutionDeploymentListener executionDeploymentListener,
             ExecutionStateUpdateListener executionStateUpdateListener,
             long initializationTimestamp,
-            VertexAttemptNumberStore vertexAttemptNumberStore,
-            VertexParallelismStore vertexParallelismStore,
+            VertexAttemptNumberStore vertexAttemptNumberStore,  //于存储每个任务的执行尝试次数
+            VertexParallelismStore vertexParallelismStore, //存储每个任务的并行度信息
             CheckpointStatsTracker checkpointStatsTracker,
             boolean isDynamicGraph,
             ExecutionJobVertex.Factory executionJobVertexFactory,
             MarkPartitionFinishedStrategy markPartitionFinishedStrategy,
-            boolean nonFinishedHybridPartitionShouldBeUnknown,
+            boolean nonFinishedHybridPartitionShouldBeUnknown,  //指示未完成的混合分区是否应该被标记为“未知”
             JobManagerJobMetricGroup jobManagerJobMetricGroup)
             throws JobExecutionException, JobException {
 
         checkNotNull(jobGraph, "job graph cannot be null");
-
+        //获取名字、id和类型
         final String jobName = jobGraph.getName();
         final JobID jobId = jobGraph.getJobID();
         final JobType jobType = jobGraph.getJobType();
-
+        //包含了作业的基本信息，包括作业 ID、类型、名称、执行配置、作业配置、JAR 包路径等
         final JobInformation jobInformation =
                 new JobInformation(
                         jobId,
@@ -116,7 +116,7 @@ public class DefaultExecutionGraphBuilder {
                         jobGraph.getJobConfiguration(),
                         jobGraph.getUserJarBlobKeys(),
                         jobGraph.getClasspaths());
-
+        //最大尝试次数
         final int executionHistorySizeLimit =
                 jobManagerConfig.get(JobManagerOptions.MAX_ATTEMPTS_HISTORY_SIZE);
 
@@ -127,7 +127,7 @@ public class DefaultExecutionGraphBuilder {
         final int offloadShuffleDescriptorsThreshold =
                 jobManagerConfig.get(
                         TaskDeploymentDescriptorFactory.OFFLOAD_SHUFFLE_DESCRIPTORS_THRESHOLD);
-
+        //任务部署描述符工厂
         final TaskDeploymentDescriptorFactory taskDeploymentDescriptorFactory;
         try {
             taskDeploymentDescriptorFactory =
@@ -187,9 +187,9 @@ public class DefaultExecutionGraphBuilder {
 
         final long initMasterStart = System.nanoTime();
         log.info("Running initialization on master for job {} ({}).", jobName, jobId);
-
+        //遍历JobGraph的顶点
         for (JobVertex vertex : jobGraph.getVertices()) {
-            String executableClass = vertex.getInvokableClassName();
+            String executableClass = vertex.getInvokableClassName(); //task的执行类
             if (executableClass == null || executableClass.isEmpty()) {
                 throw new JobSubmissionException(
                         jobId,
@@ -200,7 +200,7 @@ public class DefaultExecutionGraphBuilder {
                                 + ") has no invokable class.");
             }
 
-            try {
+            try {  //initializeOnMaster实际什么也没做
                 vertex.initializeOnMaster(
                         new SimpleInitializeOnMasterContext(
                                 classLoader,
@@ -218,7 +218,7 @@ public class DefaultExecutionGraphBuilder {
         log.info(
                 "Successfully ran initialization on master in {} ms.",
                 (System.nanoTime() - initMasterStart) / 1_000_000);
-
+        //拓扑排序
         // topologically sort the job vertices and attach the graph to the existing one
         List<JobVertex> sortedTopology = jobGraph.getVerticesSortedTopologicallyFromSources();
         if (log.isDebugEnabled()) {

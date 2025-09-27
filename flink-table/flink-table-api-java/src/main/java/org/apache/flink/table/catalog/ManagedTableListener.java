@@ -55,14 +55,14 @@ public class ManagedTableListener {
         this.config = config;
     }
 
-    /** Notify for creating managed table. */
+    /** Notify for creating managed table. 创建表通知*/
     public ResolvedCatalogBaseTable<?> notifyTableCreation(
             @Nullable Catalog catalog,
             ObjectIdentifier identifier,
             ResolvedCatalogBaseTable<?> table,
             boolean isTemporary,
             boolean ignoreIfExists) {
-        if (isManagedTable(catalog, table)) {
+        if (isManagedTable(catalog, table)) {  //有connector属性就不是flink的管理表
             ResolvedCatalogTable managedTable = enrichOptions(identifier, table, isTemporary);
             discoverManagedTableFactory(classLoader)
                     .onCreateTable(
@@ -108,7 +108,7 @@ public class ManagedTableListener {
         }
         throw new ValidationException("Only managed table supports compaction");
     }
-
+    //有connector连接属性就不是flink table的管理表
     /** Check a resolved catalog table is Flink's managed table or not. */
     public static boolean isManagedTable(@Nullable Catalog catalog, CatalogBaseTable table) {
         if (catalog == null || !catalog.supportsManagedTable()) {
@@ -157,7 +157,7 @@ public class ManagedTableListener {
     /** Enrich options for creating managed table. */
     private ResolvedCatalogTable enrichOptions(
             ObjectIdentifier identifier, ResolvedCatalogBaseTable<?> table, boolean isTemporary) {
-        if (!(table instanceof ResolvedCatalogTable)) {
+        if (!(table instanceof ResolvedCatalogTable)) { //仅支持ResolvedCatalogTable
             throw new UnsupportedOperationException(
                     "Managed table only supports catalog table, unsupported table type: "
                             + table.getClass());

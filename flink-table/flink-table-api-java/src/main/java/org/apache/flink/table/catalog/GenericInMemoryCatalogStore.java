@@ -31,7 +31,7 @@ import static java.lang.String.format;
 /** A generic catalog store implementation that store all catalog configuration in memory. */
 @Internal
 public class GenericInMemoryCatalogStore extends AbstractCatalogStore {
-
+    //所有catalog存储在map上
     private final Map<String, CatalogDescriptor> descriptors;
 
     public GenericInMemoryCatalogStore() {

@@ -30,7 +30,7 @@ import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
  * individual task is completed.
  *
  * <p>This message may carry the handle to the task's chained operator state and the key group
- * state.
+ * state.从taskexecutor发往jobmaster，告知算子备份完成
  */
 public class AcknowledgeCheckpoint extends AbstractCheckpointMessage {
 

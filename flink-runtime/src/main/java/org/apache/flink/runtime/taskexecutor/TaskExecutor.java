@@ -298,7 +298,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
     // --------- resource manager --------
 
     @Nullable private ResourceManagerAddress resourceManagerAddress;
-
+    //TaskExecutor连接到ResourceManager的相关信息
     @Nullable private EstablishedResourceManagerConnection establishedResourceManagerConnection;
 
     @Nullable private TaskExecutorToResourceManagerConnection resourceManagerConnection;
@@ -656,7 +656,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
     // Task lifecycle RPCs
     // ----------------------------------------------------------------------
 
-    @Override
+    @Override  //接收task部署
     public CompletableFuture<Acknowledge> submitTask(
             TaskDeploymentDescriptor tdd, JobMasterId jobMasterId, Time timeout) {
 
@@ -826,7 +826,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
             } catch (SlotNotFoundException e) {
                 throw new TaskSubmissionException("Could not submit task.", e);
             }
-
+            //创建要执行的task
             Task task =
                     new Task(
                             jobInformation,
@@ -1179,7 +1179,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
     // Slot allocation RPCs
     // ----------------------------------------------------------------------
 
-    @Override
+    @Override  //RM 通过这个方法请求slot
     public CompletableFuture<Acknowledge> requestSlot(
             final SlotID slotId,
             final JobID jobId,
@@ -1588,7 +1588,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
             ClusterInformation clusterInformation) {
 
         final CompletableFuture<Acknowledge> slotReportResponseFuture =
-                resourceManagerGateway.sendSlotReport(
+                resourceManagerGateway.sendSlotReport(  //首次建立连接，向 RM 报告 slot 信息
                         getResourceID(),
                         taskExecutorRegistrationId,
                         taskSlotTable.createSlotReport(getResourceID()),
@@ -1700,7 +1700,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
     // ------------------------------------------------------------------------
     //  Internal job manager connection methods
     // ------------------------------------------------------------------------
-
+   //在 Slot 被分配给之后，TaskExecutor 需要将对应的 slot 提供给 JobManager，而这正是通过 offerSlotsToJobManager(jobId) 方法来实现的
     private void offerSlotsToJobManager(final JobID jobId) {
         jobTable.getConnection(jobId).ifPresent(this::internalOfferSlotsToJobManager);
     }
@@ -2817,7 +2817,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
         public TaskExecutorHeartbeatPayload retrievePayload(ResourceID resourceID) {
             validateRunsInMainThread();
             return new TaskExecutorHeartbeatPayload(
-                    taskSlotTable.createSlotReport(getResourceID()),
+                    taskSlotTable.createSlotReport(getResourceID()), //心跳信息，发送SlotReport
                     partitionTracker.createClusterPartitionReport());
         }
     }

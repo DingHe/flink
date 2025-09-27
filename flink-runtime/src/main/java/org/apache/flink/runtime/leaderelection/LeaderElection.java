@@ -25,7 +25,7 @@ import java.util.UUID;
  * LeaderContender}.
  */
 public interface LeaderElection extends AutoCloseable {
-
+    //注册候选人（LeaderContender）到选举服务，候选人例如 ResourceManager, DispatcherRunner，JobManagerRunner 等
     /** Registers the passed {@link LeaderContender} with the leader election process. */
     void startLeaderElection(LeaderContender contender) throws Exception;
 
@@ -36,7 +36,7 @@ public interface LeaderElection extends AutoCloseable {
      * <p>The intention of this method is to establish an order between setting the new leader
      * session ID in the {@link LeaderContender} and publishing the new leader session ID and the
      * related leader address to the leader retrieval services.
-     *
+     * 确认获得了领导资格
      * @param leaderSessionID The new leader session ID
      * @param leaderAddress The address of the new leader
      */
@@ -45,7 +45,7 @@ public interface LeaderElection extends AutoCloseable {
     /**
      * Returns {@code true} if the service's {@link LeaderContender} has the leadership under the
      * given leader session ID acquired.
-     *
+     * 以leaderSessionId获得了领导资格
      * @param leaderSessionId identifying the current leader
      * @return true if the associated {@link LeaderContender} is the leader, otherwise false
      */

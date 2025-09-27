@@ -215,7 +215,7 @@ import static org.apache.flink.table.functions.BuiltInFunctionDefinitions.WINDOW
 import static org.apache.flink.table.functions.BuiltInFunctionDefinitions.WINDOW_START;
 import static org.apache.flink.table.types.utils.TypeConversions.fromLegacyInfoToDataType;
 
-/**
+/**  BaseExpression都转成函数，继承类要重写toExpr 和  toApiSpecificExpression
  * These are Java and Scala common operations that can be used to construct an {@link Expression}
  * AST for expression operations.
  *
@@ -247,7 +247,7 @@ public abstract class BaseExpressions<InType, OutType> {
                         Stream.concat(
                                         Stream.of(toExpr(), ApiExpressionUtils.valueLiteral(name)),
                                         Stream.of(extraNames).map(ApiExpressionUtils::valueLiteral))
-                                .toArray(Expression[]::new)));
+                                .toArray(Expression[]::new))); //把name extraNames转为ValueLiteralExpression数组
     }
 
     /**

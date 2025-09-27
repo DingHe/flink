@@ -39,7 +39,7 @@ public interface SinkV2Provider extends DynamicTableSink.SinkRuntimeProvider, Pa
     /** Helper method for creating a static provider. */
     static SinkV2Provider of(Sink<RowData> sink) {
         return () -> sink;
-    }
+    } //里面的匿名函数就是实现了createSink
 
     /** Helper method for creating a Sink provider with a provided sink parallelism. */
     static SinkV2Provider of(Sink<RowData> sink, @Nullable Integer sinkParallelism) {

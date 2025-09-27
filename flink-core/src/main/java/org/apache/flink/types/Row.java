@@ -83,20 +83,30 @@ import static org.apache.flink.types.RowUtils.deepHashCodeRow;
  * <p>The {@link #equals(Object)} and {@link #hashCode()} methods of this class support all external
  * conversion classes of the table ecosystem.
  */
+// Row 类是 Flink 中一个公共的、可变的、可序列化的复合数据类型，用于表示一条固定长度的记录，类似于数据库中的一行。
+// 它的主要作用是在 Flink 的 Table API & SQL 生态系统与其他 API（例如 DataStream API 或 DataSet API）之间进行数据转换和桥接
+// 与 Flink 内部使用的 RowData 不同，Row 是面向用户的，它提供了更直观和灵活的字段访问方式。
+// 它不仅包含了字段数据，还附带了一个 RowKind 属性来表示该行数据的变更类型（例如插入、更新、删除），
+// 这对于处理变更日志（Changelog）流非常重要
 @PublicEvolving
 public final class Row implements Serializable {
 
     private static final long serialVersionUID = 3L;
 
     /** The kind of change a row describes in a changelog. */
+    //存储该行数据的变更类型
     private RowKind kind;
 
     /** Fields organized by position. Either this or {@link #fieldByName} is set. */
+    //存储基于位置的字段数据
+    //如果行是以基于位置的模式创建的，则字段内容存储在这个数组中。这是一个固定长度的数组
     private final @Nullable Object[] fieldByPosition;
 
+    // 存储基于名称的字段数据
+    // 如果行是以基于名称的模式创建的，则字段内容存储在这个 Map 中
     /** Fields organized by name. Either this or {@link #fieldByPosition} is set. */
     private final @Nullable Map<String, Object> fieldByName;
-
+    // 存储从字段名称到其在数组中位置的映射
     /** Mapping from field names to positions. Requires {@link #fieldByPosition} semantics. */
     private final @Nullable LinkedHashMap<String, Integer> positionByName;
 
@@ -517,6 +527,7 @@ public final class Row implements Serializable {
      *
      * @param fieldPositions field indices to be projected
      */
+    //根据指定的位置或名称，从一个现有行中创建包含子集的投影行
     public static Row project(Row row, int[] fieldPositions) {
         final Row newRow = Row.withPositions(row.kind, fieldPositions.length);
         for (int i = 0; i < fieldPositions.length; i++) {
@@ -551,6 +562,7 @@ public final class Row implements Serializable {
      *
      * <p>Note: All rows must operate in position-based field mode.
      */
+    //将多个基于位置的行合并成一个新行
     public static Row join(Row first, Row... remainings) {
         Preconditions.checkArgument(
                 first.fieldByPosition != null,

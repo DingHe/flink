@@ -28,6 +28,8 @@ import org.apache.flink.table.connector.source.DynamicTableSource;
  *
  * <p>See {@link Factory} for more information about the general design of a factory.
  */
+//用于创建动态表数据源（DynamicTableSource）的工厂接口。
+// 它的核心作用是根据目录表（CatalogTable）和上下文信息（Context），实例化一个负责从外部存储系统读取数据的连接器
 @PublicEvolving
 public interface DynamicTableSourceFactory extends DynamicTableFactory {
 
@@ -38,5 +40,6 @@ public interface DynamicTableSourceFactory extends DynamicTableFactory {
      * <p>An implementation should perform validation and the discovery of further (nested)
      * factories in this method.
      */
+    //负责实际创建 DynamicTableSource 实例
     DynamicTableSource createDynamicTableSource(Context context);
 }

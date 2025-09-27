@@ -213,7 +213,7 @@ public class RemoteStreamEnvironment extends StreamExecutionEnvironment {
         return effectiveConfiguration;
     }
 
-    @Override
+    @Override //执行StreamGraph
     public JobExecutionResult execute(StreamGraph streamGraph) throws Exception {
         return super.execute(streamGraph);
     }

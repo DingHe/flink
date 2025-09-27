@@ -52,7 +52,7 @@ import java.util.stream.IntStream;
 
 /**
  * Schema of a table or view.
- *
+ *  代表ddl语句的schema部署，包含了列的约束、时间属性和watermark策略
  * <p>A schema represents the schema part of a {@code CREATE TABLE (schema) WITH (options)} DDL
  * statement in SQL. It defines columns of different kind, constraints, time attributes, and
  * watermark strategies. It is possible to reference objects (such as functions or types) across
@@ -71,11 +71,11 @@ public final class Schema {
 
     private static final Schema EMPTY = Schema.newBuilder().build();
 
-    private final List<UnresolvedColumn> columns;
+    private final List<UnresolvedColumn> columns; //未解析的列
 
-    private final List<UnresolvedWatermarkSpec> watermarkSpecs;
+    private final List<UnresolvedWatermarkSpec> watermarkSpecs; //未解析的watermark说明
 
-    private final @Nullable UnresolvedPrimaryKey primaryKey;
+    private final @Nullable UnresolvedPrimaryKey primaryKey; //未解析的主键
 
     private Schema(
             List<UnresolvedColumn> columns,
@@ -647,8 +647,8 @@ public final class Schema {
     /** Super class for all kinds of columns in an unresolved schema. */
     @PublicEvolving
     public abstract static class UnresolvedColumn {
-        final String columnName;
-        final @Nullable String comment;
+        final String columnName;  //列名
+        final @Nullable String comment; //注释
 
         UnresolvedColumn(String columnName, @Nullable String comment) {
             this.columnName = columnName;
@@ -694,8 +694,8 @@ public final class Schema {
      */
     @PublicEvolving
     public static final class UnresolvedPhysicalColumn extends UnresolvedColumn {
-
-        private final AbstractDataType<?> dataType;
+        //所谓的PhysicalColumn就是列包含了数据类型
+        private final AbstractDataType<?> dataType; //flink table的数据类型
 
         public UnresolvedPhysicalColumn(String columnName, AbstractDataType<?> dataType) {
             this(columnName, dataType, null);

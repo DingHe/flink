@@ -20,7 +20,7 @@ package org.apache.flink.runtime.io.network.partition;
 
 /** Type of a result partition. */
 public enum ResultPartitionType {
-
+    //数据被完全生产完毕后才能被消费，生产和消费是分阶段的，通常用于批处理（Batch Processing），数据以文件的形式持久化，或写入磁盘/内存
     /**
      * Blocking partitions represent blocking data exchanges, where the data stream is first fully
      * produced and then consumed. This is an option that is only applicable to bounded streams and
@@ -47,7 +47,7 @@ public enum ResultPartitionType {
      */
     BLOCKING_PERSISTENT(true, false, true, ConsumingConstraint.BLOCKING, ReleaseBy.SCHEDULER),
 
-    /**
+    /**数据边生成边消费（流式处理），上游和下游的任务可以并行执行，支持更低的延迟
      * A pipelined streaming data exchange. This is applicable to both bounded and unbounded
      * streams.
      *
@@ -68,7 +68,7 @@ public enum ResultPartitionType {
      * the total number of partitions by selecting an appropriately big network buffer pool size.
      *
      * <p>For batch jobs, it will be best to keep this unlimited ({@link #PIPELINED}) since there
-     * are no checkpoint barriers.
+     * are no checkpoint barriers.数据在生成的同时可以被消费，但整个数据量是有界的
      */
     PIPELINED_BOUNDED(
             false, true, false, ConsumingConstraint.MUST_BE_PIPELINED, ReleaseBy.UPSTREAM),
@@ -80,7 +80,7 @@ public enum ResultPartitionType {
      * <p>Pipelined results can be consumed only once by a single consumer at one time. {@link
      * #PIPELINED_APPROXIMATE} is different from {@link #PIPELINED} and {@link #PIPELINED_BOUNDED}
      * in that {@link #PIPELINED_APPROXIMATE} partition can be reconnected after down stream task
-     * fails.
+     * fails.  类似于 PIPELINED，但允许下游在部分数据可用时即开始处理
      */
     PIPELINED_APPROXIMATE(
             false, true, false, ConsumingConstraint.CAN_BE_PIPELINED, ReleaseBy.UPSTREAM),

@@ -36,7 +36,7 @@ import org.apache.calcite.tools.RelBuilder;
  */
 @Internal
 public interface CalciteContext extends ParserFactory.Context {
-
+     //calcite元数据读取器
     /** Create an instance of {@link CalciteCatalogReader} provided by Flink's table planner. */
     CalciteCatalogReader createCatalogReader(boolean lenientCaseSensitivity);
 

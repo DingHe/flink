@@ -138,21 +138,21 @@ import static org.apache.flink.util.Preconditions.checkState;
 public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling {
 
     private final Logger log;
-
+    //作业图
     private final JobGraph jobGraph;
-
+    //作业信息，就是id和name
     protected final JobInfo jobInfo;
-
+    //执行图
     private final ExecutionGraph executionGraph;
-
+    //调度拓扑
     private final SchedulingTopology schedulingTopology;
-
+    //执行顶点在哪个taskmanager
     protected final StateLocationRetriever stateLocationRetriever;
-
+    //输入数据的位置
     protected final InputsLocationsRetriever inputsLocationsRetriever;
-
+    //检查点存储路径
     private final CompletedCheckpointStore completedCheckpointStore;
-
+    //检查点清理
     private final CheckpointsCleaner checkpointsCleaner;
 
     private final CheckpointIDCounter checkpointIdCounter;
@@ -164,15 +164,15 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
     private final KvStateHandler kvStateHandler;
 
     private final ExecutionGraphHandler executionGraphHandler;
-
+    //operator 协调器的handler
     protected final OperatorCoordinatorHandler operatorCoordinatorHandler;
-
+    //保证任务在指定线程处理
     private final ComponentMainThreadExecutor mainThreadExecutor;
 
     private final BoundedFIFOQueue<RootExceptionHistoryEntry> exceptionHistory;
 
     private RootExceptionHistoryEntry latestRootExceptionEntry;
-
+    //执行图创建工厂
     private final ExecutionGraphFactory executionGraphFactory;
 
     private final MetricOptions.JobStatusMetricsSettings jobStatusMetricsSettings;
@@ -231,7 +231,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
                                         jobMasterConfiguration.get(
                                                 WebOptions.CHECKPOINTS_HISTORY_SIZE),
                                         jobManagerJobMetricGroup));
-        this.executionGraph =
+        this.executionGraph =  //创建执行图
                 createAndRestoreExecutionGraph(
                         completedCheckpointStore,
                         checkpointsCleaner,
@@ -241,7 +241,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
                         mainThreadExecutor,
                         jobStatusListener,
                         vertexParallelismStore);
-
+        //调度拓扑图
         this.schedulingTopology = executionGraph.getSchedulingTopology();
 
         stateLocationRetriever =
@@ -378,7 +378,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
     public static VertexParallelismStore computeVertexParallelismStore(JobGraph jobGraph) {
         return computeVertexParallelismStore(jobGraph.getVertices());
     }
-
+    //创建执行图
     private ExecutionGraph createAndRestoreExecutionGraph(
             CompletedCheckpointStore completedCheckpointStore,
             CheckpointsCleaner checkpointsCleaner,
@@ -648,7 +648,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         operatorCoordinatorHandler.startAllOperatorCoordinators();
         startSchedulingInternal();
     }
-
+    //注册测量指标
     public static void registerJobMetrics(
             MetricGroup metrics,
             JobStatusProvider jobStatusProvider,

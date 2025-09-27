@@ -33,7 +33,7 @@ import java.util.List;
 @PublicEvolving
 public interface QueryOperation extends Operation {
 
-    /** Resolved schema of this operation. */
+    /** Resolved schema of this operation. schema信息 */
     ResolvedSchema getResolvedSchema();
 
     /**
@@ -47,7 +47,7 @@ public interface QueryOperation extends Operation {
         throw new UnsupportedOperationException(
                 "QueryOperations are not string serializable for now.");
     }
-
+    //依赖的子Operation
     List<QueryOperation> getChildren();
 
     default <T> T accept(QueryOperationVisitor<T> visitor) {

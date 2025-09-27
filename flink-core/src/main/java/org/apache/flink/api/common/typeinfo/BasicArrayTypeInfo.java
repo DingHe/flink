@@ -39,6 +39,10 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * @param <T> The type (class) of the array itself.
  * @param <C> The type (class) of the array component.
  */
+//是 Flink TypeInformation 的一个具体实现，专门用于描述Java 基本类型包装类数组的类型信息，例如 Integer[]、String[] 等。
+// 它的主要作用是为 Flink 运行时提供关于这类数组的元数据，以便正确地处理、序列化和比较它们
+//T 是数组的类型
+//C 是数组元素的类型
 @Public
 public final class BasicArrayTypeInfo<T, C> extends TypeInformation<T> {
 
@@ -65,8 +69,9 @@ public final class BasicArrayTypeInfo<T, C> extends TypeInformation<T> {
             new BasicArrayTypeInfo<>(Character[].class, BasicTypeInfo.CHAR_TYPE_INFO);
 
     // --------------------------------------------------------------------------------------------
-
+    //存储数组本身的类对象，例如 Integer[].class
     private final Class<T> arrayClass;
+    //存储数组中元素的类型信息，例如 BasicTypeInfo.INT_TYPE_INFO
     private final TypeInformation<C> componentInfo;
 
     private BasicArrayTypeInfo(Class<T> arrayClass, BasicTypeInfo<C> componentInfo) {

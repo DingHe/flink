@@ -74,8 +74,9 @@ public class WordCount {
 
         // Create the execution environment. This is the main entrypoint
         // to building a Flink application.
-        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-
+   //     final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        String path = "/Users/dinghehsiao/Downloads/code/flink/flink-examples/flink-examples-streaming/target/flink-examples-streaming-2.0-SNAPSHOT-WordCount.jar";
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.createRemoteEnvironment("localhost",8081,path);
         // Apache Flink’s unified approach to stream and batch processing means that a DataStream
         // application executed over bounded input will produce the same final results regardless
         // of the configured execution mode. It is important to note what final means here: a job

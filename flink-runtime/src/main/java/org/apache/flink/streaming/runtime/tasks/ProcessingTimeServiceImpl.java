@@ -26,19 +26,19 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-
+//主要用于 Flink 任务的处理时间定时任务调度和协调。它不是面向开发者使用的，而是 Flink 运行时内部的核心组件
 @Internal
 class ProcessingTimeServiceImpl implements ProcessingTimeService {
-
+    //底层的定时器服务，负责具体的任务调度和执行
     private final TimerService timerService;
-
+    //用于在定时任务的回调函数（ProcessingTimeCallback）执行前后添加额外的逻辑，比如记录定时器的数量
     private final Function<ProcessingTimeCallback, ProcessingTimeCallback>
             processingTimeCallbackWrapper;
-
-    private final AtomicInteger numRunningTimers;
-
+    //用于跟踪当前正在运行的定时任务数量
+    private final AtomicInteger numRunningTimers; //调度中的任务
+    //用于表示所有定时任务已经完成并进入静止状态。当 quiesce() 方法被调用且 numRunningTimers 降为 0 时，它会被完成
     private final CompletableFuture<Void> quiesceCompletedFuture;
-
+    //表示服务是否已进入静止状态
     private volatile boolean quiesced;
 
     ProcessingTimeServiceImpl(

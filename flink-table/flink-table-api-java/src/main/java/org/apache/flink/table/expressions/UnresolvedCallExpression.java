@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  *
  * <p>This is purely an API facing expression with unvalidated arguments and unknown output data
  * type.
- *
+ * 函数调用表达式
  * <p>A unresolved call contains:
  *
  * <ul>
@@ -90,7 +90,7 @@ public final class UnresolvedCallExpression implements Expression {
     @Override
     public List<Expression> getChildren() {
         return this.args;
-    }
+    } //函数的参数就是子节点
 
     @Override
     public <R> R accept(ExpressionVisitor<R> visitor) {

@@ -32,12 +32,15 @@ import java.util.Set;
  *
  * @see RowKind
  */
+//Flink 中描述变更日志类型的类，它定义了数据流中可能包含的行类型（RowKind）集合
 @PublicEvolving
 public final class ChangelogMode {
-
+    //返回一个只包含 INSERT 行的变更日志模式
     private static final ChangelogMode INSERT_ONLY =
             ChangelogMode.newBuilder().addContainedKind(RowKind.INSERT).build();
-
+    //返回一个包含 INSERT、UPDATE_AFTER 和 DELETE 行的变更日志模式
+    //适用于 Upsert（更新插入）语义的场景，例如 Kafka 的压缩主题。它不包含 UPDATE_BEFORE 行，
+    // 因为更新操作被视为一个删除（旧数据）和一个插入（新数据）的组合，或者简单地用一个 UPDATE_AFTER 覆盖旧数据
     private static final ChangelogMode UPSERT =
             ChangelogMode.newBuilder()
                     .addContainedKind(RowKind.INSERT)
@@ -52,7 +55,7 @@ public final class ChangelogMode {
                     .addContainedKind(RowKind.UPDATE_AFTER)
                     .addContainedKind(RowKind.DELETE)
                     .build();
-
+    //存储该变更日志模式所包含的 RowKind 集合
     private final Set<RowKind> kinds;
 
     private ChangelogMode(Set<RowKind> kinds) {

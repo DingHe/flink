@@ -48,7 +48,8 @@ import java.util.Set;
  *
  * <p>Contracts how logical types relate to other types are defined by {@link LogicalTypeCasts} and
  * {@link LogicalTypeMerging}.
- *
+ * LogicalType 类是 Flink 中用于表示数据的逻辑类型的抽象类。
+ * 它描述了数据的类型，但并不关心数据的物理存储或传输方式，而是定义了在 JVM 语言和表格生态系统之间的数据类型边界
  * <p>NOTE: A logical type is just a description of a type, a planner or runtime might not support
  * every type in every logical precision yet!
  */
@@ -56,7 +57,7 @@ import java.util.Set;
 public abstract class LogicalType implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private final boolean isNullable;
+    private final boolean isNullable; //返回该类型的值是否可以为 null
 
     private final LogicalTypeRoot typeRoot;
 
@@ -64,12 +65,12 @@ public abstract class LogicalType implements Serializable {
         this.isNullable = isNullable;
         this.typeRoot = Preconditions.checkNotNull(typeRoot);
     }
-
+    //返回是否可空
     /** Returns whether a value of this type can be {@code null}. */
     public boolean isNullable() {
         return isNullable;
     }
-
+    //返回该类型的根类型（即基本的类型分类）
     /**
      * Returns the root of this type. It is an essential description without additional parameters.
      */
@@ -79,7 +80,7 @@ public abstract class LogicalType implements Serializable {
 
     /**
      * Returns whether the root of the type equals to the {@code typeRoot} or not.
-     *
+     * 判断当前类型是否与指定的根类型相同
      * @param typeRoot The root type to check against for equality
      */
     public boolean is(LogicalTypeRoot typeRoot) {
@@ -88,7 +89,7 @@ public abstract class LogicalType implements Serializable {
 
     /**
      * Returns whether the root of the type equals to at least on of the {@code typeRoots} or not.
-     *
+     * 判断当前类型是否与给定的一组根类型中的任何一个匹配
      * @param typeRoots The root types to check against for equality
      */
     public boolean isAnyOf(LogicalTypeRoot... typeRoots) {
@@ -98,7 +99,7 @@ public abstract class LogicalType implements Serializable {
     /**
      * Returns whether the root of the type is part of at least one family of the {@code typeFamily}
      * or not.
-     *
+     * 判断当前类型是否属于给定的类型族中的任何一个
      * @param typeFamilies The families to check against for equality
      */
     public boolean isAnyOf(LogicalTypeFamily... typeFamilies) {
@@ -107,7 +108,7 @@ public abstract class LogicalType implements Serializable {
 
     /**
      * Returns whether the family type of the type equals to the {@code family} or not.
-     *
+     * 判断当前类型是否属于给定的类型族中的任何一个
      * @param family The family type to check against for equality
      */
     public boolean is(LogicalTypeFamily family) {
@@ -136,7 +137,7 @@ public abstract class LogicalType implements Serializable {
      * transmitting or persisting a type.
      *
      * <p>See {@link LogicalTypeParser} for the reverse operation.
-     *
+     * 返回一个字符串，完全序列化当前类型，适合用于传输或持久化
      * @return detailed string for transmission or persistence
      */
     public abstract String asSerializableString();
@@ -163,7 +164,7 @@ public abstract class LogicalType implements Serializable {
      *
      * <p>For example, {@code java.lang.Long} or {@code long} can be used as input for {@code
      * BIGINT} independent of the set nullability.
-     *
+     *  判断某个类的实例是否可以转换为该逻辑类型
      * @param clazz input class to be converted into this logical type
      * @return flag that indicates if instances of this class can be used as input into the table
      *     ecosystem
@@ -182,7 +183,7 @@ public abstract class LogicalType implements Serializable {
      * <p>For example, {@code java.lang.Long} or {@code long} can be used as output for {@code
      * BIGINT} if the type is not nullable. If the type is nullable, only {@code java.lang.Long} can
      * represent this.
-     *
+     * 判断该逻辑类型的实例是否可以转换为某个类的实例
      * @param clazz output class to be converted from this logical type
      * @return flag that indicates if instances of this class can be used as output from the table
      *     ecosystem
@@ -194,7 +195,7 @@ public abstract class LogicalType implements Serializable {
      * Returns the default conversion class. A value of this logical type is expected to be an
      * instance of the given class when entering or is represented as an instance of the given class
      * when leaving the table ecosystem if no other conversion has been specified.
-     *
+     * 返回该逻辑类型的默认转换类。例如，对于 BIGINT 类型，默认转换类可能是 java.lang.Long
      * <p>For example, {@code java.lang.Long} is the default input and output for {@code BIGINT}.
      *
      * @return default class to represent values of this logical type
@@ -202,9 +203,9 @@ public abstract class LogicalType implements Serializable {
      * @see #supportsOutputConversion(Class)
      */
     public abstract Class<?> getDefaultConversion();
-
+    //返回当前类型的子类型列表（如果有的话）
     public abstract List<LogicalType> getChildren();
-
+    //接受一个访问者（Visitor 模式），用于对类型进行处理
     public abstract <R> R accept(LogicalTypeVisitor<R> visitor);
 
     @Override

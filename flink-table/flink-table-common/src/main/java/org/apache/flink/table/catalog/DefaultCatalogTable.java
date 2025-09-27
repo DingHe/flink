@@ -69,7 +69,7 @@ public class DefaultCatalogTable implements CatalogTable {
                         .allMatch(e -> e.getKey() != null && e.getValue() != null),
                 "Options cannot have null keys or values.");
     }
-
+    //返回未解析的schema
     @Override
     public Schema getUnresolvedSchema() {
         return schema;

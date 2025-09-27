@@ -85,7 +85,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
     protected final Logger log;
 
     private final ClassLoader userCodeLoader;
-
+    //执行slot分配器
     protected final ExecutionSlotAllocator executionSlotAllocator;
 
     private final ExecutionFailureHandler executionFailureHandler;
@@ -192,7 +192,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
                         taskFailureCtx,
                         globalFailureCtx,
                         jobManagerJobMetricGroup);
-
+        //调度策略
         this.schedulingStrategy =
                 schedulingStrategyFactory.createInstance(this, getSchedulingTopology());
 
@@ -230,12 +230,12 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
                 .forEach(ev -> cancelAllPendingSlotRequestsForVertex(ev.getId()));
     }
 
-    @Override
+    @Override  //调度器开始调度
     protected void startSchedulingInternal() {
         log.info(
                 "Starting scheduling with scheduling strategy [{}]",
                 schedulingStrategy.getClass().getName());
-        transitionToRunning();
+        transitionToRunning();  //执行图的状态赚到running
         schedulingStrategy.startScheduling();
     }
 

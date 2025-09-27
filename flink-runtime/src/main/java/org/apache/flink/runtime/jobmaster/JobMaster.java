@@ -194,7 +194,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
     private final LeaderRetrievalService resourceManagerLeaderRetriever;
 
     // --------- TaskManagers --------
-
+    //注册的taskManager
     private final Map<ResourceID, TaskManagerRegistration> registeredTaskManagers;
 
     private final ShuffleMaster<?> shuffleMaster;
@@ -210,9 +210,9 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
     // -------- Misc ---------
 
     private final Map<String, Object> accumulators;
-
+    //跟踪分区
     private final JobMasterPartitionTracker partitionTracker;
-
+    //跟踪每个任务的部署状态
     private final ExecutionDeploymentTracker executionDeploymentTracker;
     private final ExecutionDeploymentReconciler executionDeploymentReconciler;
     private final Collection<FailureEnricher> failureEnrichers;
@@ -229,7 +229,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
             taskManagerHeartbeatManager;
 
     private HeartbeatManager<Void, Void> resourceManagerHeartbeatManager;
-
+    //处理需要排除的taskManager
     private final BlocklistHandler blocklistHandler;
 
     private final Map<ResultPartitionID, PartitionWithMetrics> fetchedPartitionsWithMetrics =
@@ -278,7 +278,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                 RpcServiceUtils.createRandomName(JOB_MANAGER_NAME),
                 jobMasterId,
                 MdcUtils.asContextData(jobGraph.getJobID()));
-
+        //负责处理部署异常的问题
         final ExecutionDeploymentReconciliationHandler executionStateReconciliationHandler =
                 new ExecutionDeploymentReconciliationHandler() {
 
@@ -322,9 +322,9 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         final JobID jid = jobGraph.getJobID();
 
         log.info("Initializing job '{}' ({}).", jobName, jid);
-
+        //跟踪每个任务的部署状态
         this.executionDeploymentTracker = executionDeploymentTracker;
-        this.executionDeploymentReconciler =
+        this.executionDeploymentReconciler =  //跟踪任务部署异常的处理
                 executionDeploymentReconcilerFactory.create(executionStateReconciliationHandler);
 
         this.jobMasterConfiguration = checkNotNull(jobMasterConfiguration);
@@ -344,7 +344,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                 jobMasterConfiguration
                         .getConfiguration()
                         .get(JobManagerOptions.RETRIEVE_TASK_MANAGER_HOSTNAME);
-
+        //resouceManager领导服务发现，standalone模式下是StandaloneLeaderRetrievalService
         resourceManagerLeaderRetriever =
                 highAvailabilityServices.getResourceManagerLeaderRetriever();
 
@@ -354,8 +354,8 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                         new JobMasterBlocklistContext(),
                         this::getNodeIdOfTaskManager,
                         getMainThreadExecutor(),
-                        log);
-
+                        log);  //处理需要排除的taskManager
+        //管理slot的服务
         this.slotPoolService =
                 checkNotNull(slotPoolServiceSchedulerFactory)
                         .createSlotPoolService(
@@ -379,7 +379,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         this.jobStatusListener = new JobManagerJobStatusListener();
 
         this.failureEnrichers = checkNotNull(failureEnrichers);
-
+        //创建调度器
         this.schedulerNG =
                 createScheduler(
                         slotPoolServiceSchedulerFactory,
@@ -1122,7 +1122,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
 
     // -- job starting and stopping
     // -----------------------------------------------------------------
-
+    //开始调度执行图
     private void startJobExecution() throws Exception {
         validateRunsInMainThread();
 
@@ -1136,15 +1136,15 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                 jobGraph.getName(),
                 jobGraph.getJobID(),
                 getFencingToken());
-
+        //开始调度
         startScheduling();
     }
 
     private void startJobMasterServices() throws Exception {
         try {
-            this.taskManagerHeartbeatManager = createTaskManagerHeartbeatManager(heartbeatServices);
+            this.taskManagerHeartbeatManager = createTaskManagerHeartbeatManager(heartbeatServices); //创建taskmanager的心跳服务
             this.resourceManagerHeartbeatManager =
-                    createResourceManagerHeartbeatManager(heartbeatServices);
+                    createResourceManagerHeartbeatManager(heartbeatServices); //resourceManager的心跳
 
             // start the slot pool make sure the slot pool now accepts messages for this leader
             slotPoolService.start(getFencingToken(), getAddress());

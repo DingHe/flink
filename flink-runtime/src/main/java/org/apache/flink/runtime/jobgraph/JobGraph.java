@@ -74,7 +74,7 @@ public class JobGraph implements Serializable {
 
     /** List of task vertices included in this job graph. */
     private final Map<JobVertexID, JobVertex> taskVertices =
-            new LinkedHashMap<JobVertexID, JobVertex>();
+            new LinkedHashMap<JobVertexID, JobVertex>(); //存储JobVertex
 
     /** The job configuration attached to this job. */
     private Configuration jobConfiguration = new Configuration();
@@ -85,7 +85,7 @@ public class JobGraph implements Serializable {
     /** Name of this job. */
     private final String jobName;
 
-    private JobType jobType = JobType.BATCH;
+    private JobType jobType = JobType.BATCH; //batch or streaming
 
     private boolean dynamic;
 
@@ -100,25 +100,25 @@ public class JobGraph implements Serializable {
     /** Job specific execution config. */
     private SerializedValue<ExecutionConfig> serializedExecutionConfig;
 
-    /** The settings for the job checkpoints. */
+    /** The settings for the job checkpoints. 检查点配置*/
     private JobCheckpointingSettings snapshotSettings;
 
-    /** Savepoint restore settings. */
+    /** Savepoint restore settings.  保存点配置 */
     private SavepointRestoreSettings savepointRestoreSettings = SavepointRestoreSettings.none();
 
     // --- attached resources ---
 
-    /** Set of JAR files required to run this job. */
+    /** Set of JAR files required to run this job. 运行job的jar包路径*/
     private final List<Path> userJars = new ArrayList<Path>();
 
-    /** Set of custom files required to run this job. */
+    /** Set of custom files required to run this job. job运行需要的其他文件*/
     private final Map<String, DistributedCache.DistributedCacheEntry> userArtifacts =
             new HashMap<>();
 
     /** Set of blob keys identifying the JAR files required to run this job. */
     private final List<PermanentBlobKey> userJarBlobKeys = new ArrayList<>();
 
-    /** List of classpaths required to run this job. */
+    /** List of classpaths required to run this job. 依赖的jar包*/
     private List<URL> classpaths = Collections.emptyList();
 
     /** List of user-defined job status change hooks. */
@@ -220,7 +220,7 @@ public class JobGraph implements Serializable {
     public SerializedValue<ExecutionConfig> getSerializedExecutionConfig() {
         return serializedExecutionConfig;
     }
-
+    //设置batch or streaming
     public void setJobType(JobType type) {
         this.jobType = type;
     }
@@ -236,7 +236,7 @@ public class JobGraph implements Serializable {
     public boolean isDynamic() {
         return dynamic;
     }
-
+    //设置ApproximateLocalRecovery
     public void enableApproximateLocalRecovery(boolean enabled) {
         this.approximateLocalRecovery = enabled;
     }

@@ -19,26 +19,26 @@
 package org.apache.flink.table.api;
 
 import org.apache.flink.annotation.PublicEvolving;
-
+//用于描述查询执行计划解释时可以提供的不同细节信息
 /** ExplainDetail defines the types of details for explain result. */
 @PublicEvolving
 public enum ExplainDetail {
-    /**
+    /** 估算的执行成本
      * The cost information on physical rel node estimated by optimizer. e.g. TableSourceScan(...,
      * cumulative cost = {1.0E8 rows, 1.0E8 cpu, 2.4E9 io, 0.0 network, 0.0 memory}
      */
     ESTIMATED_COST,
 
-    /**
+    /** 变更日志模式
      * The changelog mode produced by a physical rel node. e.g. GroupAggregate(...,
      * changelogMode=[I,UA,D])
      */
     CHANGELOG_MODE,
 
-    /** The execution plan in json format of the program. */
+    /** The execution plan in json format of the program.表示查询的执行计划以 JSON 格式呈现 */
     JSON_EXECUTION_PLAN,
 
-    /**
+    /**示来自优化器的潜在风险警告和 SQL 优化建议
      * The potential risk warnings and SQL optimizer tuning advice analyzed from the physical plan.
      */
     PLAN_ADVICE

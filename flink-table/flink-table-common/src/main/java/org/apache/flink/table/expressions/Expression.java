@@ -25,7 +25,7 @@ import java.util.List;
 
 /**
  * General interface for all kinds of expressions.
- *
+ * 表达式代表一个逻辑树计算结果
  * <p>Expressions represent a logical tree for producing a computation result. Every expression
  * consists of zero, one, or more subexpressions. Expressions might be literal values, function
  * calls, or field references.
@@ -46,6 +46,6 @@ public interface Expression {
     String asSummaryString();
 
     List<Expression> getChildren();
-
+    //接受访问者访问，返回R类型的值
     <R> R accept(ExpressionVisitor<R> visitor);
 }

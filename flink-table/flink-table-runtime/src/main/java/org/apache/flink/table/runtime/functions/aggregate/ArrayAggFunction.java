@@ -36,6 +36,7 @@ import java.util.Objects;
 
 import static org.apache.flink.table.types.utils.DataTypeUtils.toInternalDataType;
 
+
 /** Built-in ARRAY_AGG aggregate function. */
 @Internal
 public final class ArrayAggFunction<T>

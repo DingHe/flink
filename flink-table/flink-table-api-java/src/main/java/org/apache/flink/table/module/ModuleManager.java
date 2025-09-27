@@ -53,7 +53,7 @@ public class ModuleManager {
     private static final Logger LOG = LoggerFactory.getLogger(ModuleManager.class);
 
     /** To keep {@link #listFullModules()} deterministic. */
-    private final LinkedHashMap<String, Module> loadedModules;
+    private final LinkedHashMap<String, Module> loadedModules; //模块存储在这里
 
     /** Keep tracking used modules with resolution order. */
     private final List<String> usedModules;
@@ -61,7 +61,7 @@ public class ModuleManager {
     public ModuleManager() {
         this.loadedModules = new LinkedHashMap<>();
         this.usedModules = new ArrayList<>();
-        loadedModules.put(CoreModuleFactory.IDENTIFIER, CoreModule.INSTANCE);
+        loadedModules.put(CoreModuleFactory.IDENTIFIER, CoreModule.INSTANCE);  //默认只是加载了核心模块
         usedModules.add(CoreModuleFactory.IDENTIFIER);
     }
 

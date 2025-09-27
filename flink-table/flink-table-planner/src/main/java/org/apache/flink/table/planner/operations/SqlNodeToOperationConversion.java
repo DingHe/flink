@@ -213,7 +213,7 @@ import java.util.stream.Collectors;
 /**
  * Mix-in tool class for {@code SqlNode} that allows DDL commands to be converted to {@link
  * Operation}.
- *
+ * 负责把SqlNode转为Operation，每种转换都有对应的convert函数
  * <p>For every kind of {@link SqlNode}, there needs to have a corresponding #convert(type) method,
  * the 'type' argument should be the subclass of the supported {@link SqlNode}.
  *
@@ -248,18 +248,18 @@ public class SqlNodeToOperationConversion {
      * This is the main entrance for executing all kinds of DDL/DML {@code SqlNode}s, different
      * SqlNode will have it's implementation in the #convert(type) method whose 'type' argument is
      * subclass of {@code SqlNode}.
-     *
+     * 负责校验SqlNode节点和转为Operation节点
      * @param flinkPlanner FlinkPlannerImpl to convertCreateTable sql node to rel node
      * @param catalogManager CatalogManager to resolve full path for operations
      * @param sqlNode SqlNode to execute on
      */
     public static Optional<Operation> convert(
             FlinkPlannerImpl flinkPlanner, CatalogManager catalogManager, SqlNode sqlNode) {
-        // validate the query
+        // validate the query ，planner负责对SqlNode节点校验
         final SqlNode validated = flinkPlanner.validate(sqlNode);
         return convertValidatedSqlNode(flinkPlanner, catalogManager, validated);
     }
-
+    //负责把经过校验的sqlNode转为Operation
     /** Convert a validated sql node to Operation. */
     private static Optional<Operation> convertValidatedSqlNode(
             FlinkPlannerImpl flinkPlanner, CatalogManager catalogManager, SqlNode validated) {

@@ -58,21 +58,21 @@ public class DeclarativeSlotPoolService implements SlotPoolService {
     private final JobID jobId;
 
     private final Duration rpcTimeout;
-
+    //管理资源的申请
     private final DeclarativeSlotPool declarativeSlotPool;
 
     private final Clock clock;
-
+    //注册的taskmanager
     private final Set<ResourceID> registeredTaskManagers;
 
     protected final Logger log = LoggerFactory.getLogger(getClass());
-
+    //请求资源的接口，初始化为空操作
     private DeclareResourceRequirementServiceConnectionManager
             resourceRequirementServiceConnectionManager =
                     NoOpDeclareResourceRequirementServiceConnectionManager.INSTANCE;
 
     @Nullable private JobMasterId jobMasterId;
-
+    //JobMaster的地址
     @Nullable private String jobManagerAddress;
 
     private State state = State.CREATED;

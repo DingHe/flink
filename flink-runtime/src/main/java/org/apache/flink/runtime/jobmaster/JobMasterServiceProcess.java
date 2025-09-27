@@ -26,10 +26,10 @@ import javax.annotation.Nonnull;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-
+//负责运行JobMasterService
 /** JobMasterServiceProcess is responsible for running a {@link JobMasterService}. */
 public interface JobMasterServiceProcess extends AutoCloseableAsync {
-
+    //等待领导关系
     static JobMasterServiceProcess waitingForLeadership() {
         return WaitingForLeadership.INSTANCE;
     }

@@ -20,7 +20,7 @@ package org.apache.flink.util.function;
 
 import org.apache.flink.annotation.PublicEvolving;
 
-/**
+/** 类似Runnable接口，但是可以抛出异常
  * Similar to a {@link Runnable}, this interface is used to capture a block of code to be executed.
  * In contrast to {@code Runnable}, this interface allows throwing checked exceptions.
  */

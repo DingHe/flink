@@ -219,20 +219,21 @@ class SupervisorActor extends AbstractActor {
 
         @Override
         public PartialFunction<Throwable, Directive> decider() {
-            return DeciderBuilder.match(Exception.class, e -> SupervisorStrategy.stop()).build();
+            return DeciderBuilder.match(Exception.class, e -> SupervisorStrategy.stop())  //stop代表发生错误则停止
+                    .build();
         }
 
         @Override
         public boolean loggingEnabled() {
             return false;
-        }
+        }  //不打印日志
 
         @Override
         public void handleChildTerminated(
                 org.apache.pekko.actor.ActorContext context,
                 ActorRef child,
                 Iterable<ActorRef> children) {
-            rpcActorTerminated(child);
+            rpcActorTerminated(child);  //删除该子actor的引用
         }
 
         @Override

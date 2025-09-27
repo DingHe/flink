@@ -26,7 +26,7 @@ import org.apache.flink.table.operations.Operation;
 /** Operation to describe a DESCRIBE JOB statement. */
 @Internal
 public class DescribeJobOperation implements Operation, ExecutableOperation {
-
+    //job的id
     private final String jobId;
 
     public DescribeJobOperation(String jobId) {

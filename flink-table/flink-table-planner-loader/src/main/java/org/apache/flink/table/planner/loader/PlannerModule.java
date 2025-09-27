@@ -44,7 +44,7 @@ import java.util.stream.Stream;
 
 /**
  * Module holder that loads the flink-table-planner module in a separate classpath.
- *
+ * PlannerModule 是 Flink 表规划模块中负责加载 Table Planner 组件的关键类。它通过自定义类加载器动态加载 flink-table-planner 的依赖，并提供接口来加载和管理 Flink Table Planner 相关的组件，如 ExecutorFactory 和 PlannerFactory
  * <p>This loader expects the flink-table-planner jar to be accessible via {@link
  * ClassLoader#getResource(String)}. It will extract the jar into a temporary directory and create a
  * new {@link SubmoduleClassLoader} to load the various planner factories from that jar.
@@ -56,10 +56,10 @@ class PlannerModule {
      * artifact.
      */
     static final String FLINK_TABLE_PLANNER_FAT_JAR = "flink-table-planner.jar";
-
+    //在找不到 flink-table-planner.jar 时，提示用户如何通过 Maven 命令重新打包生成该 JAR
     private static final String HINT_USAGE =
             "mvn clean package -pl flink-table/flink-table-planner,flink-table/flink-table-planner-loader -DskipTests";
-
+    //定义需要由 主类加载器 加载的类或包名
     private static final String[] OWNER_CLASSPATH =
             Stream.concat(
                             Arrays.stream(CoreOptions.PARENT_FIRST_LOGGING_PATTERNS),
@@ -76,9 +76,9 @@ class PlannerModule {
                                     // when initialize HiveParser which requires hadoop
                                     "org.apache.hadoop"))
                     .toArray(String[]::new);
-
+    //定义需要由 组件类加载器 加载的类或包名
     private static final String[] COMPONENT_CLASSPATH = new String[] {"org.apache.flink"};
-
+    //定义包名前缀与模块名称的关联映射
     private static final Map<String, String> KNOWN_MODULE_ASSOCIATIONS = new HashMap<>();
 
     static {
@@ -90,13 +90,13 @@ class PlannerModule {
         KNOWN_MODULE_ASSOCIATIONS.put(
                 "org.apache.flink.table.shaded.com.jayway", "flink-table-runtime");
     }
-
+    //PlannerComponentClassLoader，是 Flink 自定义的 ComponentClassLoader 子类，支持动态添加 URL
     private final PlannerComponentClassLoader submoduleClassLoader;
 
     private PlannerModule() {
         try {
             final ClassLoader flinkClassLoader = PlannerModule.class.getClassLoader();
-
+            //创建临时文件
             final Path tmpDirectory =
                     Paths.get(ConfigurationUtils.parseTempDirectories(new Configuration())[0]);
             Files.createDirectories(FileUtils.getTargetPathIfContainsSymbolicPath(tmpDirectory));
@@ -115,7 +115,7 @@ class PlannerModule {
                                         + "or add a test dependency on the flink-table-planner-loader test-jar.",
                                 HINT_USAGE));
             }
-
+            //创建flink-table-planner.jar的临时文件
             IOUtils.copyBytes(resourceStream, Files.newOutputStream(tempFile));
             tempFile.toFile().deleteOnExit();
 

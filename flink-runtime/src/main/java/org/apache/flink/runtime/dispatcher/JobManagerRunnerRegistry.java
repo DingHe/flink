@@ -25,7 +25,7 @@ import org.apache.flink.runtime.jobmaster.JobManagerRunner;
 import java.util.Collection;
 import java.util.NoSuchElementException;
 import java.util.Set;
-
+//注册JobManagerRunner
 /** {@code JobManagerRunner} collects running jobs represented by {@link JobManagerRunner}. */
 public interface JobManagerRunnerRegistry extends LocallyCleanableResource {
 

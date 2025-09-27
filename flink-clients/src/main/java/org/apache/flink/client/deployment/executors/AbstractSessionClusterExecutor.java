@@ -62,12 +62,13 @@ import static org.apache.flink.util.Preconditions.checkState;
  */
 @Internal
 public class AbstractSessionClusterExecutor<
-                ClusterID, ClientFactory extends ClusterClientFactory<ClusterID>>
+                ClusterID, ClientFactory extends ClusterClientFactory<ClusterID>>  //ClusterID表示集群的 ID 类型，通常是用于标识集群的唯一标识符
         implements CacheSupportedPipelineExecutor {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractSessionClusterExecutor.class);
     private final ExecutorService executorService =
             Executors.newFixedThreadPool(
                     1, new ExecutorThreadFactory("Flink-SessionClusterExecutor-IO"));
+    //一个单线程的线程池，用于处理与作业相关的异步操作
 
     private final ClientFactory clusterClientFactory;
     private final Configuration configuration;
@@ -86,11 +87,11 @@ public class AbstractSessionClusterExecutor<
 
     @Override
     public CompletableFuture<JobClient> execute(
-            @Nonnull final Pipeline pipeline,
+            @Nonnull final Pipeline pipeline, //streamgraph继承了pipeline
             @Nonnull final Configuration configuration,
             @Nonnull final ClassLoader userCodeClassloader)
             throws Exception {
-        final JobGraph jobGraph =
+        final JobGraph jobGraph =   //生成作业图
                 PipelineExecutorUtils.getJobGraph(pipeline, configuration, userCodeClassloader);
 
         try (final ClusterDescriptor<ClusterID> clusterDescriptor =

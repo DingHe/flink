@@ -109,40 +109,40 @@ public class CheckpointCoordinator {
 
     // ------------------------------------------------------------------------
 
-    /** Coordinator-wide lock to safeguard the checkpoint updates. */
+    /** Coordinator-wide lock to safeguard the checkpoint updates.确保对检查点状态的更新是线程安全的。检查点协调器需要保证对其状态的修改不被多个线程同时访问 */
     private final Object lock = new Object();
 
     /** The job whose checkpoint this coordinator coordinates. */
     private final JobID job;
 
-    /** Default checkpoint properties. */
+    /** Default checkpoint properties. 默认的检查点属性，配置检查点的具体行为，例如是否是增量检查点、是否为一致性检查点等*/
     private final CheckpointProperties checkpointProperties;
 
     /** The executor used for asynchronous calls, like potentially blocking I/O. */
     private final Executor executor;
-
+   //负责清理已完成的检查点，避免过时或无用的检查点数据占用存储空间
     private final CheckpointsCleaner checkpointsCleaner;
 
-    /** The operator coordinators that need to be checkpointed. */
+    /** The operator coordinators that need to be checkpointed. 一个集合，包含所有需要进行检查点的操作符协调器（OperatorCoordinator），即所有参与检查点的算子*/
     private final Collection<OperatorCoordinatorCheckpointContext> coordinatorsToCheckpoint;
 
-    /** Map from checkpoint ID to the pending checkpoint. */
+    /** Map from checkpoint ID to the pending checkpoint. 一个映射，从检查点 ID 到正在等待完成的检查点对象*/
     @GuardedBy("lock")
     private final Map<Long, PendingCheckpoint> pendingCheckpoints;
 
     /**
      * Completed checkpoints. Implementations can be blocking. Make sure calls to methods accessing
-     * this don't block the job manager actor and run asynchronously.
+     * this don't block the job manager actor and run asynchronously.已完成检查点的存储。它存储那些已经成功完成的检查点信息，通常是持久化的，以便恢复作业的状态
      */
     private final CompletedCheckpointStore completedCheckpointStore;
 
     /**
      * The root checkpoint state backend, which is responsible for initializing the checkpoint,
-     * storing the metadata, and cleaning up the checkpoint.
+     * storing the metadata, and cleaning up the checkpoint.根检查点状态后端，负责初始化、存储和清理检查点的元数据
      */
     private final CheckpointStorageCoordinatorView checkpointStorageView;
 
-    /** A list of recent expired checkpoint IDs, to identify late messages (vs invalid ones). */
+    /** A list of recent expired checkpoint IDs, to identify late messages (vs invalid ones). 一个双端队列，存储最近过期的检查点 ID，用于识别延迟消息（如恢复时）*/
     private final ArrayDeque<Long> recentExpiredCheckpoints;
 
     /**
@@ -154,42 +154,42 @@ public class CheckpointCoordinator {
     /**
      * The checkpoint interval when there is no source reporting isProcessingBacklog=true. Actual
      * trigger time may be affected by the max concurrent checkpoints, minimum-pause values and
-     * checkpoint interval during backlog.
+     * checkpoint interval during backlog.基础的检查点触发间隔时间。当没有源操作符报告 backlog 时，这个时间间隔会作为触发检查点的周期
      */
     private final long baseInterval;
 
     /**
      * The checkpoint interval when any source reports isProcessingBacklog=true. Actual trigger time
-     * may be affected by the max concurrent checkpoints and minimum-pause values.
+     * may be affected by the max concurrent checkpoints and minimum-pause values.当源操作符报告正在处理 backlog（积压数据）时，使用的检查点间隔时间
      */
     private final long baseIntervalDuringBacklog;
 
-    /** The max time (in ms) that a checkpoint may take. */
+    /** The max time (in ms) that a checkpoint may take. 单个检查点的最大执行时间。如果一个检查点超时未完成，将触发失败*/
     private final long checkpointTimeout;
 
     /**
      * The min time(in ms) to delay after a checkpoint could be triggered. Allows to enforce minimum
-     * processing time between checkpoint attempts
+     * processing time between checkpoint attempts 两个检查点之间的最小暂停时间，用于防止过于频繁的检查点触发
      */
     private final long minPauseBetweenCheckpoints;
 
     /**
      * The timer that handles the checkpoint timeouts and triggers periodic checkpoints. It must be
-     * single-threaded. Eventually it will be replaced by main thread executor.
+     * single-threaded. Eventually it will be replaced by main thread executor.一个定时器，用于处理检查点超时并触发周期性检查点。该定时器应该是单线程的，保证不会并发地触发多个检查点
      */
     private final ScheduledExecutor timer;
 
-    /** The master checkpoint hooks executed by this checkpoint coordinator. */
+    /** The master checkpoint hooks executed by this checkpoint coordinator. 一个包含主触发恢复钩子的映射，用于在检查点触发或恢复时执行特定的操作（如清理工作、恢复状态等）*/
     private final HashMap<String, MasterTriggerRestoreHook<?>> masterHooks;
-
+    //标记是否启用了非对齐检查点。非对齐检查点允许某些算子未完成时就可以提交检查点，适用于低延迟要求的场景
     private final boolean unalignedCheckpointsEnabled;
-
+   //对齐检查点的超时时间，指对齐检查点需要的最大时间
     private final long alignedCheckpointTimeout;
 
-    /** Actor that receives status updates from the execution graph this coordinator works for. */
+    /** Actor that receives status updates from the execution graph this coordinator works for. 作业状态监听器，用于接收来自执行图（Execution Graph）的状态更新*/
     private JobStatusListener jobStatusListener;
 
-    /**
+    /**当前周期性触发器对象。周期性触发器用于去重同时调度的检查点
      * The current periodic trigger. Used to deduplicate concurrently scheduled checkpoints if any.
      */
     @GuardedBy("lock")
@@ -202,25 +202,25 @@ public class CheckpointCoordinator {
     /**
      * The timestamp (via {@link Clock#relativeTimeMillis()}) when the next checkpoint will be
      * triggered.
-     *
+     *下一个检查点触发的时间戳。如果没有计划的检查点，值为 Long.MAX_VALUE
      * <p>If it's value is {@link Long#MAX_VALUE}, it means there is not a next checkpoint
      * scheduled.
      */
     @GuardedBy("lock")
     private long nextCheckpointTriggeringRelativeTime;
 
-    /**
+    /**上一个检查点完成的时间戳
      * The timestamp (via {@link Clock#relativeTimeMillis()}) when the last checkpoint completed.
      */
     private long lastCheckpointCompletionRelativeTime;
 
-    /**
+    /**标记触发的检查点是否会立即调度下一个检查点。这个属性仅在同步范围内访问
      * Flag whether a triggered checkpoint should immediately schedule the next checkpoint.
      * Non-volatile, because only accessed in synchronized scope
      */
     private boolean periodicScheduling;
 
-    /** Flag marking the coordinator as shut down (not accepting any messages any more). */
+    /** Flag marking the coordinator as shut down (not accepting any messages any more). 标记协调器是否已关闭，关闭后不再接受任何消息或操作*/
     private volatile boolean shutdown;
 
     /** Optional tracker for checkpoint statistics. */
@@ -236,24 +236,24 @@ public class CheckpointCoordinator {
     private final long checkpointIdOfIgnoredInFlightData;
 
     private final CheckpointFailureManager failureManager;
-
+    //提供当前时间的时钟接口，通常用于获取相对时间
     private final Clock clock;
-
+    //标记当前是否是“精确一次”（exactly-once）语义模式，在此模式下，检查点保证精确一次的语义，避免数据丢失或重复处理
     private final boolean isExactlyOnceMode;
 
-    /** Flag represents there is an in-flight trigger request. */
+    /** Flag represents there is an in-flight trigger request.标记是否正在触发检查点请求 */
     private boolean isTriggering = false;
-
+    //用于决定是否可以触发检查点请求的逻辑
     private final CheckpointRequestDecider requestDecider;
-
+   //计算检查点计划的逻辑，用于确定哪些操作符需要在某个检查点中进行处理
     private final CheckpointPlanCalculator checkpointPlanCalculator;
 
-    /** IDs of the source operators that are currently processing backlog. */
+    /** IDs of the source operators that are currently processing backlog. 一个集合，包含当前正在处理积压数据的源操作符 ID。积压数据的处理可能会影响检查点的触发策略*/
     @GuardedBy("lock")
     private final Set<OperatorID> backlogOperators = new HashSet<>();
-
+    //标记基础位置是否已为检查点初始化。通常用于存储恢复的检查点信息
     private boolean baseLocationsForCheckpointInitialized = false;
-
+    //标记是否强制进行全量快照（而不是增量快照）
     private boolean forceFullSnapshot;
 
     // --------------------------------------------------------------------------------------------
@@ -293,17 +293,17 @@ public class CheckpointCoordinator {
     public CheckpointCoordinator(
             JobID job,
             CheckpointCoordinatorConfiguration chkConfig,
-            Collection<OperatorCoordinatorCheckpointContext> coordinatorsToCheckpoint,
-            CheckpointIDCounter checkpointIDCounter,
-            CompletedCheckpointStore completedCheckpointStore,
-            CheckpointStorage checkpointStorage,
-            Executor executor,
-            CheckpointsCleaner checkpointsCleaner,
-            ScheduledExecutor timer,
-            CheckpointFailureManager failureManager,
-            CheckpointPlanCalculator checkpointPlanCalculator,
+            Collection<OperatorCoordinatorCheckpointContext> coordinatorsToCheckpoint, //需要进行检查点的操作符协调器的集合。每个操作符可能会有一个专门的协调器来处理它的检查点
+            CheckpointIDCounter checkpointIDCounter, //检查点协调器的配置对象，包含所有与检查点相关的配置，如检查点间隔、超时等
+            CompletedCheckpointStore completedCheckpointStore, //已完成的检查点存储，用于存储成功完成的检查点信息
+            CheckpointStorage checkpointStorage, //检查点存储对象，负责存储检查点数据
+            Executor executor, //用于异步执行任务的线程池，通常用于执行可能会阻塞的 I/O 操作。
+            CheckpointsCleaner checkpointsCleaner, //负责清理已完成的检查点，避免过期的检查点占用存储空间。
+            ScheduledExecutor timer, //定时器，用于调度定时任务（例如触发检查点）。此定时器需要是单线程的
+            CheckpointFailureManager failureManager, //检查点失败管理器，用于管理检查点失败的情况，如重试机制、清理等。
+            CheckpointPlanCalculator checkpointPlanCalculator, //计算检查点计划的工具，负责根据当前的作业状态计算哪些操作符需要在检查点过程中执行
             Clock clock,
-            CheckpointStatsTracker statsTracker,
+            CheckpointStatsTracker statsTracker, //统计信息跟踪器，用于收集和报告检查点的统计信息（如成功率、超时等）
             BiFunction<
                             Set<ExecutionJobVertex>,
                             Map<OperatorID, OperatorState>,
@@ -312,7 +312,7 @@ public class CheckpointCoordinator {
 
         // sanity checks
         checkNotNull(checkpointStorage);
-
+        //这里定义了一个最大值限制，确保检查点之间的最小暂停时间不能超过一年（以毫秒为单位）。这样做是为了防止因为极长的时间间隔导致数值溢出
         // max "in between duration" can be one year - this is to prevent numeric overflows
         long minPauseBetweenCheckpoints = chkConfig.getMinPauseBetweenCheckpoints();
         if (minPauseBetweenCheckpoints > 365L * 24 * 60 * 60 * 1_000) {
@@ -369,12 +369,12 @@ public class CheckpointCoordinator {
 
         try {
             // Make sure the checkpoint ID enumerator is running. Possibly
-            // issues a blocking call to ZooKeeper.
+            // issues a blocking call to ZooKeeper. 启动检查点 ID 计数器，确保检查点 ID 从正确的地方开始
             checkpointIDCounter.start();
         } catch (Throwable t) {
             throw new RuntimeException(
                     "Failed to start checkpoint ID counter: " + t.getMessage(), t);
-        }
+        }  //CheckpointRequestDecider 用于决定是否可以触发新的检查点请求，它根据最大并发检查点数、当前正在进行的检查点数、检查点清理等因素来进行决策
         this.requestDecider =
                 new CheckpointRequestDecider(
                         chkConfig.getMaxConcurrentCheckpoints(),

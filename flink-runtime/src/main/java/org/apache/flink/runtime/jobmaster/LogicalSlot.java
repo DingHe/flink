@@ -51,14 +51,14 @@ public interface LogicalSlot {
 
     /**
      * Return the TaskManager location of this slot.
-     *
+     * 返回slot的TaskManager地址
      * @return TaskManager location of this slot
      */
     TaskManagerLocation getTaskManagerLocation();
 
     /**
      * Return the TaskManager gateway to talk to the TaskManager.
-     *
+     * 返回slot所在的taskManager的gateway
      * @return TaskManager gateway to talk to the TaskManager
      */
     TaskManagerGateway getTaskManagerGateway();
@@ -126,7 +126,7 @@ public interface LogicalSlot {
      * @return Unique id identifying the slot request with which this slot was allocated
      */
     SlotRequestId getSlotRequestId();
-
+    //LogicalSlot 同样规定了其所能承载的 payload , LogicalSlot.Payload 接口的实现类是 Execution，也就是需要被调度执行的一个 task
     /** Payload for a logical slot. */
     interface Payload {
 

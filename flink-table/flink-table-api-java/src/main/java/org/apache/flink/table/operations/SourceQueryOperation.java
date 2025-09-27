@@ -42,9 +42,9 @@ import java.util.stream.Collectors;
  */
 @Internal
 public class SourceQueryOperation implements QueryOperation {
-
+    //包含上下文信息的表对象
     private final ContextResolvedTable contextResolvedTable;
-    private final @Nullable Map<String, String> dynamicOptions;
+    private final @Nullable Map<String, String> dynamicOptions; //动态参数
 
     public SourceQueryOperation(ContextResolvedTable contextResolvedTable) {
         this(contextResolvedTable, null);
@@ -98,7 +98,7 @@ public class SourceQueryOperation implements QueryOperation {
 
     @Override
     public List<QueryOperation> getChildren() {
-        return Collections.emptyList();
+        return Collections.emptyList(); //默认没有children
     }
 
     @Override

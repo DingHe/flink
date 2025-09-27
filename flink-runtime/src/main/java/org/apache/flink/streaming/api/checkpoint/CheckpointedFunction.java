@@ -155,7 +155,7 @@ public interface CheckpointedFunction {
      * the function to ensure that all state is exposed by means previously offered through {@link
      * FunctionInitializationContext} when the Function was initialized, or offered now by {@link
      * FunctionSnapshotContext} itself.
-     *
+     * 在创建检查点的时候调用
      * @param context the context for drawing a snapshot of the operator
      * @throws Exception Thrown, if state could not be created ot restored.
      */
@@ -164,7 +164,7 @@ public interface CheckpointedFunction {
     /**
      * This method is called when the parallel function instance is created during distributed
      * execution. Functions typically set up their state storing data structures in this method.
-     *
+     * 1、 在初始化的时候调用 (在从检查点恢复状态的时候也会先调用该方法) 2、通过 FunctionInitializationContext 可以访问到 OperatorStateStore 和 KeyedStateStore 3、通过 OperatorStateStore 获取 Operator State 4、通过 KeyedStateStore 获取 Keyed State
      * @param context the context for initializing the operator
      * @throws Exception Thrown, if state could not be created ot restored.
      */

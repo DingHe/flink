@@ -32,23 +32,23 @@ public final class ColumnStats {
     /** Unknown definition for column stats. */
     public static final ColumnStats UNKNOWN = Builder.builder().build();
 
-    /** number of distinct values. */
+    /** number of distinct values. 唯一值数量  */
     private final Long ndv;
 
-    /** number of nulls. */
+    /** number of nulls. 空值数量 */
     private final Long nullCount;
 
-    /** average length of column values. */
+    /** average length of column values. 平均值 */
     private final Double avgLen;
 
-    /** max length of column values. */
+    /** max length of column values. 值的最大长度*/
     private final Integer maxLen;
 
     /**
      * Deprecated because not well supported comparable type, e.g. {@link java.util.Date}, {@link
      * java.sql.Timestamp}.
      */
-    @Deprecated private final Number maxValue;
+    @Deprecated private final Number maxValue; //最大值
 
     /** max value of column values, null if the value is unknown or not comparable. */
     private final Comparable<?> max;
@@ -57,7 +57,7 @@ public final class ColumnStats {
      * Deprecated because not well supported comparable type, e.g. {@link java.util.Date}, {@link
      * java.sql.Timestamp}.
      */
-    @Deprecated private final Number minValue;
+    @Deprecated private final Number minValue; //最小值
 
     /** min value of column values, null if the value is unknown or not comparable. */
     private final Comparable<?> min;

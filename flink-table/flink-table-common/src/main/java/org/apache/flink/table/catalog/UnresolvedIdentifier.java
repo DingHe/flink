@@ -33,7 +33,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/**
+/** 未解析的对象标识，也就是要补充上catalog和database等路径字段
  * Identifier of an object, such as table, view, function or type in a catalog. This identifier
  * cannot be used directly to access an object in a catalog manager, but has to be first fully
  * resolved into {@link ObjectIdentifier}.
@@ -41,11 +41,11 @@ import java.util.stream.Stream;
 @PublicEvolving
 public final class UnresolvedIdentifier {
 
-    private final @Nullable String catalogName;
+    private final @Nullable String catalogName; //catalog名字
 
-    private final @Nullable String databaseName;
+    private final @Nullable String databaseName; //数据库名字
 
-    private final String objectName;
+    private final String objectName; //对象名字
 
     /**
      * Constructs an {@link UnresolvedIdentifier} from an array of identifier segments. The length

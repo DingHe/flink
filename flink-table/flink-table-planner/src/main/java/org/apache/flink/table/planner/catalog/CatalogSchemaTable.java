@@ -59,7 +59,7 @@ import java.util.stream.Collectors;
  * <p>This table would be converted to {@link
  * org.apache.flink.table.planner.plan.schema.FlinkPreparingTableBase} based on its internal source
  * type during sql-to-rel conversion.
- *
+ * AbstractTable代表calcite Table接口的表
  * <p>See {@link org.apache.flink.table.planner.plan.FlinkCalciteCatalogReader#getTable(List)} for
  * details.
  */

@@ -20,7 +20,7 @@ package org.apache.flink.table.planner.calcite
 import org.apache.flink.table.api.TableConfig
 import org.apache.flink.table.catalog.{CatalogManager, FunctionCatalog}
 import org.apache.flink.table.module.ModuleManager
-
+//FLINK的上下文
 class FlinkContextImpl(
     inBatchMode: Boolean,
     tableConfig: TableConfig,

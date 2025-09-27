@@ -27,6 +27,9 @@ import org.apache.flink.annotation.PublicEvolving;
  * <p>Subclasses should implement {@code equals()} and {@code hashCode()} so that logically same
  * windows are treated the same.
  */
+//Window 类是 Apache Flink 中窗口概念的抽象基类
+//在流处理中，数据流是无限的，为了对数据进行聚合、统计等操作，我们需要将无限的数据流切分成有限的、有界的“桶”，这些“桶”就是窗口
+//是一个元素的集合，并且有一个最大时间戳。这个最大时间戳（maxTimestamp）是窗口的一个核心属性，它代表了在该时间戳之前到达的所有元素都应该属于这个窗口
 @PublicEvolving
 public abstract class Window {
 
@@ -35,5 +38,7 @@ public abstract class Window {
      *
      * @return The largest timestamp that still belongs to this window.
      */
+    //用于获取窗口所能包含的最大时间戳
+    //是窗口的“结束”时间，但要注意，它并不是指窗口的结束边界本身，而是窗口内元素可能拥有的最大时间戳
     public abstract long maxTimestamp();
 }
