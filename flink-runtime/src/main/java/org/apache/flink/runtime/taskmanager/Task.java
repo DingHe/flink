@@ -152,6 +152,8 @@ public class Task
     private static final ThreadGroup TASK_THREADS_GROUP = new ThreadGroup("Flink Task Threads");
 
     /** For atomic state updates. */
+    // Java 并发包（java.util.concurrent.atomic）中一个非常重要的原子字段更新器，
+    // 用于 以原子方式更新某个对象中的引用类型字段，而 无需使用 synchronized，也无需把整个字段做成 AtomicReference。
     private static final AtomicReferenceFieldUpdater<Task, ExecutionState> STATE_UPDATER =
             AtomicReferenceFieldUpdater.newUpdater(
                     Task.class, ExecutionState.class, "executionState");
@@ -198,6 +200,7 @@ public class Task
     private final Collection<URL> requiredClasspaths;
 
     /** The name of the class that holds the invokable code. */
+    // 用户代码持有类
     private final String nameOfInvokableClass;
 
     /** Access to task manager configuration and host names. */
@@ -233,6 +236,7 @@ public class Task
     private final IndexedInputGate[] inputGates;
 
     /** Connection to the task manager. */
+    // 通知TaskManager的接口
     private final TaskManagerActions taskManagerActions;
 
     /** Input split provider for the task. */
@@ -262,6 +266,7 @@ public class Task
     private final AccumulatorRegistry accumulatorRegistry;
 
     /** The thread that executes the task. */
+    // 执行任务的线程
     private final Thread executingThread;
 
     /** Parent group for all metrics of this task. */
@@ -294,6 +299,7 @@ public class Task
     @Nullable private volatile TaskInvokable invokable;
 
     /** The current execution state of the task. */
+    // 任务的当前状态
     private volatile ExecutionState executionState = ExecutionState.CREATED;
 
     /** The observed exception, in case the task execution failed. */
@@ -309,6 +315,7 @@ public class Task
      * This class loader should be set as the context class loader for threads that may dynamically
      * load user code.
      */
+    // 用户代码加载器
     private UserCodeClassLoader userCodeClassLoader;
 
     /**
@@ -548,6 +555,7 @@ public class Task
      *
      * @return True is the task in state FAILED, CANCELING, or CANCELED, false otherwise.
      */
+    // 任务是否处于取消中、被取消或者失败状态
     public boolean isCanceledOrFailed() {
         return executionState == ExecutionState.CANCELING
                 || executionState == ExecutionState.CANCELED
@@ -578,14 +586,17 @@ public class Task
             terminationFuture.complete(executionState);
         }
     }
-
+    // Flink 任务 (Task) 在 TaskManager 上执行的核心入口点。它封装了任务从部署准备、初始化、用户代码执行，直到最终完成或失败的整个生命周期
     private void doRun() {
         // ----------------------------
         //  Initial State transition
         // ----------------------------
         while (true) {
             ExecutionState current = this.executionState;
+            // 处理初始状态： 如果任务处于 CREATED 状态（刚被实例化，但未开始运行）
             if (current == ExecutionState.CREATED) {
+                // 尝试原子性地将状态从 CREATED 切换到 DEPLOYING (部署中)
+                // DEPLOYING, // 部署中。 TaskExecutor 正在下载任务所需的代码和配置，并准备执行环境。
                 if (transitionState(ExecutionState.CREATED, ExecutionState.DEPLOYING)) {
                     // success, we can start our work
                     break;
@@ -618,7 +629,9 @@ public class Task
 
         // all resource acquisitions and registrations from here on
         // need to be undone in the end
+        // 初始化一个 Map，用于存储分布式缓存文件名称及其本地路径（Path）的异步获取结果 (Future)。
         Map<String, Future<Path>> distributedCacheEntries = new HashMap<>();
+        // 声明 invokable 变量，用于存储实际执行用户代码的类实例（如 SourceStreamTask、TwoInputTask）
         TaskInvokable invokable = null;
 
         try {
@@ -634,13 +647,15 @@ public class Task
             // first of all, get a user-code classloader
             // this may involve downloading the job's JAR files and/or classes
             LOG.info("Loading JAR files for task {}.", this);
-
+            // 创建用户代码类加载器。这可能涉及从 JobManager 下载所需的 JAR 文件。
             userCodeClassLoader = createUserCodeClassloader();
+            // 使用新的类加载器反序列化执行配置 (ExecutionConfig)，其中包含任务的运行时参数。
             final ExecutionConfig executionConfig =
                     serializedExecutionConfig.deserializeValue(userCodeClassLoader.asClassLoader());
             Configuration executionConfigConfiguration = executionConfig.toConfiguration();
 
             // override task cancellation interval from Flink config if set in ExecutionConfig
+            // 从配置中获取或设置任务取消时的超时时间。
             taskCancellationInterval =
                     executionConfigConfiguration
                             .getOptional(TaskManagerOptions.TASK_CANCELLATION_INTERVAL)
@@ -666,18 +681,20 @@ public class Task
             // ----------------------------------------------------------------
 
             LOG.debug("Registering task at network: {}.", this);
-
+            // 设置网络 I/O：注册任务的输出分区（ResultPartitionWriter）和输入门（InputGate）到 Flink 的网络栈中。
             setupPartitionsAndGates(partitionWriters, inputGates);
-
+            // 为每个输出分区注册任务事件分发器，以便其他组件（如下游任务）可以发送控制事件。
             for (ResultPartitionWriter partitionWriter : partitionWriters) {
                 taskEventDispatcher.registerPartition(partitionWriter.getPartitionId());
             }
 
             // next, kick off the background copying of files for the distributed cache
             try {
+                // 处理分布式缓存：遍历任务配置中定义的分布式缓存文件。
                 for (Map.Entry<String, DistributedCache.DistributedCacheEntry> entry :
                         DistributedCache.readFileInfoFromConfig(jobConfiguration)) {
                     LOG.info("Obtaining local cache file for '{}'.", entry.getKey());
+                    // 异步启动分布式缓存文件的本地复制过程，并获取一个 Future 来追踪其本地路径。
                     Future<Path> cp =
                             fileCache.createTmpFile(
                                     entry.getKey(), entry.getValue(), jobId, executionId);
@@ -698,10 +715,11 @@ public class Task
             // ----------------------------------------------------------------
             //  call the user code initialization methods
             // ----------------------------------------------------------------
-
+            // 创建键值状态（Keyed State）注册器。
             TaskKvStateRegistry kvStateRegistry =
                     kvStateService.createKvStateTaskRegistry(jobId, getJobVertexId());
-
+            // 创建运行时环境 (Environment)：实例化一个 Environment 对象，
+            // 它包含了任务执行所需的所有上下文信息（配置、内存管理器、I/O 管理器、网络 I/O、状态管理器等）。
             Environment env =
                     new RuntimeEnvironment(
                             jobId,
@@ -739,13 +757,16 @@ public class Task
             // Make sure the user code classloader is accessible thread-locally.
             // We are setting the correct context class loader before instantiating the invokable
             // so that it is available to the invokable during its entire lifetime.
+            // 将当前任务线程的上下文类加载器设置为用户代码类加载器，以确保用户代码能正确加载所需的类
             executingThread.setContextClassLoader(userCodeClassLoader.asClassLoader());
 
             // When constructing invokable, separate threads can be constructed and thus should be
             // monitored for system exit (in addition to invoking thread itself monitored below).
+            // 启用安全管理器，防止用户代码意外调用 System.exit() 退出 JVM。
             FlinkSecurityManager.monitorUserSystemExitForCurrentThread();
             try {
                 // now load and instantiate the task's invokable code
+                // 实例化用户代码：使用类加载器加载并实例化实际执行用户逻辑的类 (StreamTask 或类似的 TaskInvokable)
                 invokable =
                         loadAndInstantiateInvokable(
                                 userCodeClassLoader.asClassLoader(), nameOfInvokableClass, env);
@@ -760,7 +781,8 @@ public class Task
             // we must make strictly sure that the invokable is accessible to the cancel() call
             // by the time we switched to running.
             this.invokable = invokable;
-
+            // 调用此方法来处理状态恢复（如果有）并执行用户代码的 invoke() 方法。
+            // 一旦 invoke() 返回，表示用户代码已执行完成。
             restoreAndInvoke(invokable);
 
             // make sure, we enter the catch block if the task leaves the invoke() method due
@@ -774,6 +796,8 @@ public class Task
             // ----------------------------------------------------------------
 
             // finish the produced partitions. if this fails, we consider the execution failed.
+            // 任务成功完成后，调用所有输出分区（ResultPartitionWriter）的 finish() 方法，
+            // 确保所有待发送的数据都被发送，并标记分区完成。
             for (ResultPartitionWriter partitionWriter : partitionWriters) {
                 if (partitionWriter != null) {
                     partitionWriter.finish();
@@ -782,6 +806,7 @@ public class Task
 
             // try to mark the task as finished
             // if that fails, the task was canceled/failed in the meantime
+            // 尝试原子性地将任务状态从 RUNNING 切换到 FINISHED (已完成)。
             if (!transitionState(ExecutionState.RUNNING, ExecutionState.FINISHED)) {
                 throw new CancelTaskException();
             }
@@ -922,23 +947,27 @@ public class Task
 
         return t;
     }
-
+    // Flink 任务执行流程中调用用户核心逻辑的关键步骤。它主要负责状态恢复（Restore）、状态切换、通知 JobManager，以及最终调用用户代码的 invoke() 方法。
     private void restoreAndInvoke(TaskInvokable finalInvokable) throws Exception {
         try {
             // switch to the INITIALIZING state, if that fails, we have been canceled/failed in the
             // meantime
+            // 尝试原子性地将任务状态从预期的 DEPLOYING (部署中) 切换到 INITIALIZING (初始化中)
+            // INITIALIZING; // 初始化中。 任务代码开始执行，通常涉及恢复状态（如果适用，如从 Checkpoint 恢复上次的有效状态）。
             if (!transitionState(ExecutionState.DEPLOYING, ExecutionState.INITIALIZING)) {
                 throw new CancelTaskException();
             }
-
+            // 通知 JobManager (JM)：
             taskManagerActions.updateTaskExecutionState(
                     new TaskExecutionState(executionId, ExecutionState.INITIALIZING));
 
             // make sure the user code classloader is accessible thread-locally
+            // 再次确保当前任务执行线程的上下文类加载器被设置为用户代码类加载器，以保证状态恢复和用户代码执行期间能正确加载用户类。
             executingThread.setContextClassLoader(userCodeClassLoader.asClassLoader());
-
+            // 执行状态恢复：
+            // 如果任务有检查点或保存点需要恢复，这正是状态被加载到算子中的地方。
             runWithSystemExitMonitoring(finalInvokable::restore);
-
+            // 尝试原子性地将任务状态从预期的 INITIALIZING 切换到 RUNNING (运行中)。这标志着初始化和恢复阶段已完成。
             if (!transitionState(ExecutionState.INITIALIZING, ExecutionState.RUNNING)) {
                 throw new CancelTaskException();
             }
@@ -946,7 +975,7 @@ public class Task
             // notify everyone that we switched to running
             taskManagerActions.updateTaskExecutionState(
                     new TaskExecutionState(executionId, ExecutionState.RUNNING));
-
+            // 执行用户代码的核心逻辑：
             runWithSystemExitMonitoring(finalInvokable::invoke);
         } catch (Throwable throwable) {
             try {
@@ -973,11 +1002,12 @@ public class Task
             FlinkSecurityManager.unmonitorUserSystemExitForCurrentThread();
         }
     }
-
+    // Flink Task 初始化过程中一个非常关键且简洁的步骤，它负责在任务开始运行之前，
+    // 完成其**所有输出分区（ResultPartitions）和所有输入门（InputGates）**的准备工作
     @VisibleForTesting
     public static void setupPartitionsAndGates(
             ResultPartitionWriter[] producedPartitions, InputGate[] inputGates) throws IOException {
-
+        // 调用每个结果分区的**设置（Setup）**方法
         for (ResultPartitionWriter partition : producedPartitions) {
             partition.setup();
         }
@@ -1051,7 +1081,7 @@ public class Task
             }
         }
     }
-
+    // 创建用户代码加载器
     private UserCodeClassLoader createUserCodeClassloader() throws Exception {
         long startDownloadTime = System.currentTimeMillis();
 
@@ -1069,6 +1099,7 @@ public class Task
 
     private void notifyFinalState() {
         checkState(executionState.isTerminal());
+        // 更新TaskManager当前任务的最终状态
         taskManagerActions.updateTaskExecutionState(
                 new TaskExecutionState(executionId, executionState, failureCause));
     }
@@ -1084,6 +1115,7 @@ public class Task
      * @param newState of the execution
      * @return true if the transition was successful, otherwise false
      */
+    // 切换任务状态到新的状态
     private boolean transitionState(ExecutionState currentState, ExecutionState newState) {
         return transitionState(currentState, newState, null);
     }
@@ -1096,8 +1128,12 @@ public class Task
      * @param cause of the transition change or null
      * @return true if the transition was successful, otherwise false
      */
+    // 尝试将 Flink 任务的执行状态从预期的当前状态 (currentState) 原子性地切换到新的目标状态 (newState)
+    // 参数 1： 预期的任务当前执行状态。如果任务的实际状态与此参数不匹配，则状态切换失败。
+    // 参数 2： 任务将要切换到的新执行状态（目标状态）
     private boolean transitionState(
             ExecutionState currentState, ExecutionState newState, Throwable cause) {
+        // 用于原子地更新 Task 对象的 ExecutionState 字段
         if (STATE_UPDATER.compareAndSet(this, currentState, newState)) {
             if (cause == null) {
                 LOG.info(
@@ -1612,6 +1648,8 @@ public class Task
      * @throws Throwable Forwards all exceptions that happen during initialization of the task. Also
      *     throws an exception if the task class misses the necessary constructor.
      */
+    // 是 Flink 任务执行前加载和实例化用户代码核心逻辑 (TaskInvokable) 的关键工具
+    // 使用 Java 的**反射（Reflection）**机制，通过类加载器找到用户定义的任务实现类（如 StreamTask 的子类），并使用特定的构造函数来创建其实例
     private static TaskInvokable loadAndInstantiateInvokable(
             ClassLoader classLoader, String className, Environment environment) throws Throwable {
 

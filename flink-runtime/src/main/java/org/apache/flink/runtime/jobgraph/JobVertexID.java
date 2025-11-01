@@ -25,6 +25,8 @@ import org.apache.flink.util.StringUtils;
 import org.apache.flink.shaded.netty4.io.netty.buffer.ByteBuf;
 
 /** A class for statistically unique job vertex IDs. */
+// 表示 Flink JobGraph 中一个 JobVertex 的唯一身份 ID
+// 在 Flink 中，一个用户的逻辑算子（或算子链【operator chain】）会被封装成 JobVertex
 public class JobVertexID extends AbstractID implements VertexID {
 
     private static final long serialVersionUID = 1L;

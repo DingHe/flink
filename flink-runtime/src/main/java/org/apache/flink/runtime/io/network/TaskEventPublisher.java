@@ -26,6 +26,8 @@ import org.apache.flink.runtime.util.event.EventListener;
  * The task event publisher is used for publishing the event to the registered {@link EventListener}
  * instances.
  */
+// TaskEventPublisher（任务事件发布者）是 Flink 运行时网络 I/O 模块中的一个接口，它负责在 Flink 任务执行期间分发和通知特定的任务事件 (TaskEvent)
+// 应用场景： 这在 Flink 的网络数据交换中尤为重要。例如，当一个任务的数据生成端（上游）需要通知其数据消费端（下游）某些状态变化或控制信号时，就会通过这个机制进行。这些事件通常与数据传输的生命周期或控制流相关。
 public interface TaskEventPublisher {
 
     /**

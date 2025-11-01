@@ -25,7 +25,7 @@ import org.apache.flink.runtime.taskexecutor.TaskExecutor;
 import java.io.File;
 
 /** Interface to access {@link TaskExecutor} information. */
-// link 中用于访问 TaskExecutor（即 TaskManager 的新名称）运行时信息的接口。
+// flink 中用于访问 TaskExecutor（即 TaskManager 的新名称）运行时信息的接口。
 // 核心作用是：
 // 配置访问层： 为 TaskExecutor 内部的各个组件（如 Task、网络栈、文件系统等）提供一个统一的、只读的入口，以获取 TaskExecutor 启动时加载的配置信息和环境参数。
 // 环境上下文： 封装了 TaskExecutor 运行所依赖的环境上下文，包括地址信息、临时文件目录和关键的运行时行为配置（如 OOM 时的行为）。

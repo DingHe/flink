@@ -14,3 +14,19 @@ tasks  存储当前在这个槽位中运行的所有任务（TaskSlotPayload）
 MemoryManager 管理 TaskExecutor（TaskManager）预先分配的一大块堆外（Off-Heap）原始内存。这部分内存用于 Flink 内部的高性能操作，如排序（Sort）、哈希连接（Hash Join）、网络缓冲区、以及 RocksDBStateBackend 等。
 allocatedSegments  已分配的内存页记录。键是内存的所有者（Owner）（通常是 Task 或算子实例），值是分配给该所有者的 MemorySegment 集合
 reservedMemory  键是内存的所有者，值是该所有者以非 MemorySegment 形式（即大块字节）保留的内存总量（单位：字节）
+
+
+# 2、执行流程（Task#doRun 方法启动流程）
+  
+   - 设置 Task 状态：DEPLOYING → RUNNING
+
+   - 构建RuntimeEnvironment
+
+   - 初始化InputGate（网络输入）和ResultPartition（网络输出）
+
+   - 创建 TaskInvokable（算子执行体）<br>
+     例如StreamTask（绝大多数流算子） SourceStreamTask  OneInputStreamTask  TwoInputStreamTask  BatchTask
+
+   - 调用 TaskInvokable#restore()状态恢复
+
+   - 调用 TaskInvokable#invoke()执行真正的用户逻辑

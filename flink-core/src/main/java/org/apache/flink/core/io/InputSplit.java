@@ -29,6 +29,9 @@ import java.io.Serializable;
  * <p>Input splits are transferred in serialized form via the messages, so they need to be
  * serializable as defined by {@link java.io.Serializable}.
  */
+// InputSplit 接口是 Flink 框架中用于实现数据并行读取的核心抽象。
+// 定义工作单元： 它代表一个输入数据源的逻辑分片或一个工作单元。例如，当从一个大文件（如 HDFS 文件）读取数据时，InputSplit 可能代表文件中的一个字节范围。
+// 实现并行化： Flink 的输入格式（InputFormat）在读取数据之前，会先将整个数据源划分成多个 InputSplit。然后，这些 InputSplit 会被分配给不同的任务并行执行，从而实现数据的分布式和并行处理。
 @Public
 public interface InputSplit extends Serializable {
 
@@ -37,5 +40,6 @@ public interface InputSplit extends Serializable {
      *
      * @return the number of this input split
      */
+    // 获取分片的编号/索引
     int getSplitNumber();
 }
