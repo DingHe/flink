@@ -39,21 +39,31 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>{@ImplNote This class omits trailing empty targets.}
  */
+// 封装了在 Flink 任务并行度发生变化时，旧通道/子任务索引到新通道/子任务索引之间的多对多（M:N）映射关系
+// 反向映射： 提供了 invert() 方法，能够将 Source $\to$ Target 的映射关系反转为 Target $\to$ Source 的关系，以适应不同的状态处理需求。
 public class RescaleMappings implements Serializable {
+    // 对称恒等映射常量。
+    // 一个特殊的静态实例，代表 Source 数量和 Target 数量都极大，且 Source 索引直接映射到同索引 Target 的恒等映射（即没有发生伸缩）
     public static final RescaleMappings SYMMETRIC_IDENTITY =
             RescaleMappings.identity(Integer.MAX_VALUE, Integer.MAX_VALUE);
+    // 空目标数组常量。
+    // 用于表示某个 Source 索引没有对应的 Target 索引
     static final int[] EMPTY_TARGETS = new int[0];
 
     private static final long serialVersionUID = -8719670050630674631L;
-
+    // Source 端的总数量。
+    // 例如，如果是 New $\to$ Old 映射，这就是新并行度。
     private final int numberOfSources;
 
     /**
      * The mapping from source to multiple targets. In most cases, the targets arrays are of
      * different sizes.
      */
+    // 核心映射关系。
+    // 一个二维数组，其中 mappings[i] 是一个整数数组，包含了索引为 i 的 Source 所映射到的所有 Target 索引。
     private final int[][] mappings;
-
+    // Target 端的总数量。
+    // 例如，如果是 New $\to$ Old 映射，这就是旧并行度。
     private final int numberOfTargets;
 
     RescaleMappings(int numberOfSources, int[][] mappings, int numberOfTargets) {
@@ -61,15 +71,17 @@ public class RescaleMappings implements Serializable {
         this.mappings = checkNotNull(mappings);
         this.numberOfTargets = numberOfTargets;
     }
-
+    // 恒等映射工厂方法。
+    // 创建一个 IdentityRescaleMappings 实例，表示 Source 和 Target 之间的索引是一一对应的（$i \to i$）
     public static RescaleMappings identity(int numberOfSources, int numberOfTargets) {
         return new IdentityRescaleMappings(numberOfSources, numberOfTargets);
     }
-
+    // 检查是否为恒等映射
     public boolean isIdentity() {
         return false;
     }
-
+    // 获取映射的目标索引。
+    // 给定一个 Source 索引，返回它所映射到的所有 Target 索引数组
     public int[] getMappedIndexes(int sourceIndex) {
         if (sourceIndex >= mappings.length) {
             return EMPTY_TARGETS;
@@ -98,7 +110,8 @@ public class RescaleMappings implements Serializable {
     public String toString() {
         return "RescaleMappings{" + "mappings=" + Arrays.deepToString(mappings) + '}';
     }
-
+    // 反转映射关系。
+    // 将当前的 Source $\to$ Target 映射反转为 Target $\to$ Source 映射，并返回一个新的 RescaleMappings 实例
     public RescaleMappings invert() {
         IntArrayList[] inverted = new IntArrayList[numberOfTargets];
         for (int source = 0; source < mappings.length; source++) {
@@ -113,7 +126,8 @@ public class RescaleMappings implements Serializable {
         }
         return of(Arrays.stream(inverted).map(RescaleMappings::toSortedArray), numberOfSources);
     }
-
+    // 获取模糊目标集合
+    // 模糊 Target 是指被多个不同的 Source 索引所映射的 Target。
     public Set<Integer> getAmbiguousTargets() {
         final Set<Integer> ambiguousTargets =
                 CollectionUtil.newHashSetWithExpectedSize(numberOfTargets);

@@ -41,14 +41,12 @@ import static org.apache.flink.core.memory.MemoryUtils.getByteBufferAddress;
 
 /**
  * This class represents a piece of memory managed by Flink.
- * MemorySegment 是Flink中内存管理的最小单位，它代表了一段固定长度的内存区域。Flink将数据序列化后存储在MemorySegment中，从而实现高效的内存管理
  * <p>The memory can be on-heap, off-heap direct or off-heap unsafe. This is transparently handled
  * by this class.
- * Flink会将堆内存或堆外内存划分成多个MemorySegment，作为内存分配的基本单元。序列化后的数据会被存储在MemorySegment中，以便后续的处理
  * <p>This class fulfills conceptually a similar purpose as Java's {@link java.nio.ByteBuffer}. We
  * add this specialized class for various reasons:
- *  每个MemorySegment的大小是固定的，通常为32KB，MemorySegment提供了高效的读写方法，直接操作内存，避免了频繁的JVM对象创建和垃圾回收
- * <ul> MemorySegment可以管理堆内内存和堆外内存，以满足不同的内存需求
+ *
+ * <ul>
  *   <li>It offers additional binary compare, swap, and copy methods.
  *   <li>It uses collapsed checks for range check and memory segment disposal.
  *   <li>It offers absolute positioning methods for bulk put/get methods, to guarantee thread safe
@@ -66,6 +64,10 @@ import static org.apache.flink.core.memory.MemoryUtils.getByteBufferAddress;
  * different memory types with inheritance, to avoid the overhead from looking for concrete
  * implementations on invocations of abstract methods.
  */
+// 统一内存视图： 它提供了一种统一的方式来访问内存，无论这块内存是位于 **JVM 堆内（On-Heap）**的一个 byte[] 数组，还是位于 **JVM 堆外（Off-Heap）**的一块 Native 内存。
+// 直接操作： 通过 Java 的 sun.misc.Unsafe 类（或 Direct ByteBuffer），MemorySegment 允许 Flink 运行时以 C/C++ 般的效率，直接读写这块内存，避免了 Java 对象装箱/拆箱和大量的边界检查。
+// 高性能数据交换： 它是 Flink 网络栈、排序、哈希、缓存等所有高性能组件进行数据交换和存储的基本单元（通常对应于 MemoryManager 分配的一个 Memory Page）。
+
 @Internal
 public final class MemorySegment {
 
@@ -77,17 +79,20 @@ public final class MemorySegment {
             System.getProperties().containsKey(CHECK_MULTIPLE_FREE_PROPERTY);
 
     /** The unsafe handle for transparent memory copied (heap / off-heap). */
-    @SuppressWarnings("restriction") //通过反射的方式获取Unsafe类
+    @SuppressWarnings("restriction")
+    //Java Unsafe 实例
     private static final sun.misc.Unsafe UNSAFE = MemoryUtils.UNSAFE;
 
     /** The beginning of the byte array contents, relative to the byte array object. */
-    @SuppressWarnings("restriction") //arrayBaseOffset： 表示数组第一个元素的起始地址，arrayIndexScale： 表示数组中每个元素的偏移量，也就是相邻两个元素的地址差
+    @SuppressWarnings("restriction") //arrayBaseOffset：
+    // 表示数组第一个元素的起始地址，arrayIndexScale： 表示数组中每个元素的偏移量，也就是相邻两个元素的地址差
     private static final long BYTE_ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
 
     /**
      * Constant that flags the byte order. Because this is a boolean constant, the JIT compiler can
      * use this well to aggressively eliminate the non-applicable code paths.
      */
+    // 表示当前系统的字节序（Byte Order）是否为小端序（Little Endian）。用于 JIT 编译器优化，消除不需要的字节序处理代码。
     private static final boolean LITTLE_ENDIAN =
             (ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN);
 
@@ -101,32 +106,44 @@ public final class MemorySegment {
      * segment will point to undefined addresses outside the heap and may in out-of-order execution
      * cases cause segmentation faults.
      */
+    // 堆内内存引用。
+    // 如果内存是位于 JVM 堆内的 byte[] 数组，则该字段非空，否则为 null。
     @Nullable private final byte[] heapMemory;
 
     /**
      * The direct byte buffer that wraps the off-heap memory. This memory segment holds a reference
      * to that buffer, so as long as this memory segment lives, the memory will not be released.
      */
+    // 堆外缓冲区引用。
+    // 如果内存是位于堆外的 Direct ByteBuffer，则该字段非空，它持有对堆外内存的引用，防止内存被提前 GC。
     @Nullable private ByteBuffer offHeapBuffer;
 
     /**
      * The address to the data, relative to the heap memory byte array. If the heap memory byte
      * array is <tt>null</tt>, this becomes an absolute memory address outside the heap.
      */
-    private long address; //数组第一个元素的地址
+    // 内存起始地址。
+    // 如果是堆内内存，它是 BYTE_ARRAY_BASE_OFFSET（相对地址）；
+    // 如果是堆外内存，它是绝对物理内存地址。所有读写操作都基于这个地址进行偏移量计算。
+    private long address;
 
     /**
      * The address one byte after the last addressable byte, i.e. <tt>address + size</tt> while the
      * segment is not disposed.
      */
+    // 内存地址上限。 等于 address + size。用于快速检查访问是否越界。
     private final long addressLimit;
 
     /** The size in bytes of the memory segment. */
+    // 内存段大小。 此内存段包含的字节总数。
     private final int size;
 
     /** Optional owner of the memory segment. */
+    // 内存所有者。
+    // 可选字段，通常指向分配此内存段的 Task 或算子实例。用于 MemoryManager 追踪和统一释放。
     @Nullable private final Object owner;
-
+    // 清理器。
+    // 当该段内存被释放时需要执行的清理逻辑（通常用于释放堆外 Native 资源）。
     @Nullable private Runnable cleaner;
 
     /**
@@ -134,8 +151,10 @@ public final class MemorySegment {
      * released, without reference counting. Therefore, access from wrapped buffers, which may not
      * be aware of the releasing of memory, could be risky.
      */
+    // 指示是否允许通过 wrap() 方法将该内存段包装成一个新的 ByteBuffer。
+    // 对于 Unsafe 内存，通常为 false，以避免所有权转移带来的内存安全问题。
     private final boolean allowWrap;
-
+    // 用于线程安全地标记该内存段是否已被释放
     private final AtomicBoolean isFreedAtomic;
 
     /**

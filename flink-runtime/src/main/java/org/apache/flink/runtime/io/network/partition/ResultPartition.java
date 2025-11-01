@@ -72,49 +72,58 @@ import static org.apache.flink.util.Preconditions.checkState;
  * </ol>
  *
  * <h2>Buffer management</h2>
- * 负责管理数据流中的结果分区。它是由任务生成并用于后续的消费，包含了多个子分区（ResultSubpartition），每个子分区通常对应一个消费端，ResultPartition 是逻辑 IntermediateResultPartition 的运行时实现
  * <h2>State management</h2>
  */
+// ResultPartition 类是 Flink 网络栈中数据生产的核心抽象。
+// 它是一个任务（Task）产生的所有数据的运行时容器和管理器，是逻辑上的 IntermediateResultPartition 在运行时的具体实现
+// 数据容器与分发中心： 它负责管理一个任务产生的所有数据。这些数据被进一步划分为多个子分区（ResultSubpartition），每个子分区通常对应一个下游消费者任务。
+// 缓冲区资源管理： 它管理一个共享的 缓冲区池（BufferPool），为所有子分区提供内存缓冲区资源，这是 Flink 流控和高性能 I/O 的基础。
+// 消费者连接点： 它允许下游任务通过 createSubpartitionView 方法连接并消费（读取）数据，无论是本地消费还是远程消费。
+// ResultPartition 是连接 Flink 任务之间数据流的输出网关。
 public abstract class ResultPartition implements ResultPartitionWriter {
 
     protected static final Logger LOG = LoggerFactory.getLogger(ResultPartition.class);
-    //产生该分区数据的任务名称。它帮助追踪数据流的来源任务
+    // 产生该分区数据的任务名称。
+    // 它帮助追踪数据流的来源任务
     private final String owningTaskName;
-    //分区在结果集合中的索引
+    // 分区索引。
+    // 该分区在中间结果集（Intermediate Result）中的索引
     private final int partitionIndex;
-
+    // 分区唯一标识符
     protected final ResultPartitionID partitionId;
-    //分区的类型，决定了如何创建和管理子分区，分配缓冲区，消费模式等
+    // 分区的类型，决定了如何创建和管理子分区，分配缓冲区，消费模式等
     /** Type of this partition. Defines the concrete subpartition implementation to use. */
     protected final ResultPartitionType partitionType;
-    //ResultPartitionManager 管理当前 TaskManager 所有的 ResultPartition
+    // ResultPartitionManager 管理当前 TaskManager 所有的 ResultPartition
     protected final ResultPartitionManager partitionManager;
-    //分区中的子分区数量，每个子分区可以被不同的消费者（下游任务）并行读取
+    // 分区中的子分区数量，每个子分区可以被不同的消费者（下游任务）并行读取
     protected final int numSubpartitions;
-    //目标键组的数量。分区可能需要将数据按键分组，分配到不同的键组中
+    // 目标键组的数量。
+    // 分区可能需要将数据按键分组，分配到不同的键组中
     private final int numTargetKeyGroups;
 
     // - Runtime state --------------------------------------------------------
-   //用于标记分区是否已被释放
+    // 用于标记分区是否已被释放
     private final AtomicBoolean isReleased = new AtomicBoolean();
-    //管理缓冲区的池，多个子分区共享一个缓冲池
+    // 管理缓冲区的池，多个子分区共享一个缓冲池
     protected BufferPool bufferPool;
-    //标记分区是否已完成生产数据
+    // 标记分区是否已完成生产数据
     private boolean isFinished;
-    //如果分区因故障而失败，保存失败的原因
+    // 如果分区因故障而失败，保存失败的原因
     private volatile Throwable cause;
-    //用于创建缓冲池的工厂，负责在需要时提供 BufferPool
+    // 用于创建缓冲池的工厂，负责在需要时提供 BufferPool
     private final SupplierWithException<BufferPool, IOException> bufferPoolFactory;
 
-    /** Used to compress buffer to reduce IO.用于压缩缓冲区数据，减少 I/O 操作时的资源消耗 */
+    /** Used to compress buffer to reduce IO.
+     * 用于压缩缓冲区数据，减少 I/O 操作时的资源消耗 */
     @Nullable protected final BufferCompressor bufferCompressor;
-    //记录写出到下游的字节数
+    // 记录写出到下游的字节数
     protected Counter numBytesOut = new SimpleCounter();
-    //记录写出的缓冲区数量
+    // 记录写出的缓冲区数量
     protected Counter numBuffersOut = new SimpleCounter();
-    //用于统计分区的字节数
+    // 用于统计分区的字节数
     protected ResultPartitionBytesCounter resultPartitionBytes;
-   //是否未定义消费分区的数量，通常用于分区的消费模式尚未明确时
+   // 是否未定义消费分区的数量，通常用于分区的消费模式尚未明确时
     private boolean isNumberOfPartitionConsumerUndefined = false;
 
     public ResultPartition(

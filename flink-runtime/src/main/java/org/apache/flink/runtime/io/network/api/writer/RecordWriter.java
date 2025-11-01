@@ -46,9 +46,11 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  *
  * <p>The RecordWriter wraps the runtime's {@link ResultPartitionWriter} and takes care of
  * subpartition selection and serializing records into bytes.
- * Task 通过 RecordWriter 将结果写入 ResultPartition 中。RecordWriter 是对 ResultPartitionWriter 的一层封装，并负责将记录对象序列化到 buffer 中
+ *
  * @param <T> the type of the record that can be emitted with this record writer
  */
+// Task 通过 RecordWriter 将结果写入 ResultPartition 中。
+// RecordWriter 是对 ResultPartitionWriter 的一层封装，并负责将记录对象序列化到 buffer 中
 public abstract class RecordWriter<T extends IOReadableWritable> implements AvailabilityProvider {
 
     /** Default name for the output flush thread, if no name with a task reference is given. */
@@ -56,28 +58,37 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
     public static final String DEFAULT_OUTPUT_FLUSH_THREAD_NAME = "OutputFlusher";
 
     private static final Logger LOG = LoggerFactory.getLogger(RecordWriter.class);
-    //目标分区写入器，负责将数据写入实际的输出分区。RecordWriter 通过它将数据写入分区
+    // 目标分区写入器，负责将数据写入实际的输出分区。
+    // RecordWriter 通过它将数据写入分区
     protected final ResultPartitionWriter targetPartition;
-    //目标分区的子分区数量。每个分区可以被多个子分区处理，RecordWriter 会将数据写入适当的子分区
+    // 目标分区的子分区数量。
+    // 每个分区可以被多个子分区处理，
+    // RecordWriter 会将数据写入适当的子分区
     protected final int numberOfSubpartitions;
-   //于将记录序列化为字节数组的序列化器。它是一个缓冲区，用于存储待序列化的内容
+   // 用于将记录序列化为字节数组的序列化器。
+   // 它是一个缓冲区，用于存储待序列化的内容
     protected final DataOutputSerializer serializer;
-    //一个伪随机数生成器（XORShiftRandom），用于随机选择目标子分区（例如在随机事件广播时）
+    // 一个伪随机数生成器（XORShiftRandom），
+    // 用于随机选择目标子分区（例如在随机事件广播时）
     protected final Random rng = new XORShiftRandom();
-    //如果为 true，每次写入记录后都会刷新目标分区；如果为 false，则根据需要触发刷新
+    // 如果为 true，每次写入记录后都会刷新目标分区；
+    // 如果为 false，则根据需要触发刷新
     protected final boolean flushAlways;
-    //用于定期刷新输出的线程。如果需要，RecordWriter 会启动此线程来确保上游数据在达到一定延迟后会被刷新
+    // 用于定期刷新输出的线程。
+    // 如果需要，RecordWriter 会启动此线程来确保上游数据在达到一定延迟后会被刷新
     /** The thread that periodically flushes the output, to give an upper latency bound. */
     @Nullable private final OutputFlusher outputFlusher;
 
     /**
      * To avoid synchronization overhead on the critical path, best-effort error tracking is enough
-     * here.存储刷新过程中发生的异常，防止多次抛出相同的异常
+     * here.
      */
+    // 存储刷新过程中发生的异常，防止多次抛出相同的异常
     private Throwable flusherException;
-    //存储潜在的刷新异常，可能会在多个线程间共享
+    // 存储潜在的刷新异常，可能会在多个线程间共享
     private volatile Throwable volatileFlusherException;
-    private int volatileFlusherExceptionCheckSkipCount; //用于跳过异常检查的计数器。用于优化性能，避免每次都检查异常
+    //用于跳过异常检查的计数器。用于优化性能，避免每次都检查异常
+    private int volatileFlusherExceptionCheckSkipCount;
     private static final int VOLATILE_FLUSHER_EXCEPTION_MAX_CHECK_SKIP_COUNT = 100;
 
     RecordWriter(ResultPartitionWriter writer, long timeout, String taskName) {
@@ -101,7 +112,7 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
             outputFlusher.start();
         }
     }
-
+    // 把数据写入ResultPartition
     public void emit(T record, int targetSubpartition) throws IOException {
         checkErroneous();
 
@@ -141,7 +152,7 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
     public void abortCheckpoint(long checkpointId, CheckpointException cause) {
         targetPartition.abortCheckpoint(checkpointId, cause);
     }
-
+    //序列化数据
     @VisibleForTesting
     public static ByteBuffer serializeRecord(
             DataOutputSerializer serializer, IOReadableWritable record) throws IOException {

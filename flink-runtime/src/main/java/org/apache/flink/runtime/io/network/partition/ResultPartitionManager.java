@@ -47,21 +47,32 @@ import static org.apache.flink.util.Preconditions.checkState;
  * The result partition manager keeps track of all currently produced/consumed partitions of a task
  * manager.
  */
+// Flink TaskExecutor 上的一个核心组件，负责管理该节点上所有由上游任务生产和等待被下游任务消费的中间结果分区（Result Partitions）
+// 集中注册与管理： 充当 TaskManager 上所有 ResultPartition 实例的中心注册表，使得这些分区可以通过其 ResultPartitionID 被快速查找。
+// 提供读取服务： 实现 ResultPartitionProvider 接口，为请求数据的下游任务提供创建 ResultSubpartitionView 的服务。
+// 处理异步请求： 管理分区请求监听器（PartitionRequestListener）。当下游请求的分区尚未创建时，它会注册一个监听器，并在上游创建分区时通知所有等待的消费者。
+// 简而言之，它是 TaskManager 内部网络栈的核心大脑，协调着数据生产者和消费者之间的连接与通信。
 public class ResultPartitionManager implements ResultPartitionProvider {
 
     private static final Logger LOG = LoggerFactory.getLogger(ResultPartitionManager.class);
-
+    // 已注册分区表（核心）。
+    // 存储所有当前在该 TaskManager 上活动的 ResultPartition 实例，以 ResultPartitionID 为键进行查找。
     private final Map<ResultPartitionID, ResultPartition> registeredPartitions =
             CollectionUtil.newHashMapWithExpectedSize(16);
-
+    // 监听器管理器表。
+    // 存储所有等待特定 ResultPartition 被创建的 PartitionRequestListenerManager 实例。用于实现异步等待逻辑，键为尚未注册的分区 ID。
     @GuardedBy("registeredPartitions")
     private final Map<ResultPartitionID, PartitionRequestListenerManager> listenerManagers =
             new HashMap<>();
-
+    // 超时检查调度任务。
+    // 如果配置了超时，这是一个被调度的任务（ScheduledFuture），用于定期执行 checkRequestPartitionListeners 方法，检查等待的分区请求是否超时。
     @Nullable private ScheduledFuture<?> partitionListenerTimeoutChecker;
-
+    // 监听器超时时间。
+    // 定义等待 Result Partition 注册的最长毫秒数。
     private final int partitionListenerTimeout;
-
+    // 关闭标志。
+    // 标志 ResultPartitionManager 是否已经关闭。
+    // 一旦关闭，禁止新的注册操作。
     private boolean isShutdown;
 
     @VisibleForTesting

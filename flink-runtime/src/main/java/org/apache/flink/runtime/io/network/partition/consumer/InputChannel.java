@@ -49,41 +49,62 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *   <li>{@link #releaseAllResources()}
  * </ol>
  */
+// InputChannel 表示 Task 的一个输入通道，是下游 Task 从上游获取数据的唯一入口。
+// 一个上游 ResultPartition 由多个 ResultSubpartition 构成
+// 下游每一个 InputChannel 消费一个或多个子分区（ResultSubpartitionView）
+// 数据流从上游 Task → Netty → 下游 Task，就是经由 InputChannel
+// InputChannel = 下游 Task 读取上游某几个 Subpartition 的“吸管”
 public abstract class InputChannel {
     /** The info of the input channel to identify it globally within a task. */
+    // 全局唯一标识一个 InputChannel
     protected final InputChannelInfo channelInfo;
 
     /** The parent partition of the subpartitions consumed by this channel. */
+    // 这个 InputChannel 所要消费的上游 ResultPartition 的 ID（全局唯一）
+    // 输入通道向上游发起 partition 请求
+    // 反向事件（如失败、重试）传递
     protected final ResultPartitionID partitionId;
 
     /** The indexes of the subpartitions consumed by this channel. */
+    // 表示 InputChannel 将要消费 哪些子分区
     protected final ResultSubpartitionIndexSet consumedSubpartitionIndexSet;
-
+    // nputGate 是多个 InputChannel 的“总控”。
+    // select 哪个 channel 有数据
     protected final SingleInputGate inputGate;
 
     // - Asynchronous error notification --------------------------------------
-
+    // 异步错误通知机制。
     private final AtomicReference<Throwable> cause = new AtomicReference<Throwable>();
 
     // - Partition request backoff --------------------------------------------
 
     /** The initial backoff (in ms). */
+    // 初始退避时间（毫秒）。
+    // 分区请求失败后第一次重试等待的最小时间。
     protected final int initialBackoff;
 
     /** The maximum backoff (in ms). */
+    // 最大退避时间（毫秒）。
+    // 分区请求重试等待的最大时间，用于限制指数退避的时间上限。
     protected final int maxBackoff;
-
+    // 输入字节数计数器。
+    // 用于 Flink Metrics，统计此通道接收到的字节总数。
     protected final Counter numBytesIn;
-
+    // 输入 Buffer 计数器。
+    // 用于 Flink Metrics，统计此通道接收到的 Buffer 总数。
     protected final Counter numBuffersIn;
 
     /**
      * The index of the subpartition if {@link #consumedSubpartitionIndexSet} contains only one
      * subpartition, or -1.
      */
+    // 单一子分区 ID。如果 consumedSubpartitionIndexSet 只包含一个子分区，则存储该 ID；否则为 -1。
+    // 用于优化单子分区消费场景的逻辑。
     private final int subpartitionId;
 
     /** The current backoff (in ms). */
+    // 当前退避时间（毫秒）。
+    // 用于指数退避逻辑，存储当前等待重试的时间。
     protected int currentBackoff;
 
     protected InputChannel(
@@ -151,12 +172,16 @@ public abstract class InputChannel {
      * exactly-once mode, the upstream will be blocked and become unavailable. This method tries to
      * unblock the corresponding upstream and resume data consumption.
      */
+    // 恢复消费。
+    // 抽象方法，在 Checkpoint 完成后，用于解除上游的阻塞状态，恢复数据消费。
     public abstract void resumeConsumption() throws IOException;
 
     /**
      * When received {@link EndOfData} from one channel, it need to acknowledge after this event get
      * processed.
      */
+    // 确认记录已处理。
+    // 当 Task 完成处理 EndOfData 事件后，通知上游（如果是流批一体的场景）所有记录已处理。
     public abstract void acknowledgeAllRecordsProcessed() throws IOException;
 
     /**
@@ -170,14 +195,16 @@ public abstract class InputChannel {
      * regardless of whether the channel was empty before. That ensures that the parent InputGate
      * will always be notified about the exception.
      */
+    // 当 channel 原本为空，现在变成“有数据可读”时，必须通知 inputGate
     protected void notifyChannelNonEmpty() {
         inputGate.notifyChannelNonEmpty(this);
     }
-
+    //当 channel 收到优先事件（如 barrier）时通知 InputGate
+    // InputGate 会优先调度 barrier
     public void notifyPriorityEvent(int priorityBufferNumber) {
         inputGate.notifyPriorityEvent(this, priorityBufferNumber);
     }
-
+    // 供 LocalInputChannel 覆盖，当本地缓冲更新时通知 Netty 或上游，不同实现不同。默认空
     protected void notifyBufferAvailable(int numAvailableBuffers) throws IOException {}
 
     // ------------------------------------------------------------------------
@@ -188,12 +215,16 @@ public abstract class InputChannel {
      * Requests the subpartitions specified by {@link #partitionId} and {@link
      * #consumedSubpartitionIndexSet}.
      */
+    // 请求子分区。抽象方法，触发向远程/本地上游 Task 发送请求，开始拉取数据。
+    // 具体的实现（如 Netty 请求）由子类完成。
     abstract void requestSubpartitions() throws IOException, InterruptedException;
 
     /**
      * Returns the index of the subpartition where the next buffer locates, or -1 if there is no
      * buffer available and the subpartition to be consumed is not determined.
      */
+    // 预先查看下一个 Buffer 的子分区 ID。
+    // 用于在多子分区消费场景中，帮助 InputGate 判断下一个 Buffer 属于哪个子分区。如果只有单个子分区，则直接返回 subpartitionId
     public int peekNextBufferSubpartitionId() throws IOException {
         if (subpartitionId >= 0) {
             return subpartitionId;
@@ -205,12 +236,16 @@ public abstract class InputChannel {
      * Returns the index of the subpartition where the next buffer locates, or -1 if there is no
      * buffer available and the subpartition to be consumed is not determined.
      */
+    // 内部预先查看。
+    // 抽象方法，由子类实现具体的查看逻辑
     protected abstract int peekNextBufferSubpartitionIdInternal() throws IOException;
 
     /**
      * Returns the next buffer from the consumed subpartitions or {@code Optional.empty()} if there
      * is no data to return.
      */
+    // 获取下一个 Buffer。
+    // 抽象方法，从内部队列（如网络接收队列）中获取下一个可用的 Buffer 或 Event。返回 BufferAndAvailability 封装了数据和后续可用性信息。
     public abstract Optional<BufferAndAvailability> getNextBuffer()
             throws IOException, InterruptedException;
 
@@ -218,9 +253,12 @@ public abstract class InputChannel {
      * Called by task thread when checkpointing is started (e.g., any input channel received
      * barrier).
      */
+    // 检查点开始。
+    // 当接收到 CheckpointBarrier 时，通知通道（子类可重写此方法来处理 Barrier）
     public void checkpointStarted(CheckpointBarrier barrier) throws CheckpointException {}
 
     /** Called by task thread on cancel/complete to clean-up temporary data. */
+    // 检查点停止。在取消/完成 Checkpoint 时调用，用于清理临时数据。
     public void checkpointStopped(long checkpointId) {}
 
     public void convertToPriorityEvent(int sequenceNumber) throws IOException {}
@@ -237,6 +275,8 @@ public abstract class InputChannel {
      * ensure that the producer will wait for all backwards events. Otherwise, this will lead to an
      * Exception at runtime.
      */
+    // 发送 Task 事件。
+    // 抽象方法，用于向上游 Task 发送特定的控制事件（TaskEvent），通常用于反压控制或用户自定义事件。
     abstract void sendTaskEvent(TaskEvent event) throws IOException;
 
     // ------------------------------------------------------------------------

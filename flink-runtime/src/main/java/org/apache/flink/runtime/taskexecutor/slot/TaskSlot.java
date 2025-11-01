@@ -61,33 +61,57 @@ import java.util.stream.Collectors;
  *
  * @param <T> type of the {@link TaskSlotPayload} stored in this slot
  */
+// TaskSlot 是 Flink 任务执行器 (TaskExecutor) 上的一个逻辑资源容器。
+// 它代表了 TaskExecutor 可以提供给 JobMaster/ ResourceManager 使用的、带有特定计算和内存资源的单元
+// 资源封装： 封装了一组可用的资源（由 ResourceProfile 定义），特别是它拥有自己的 MemoryManager，用于管理分配给该 Slot 的内存。
+// 任务容器： 存储和管理当前在这个 Slot 上运行的 TaskSlotPayload（通常是实际的 Flink 任务 Task）。一个 Slot 可以包含多个任务（例如，当 Slot 共享被启用，或者为了支持 Streaming HA 等机制）
+// TaskSlot 是 Flink 资源调度和任务执行的基本单位
 public class TaskSlot<T extends TaskSlotPayload> implements AutoCloseableAsync {
     private static final Logger LOG = LoggerFactory.getLogger(TaskSlot.class);
 
-    /** Index of the task slot. 表示当前槽位的索引（ID），用于标识 TaskManager 中的具体槽位*/
+    /** Index of the task slot.*/
+    // 槽位索引（ID）。
+    // 在 TaskExecutor 内部，用于唯一标识这个 TaskSlot 的序号
     private final int index;
 
-    /** Resource characteristics for this slot.描述槽位的资源特征（例如内存、CPU），表示这个槽位可用的资源 */
+    /** Resource characteristics for this slot.*/
+    // 槽位资源特征。
+    // 描述了分配给这个 TaskSlot 的 CPU、管理内存、网络内存等资源总量
     private final ResourceProfile resourceProfile;
 
-    /** Tasks running in this slot. 存储当前槽位上运行的任务，其中 ExecutionAttemptID 是任务的唯一标识，T 是任务的实际负载*/
+    /** Tasks running in this slot.*/
+    // 任务集合。
+    // 存储当前在这个槽位中运行的所有任务（TaskSlotPayload）。
+    // 键是任务的执行尝试 ID，值是任务的实际负载。
     private final Map<ExecutionAttemptID, T> tasks;
-    //管理任务运行时所需的内存资源，确保任务内存的分配和释放
+    // 内存管理器。
+    // 专门用于管理分配给这个 TaskSlot 的托管内存 (Managed Memory)。
+    // 任务需要使用托管内存时，会向这个管理器申请。
     private final MemoryManager memoryManager;
 
-    /** State of this slot. 表示当前槽位的状态 */
+    /** State of this slot. */
+    // 槽位状态。
+    // 标识 TaskSlot 当前所处的生命周期状态（FREE, ALLOCATED, ACTIVE, RELEASING）
     private TaskSlotState state;
 
-    /** Job id to which the slot has been allocated. slot已经分配给哪个jobid*/
+    /** Job id to which the slot has been allocated.*/
+    // 分配的 Job ID。
+    // 标识这个 Slot 当前被分配给了哪个 Job。在 Slot 被分配时确定。
     private final JobID jobId;
 
-    /** Allocation id of this slot. 槽位的分配标识*/
+    /** Allocation id of this slot. */
+    // 分配 ID。
+    // 标识这个 Slot 的当前分配实例。每次新的分配请求成功，都会生成一个新的 AllocationID。
     private final AllocationID allocationId;
 
-    /** The closing future is completed when the slot is freed and closed. 异步操作的完成标识，用于指示槽位何时被释放*/
+    /** The closing future is completed when the slot is freed and closed. */
+    // 关闭完成 Future。
+    // 一个异步操作的完成标识。它会在 TaskSlot 被完全清理并释放资源后完成，用于通知等待者 Slot 已释放。
     private final CompletableFuture<Void> closingFuture;
 
-    /** {@link Executor} for background actions, e.g. verify all managed memory released. 用于异步执行后台操作，例如验证内存是否释放*/
+    /** {@link Executor} for background actions, e.g. verify all managed memory released. */
+    // 异步执行器。
+    // 用于执行 TaskSlot 内部的后台异步操作，例如在关闭后验证托管内存是否完全释放。
     private final Executor asyncExecutor;
 
     public TaskSlot(
@@ -188,11 +212,12 @@ public class TaskSlot<T extends TaskSlotPayload> implements AutoCloseableAsync {
      * <p>In case that the task slot state is not active an {@link IllegalStateException} is thrown.
      * In case that the task's job id and allocation id don't match with the job id and allocation
      * id for which the task slot has been allocated, an {@link IllegalArgumentException} is thrown.
-     * 添加任务到槽位，验证任务的作业 ID 和分配 ID 与槽位的 jobId 和 allocationId 一致，确保槽位处于 ACTIVE 状态
      * @param task to be added to the task slot
      * @throws IllegalStateException if the task slot is not in state active
      * @return true if the task was added to the task slot; otherwise false
      */
+    // 添加任务到槽位，
+    // 验证任务的作业 ID 和分配 ID 与槽位的 jobId 和 allocationId 一致，确保槽位处于 ACTIVE 状态
     public boolean add(T task) {
         // Check that this slot has been assigned to the job sending this task
         Preconditions.checkArgument(
@@ -222,11 +247,13 @@ public class TaskSlot<T extends TaskSlotPayload> implements AutoCloseableAsync {
      * @param executionAttemptId identifying the task to be removed
      * @return The removed task if there was any; otherwise null.
      */
+    // 删除任务
     public T remove(ExecutionAttemptID executionAttemptId) {
         return tasks.remove(executionAttemptId);
     }
 
     /** Removes all tasks from this task slot. */
+    // 清理全部任务
     public void clear() {
         tasks.clear();
     }
@@ -238,6 +265,7 @@ public class TaskSlot<T extends TaskSlotPayload> implements AutoCloseableAsync {
      *
      * @return True if the new state of the slot is active; otherwise false
      */
+    // 激活TaskSlot
     public boolean markActive() {
         if (TaskSlotState.ALLOCATED == state || TaskSlotState.ACTIVE == state) {
             state = TaskSlotState.ACTIVE;
@@ -254,6 +282,7 @@ public class TaskSlot<T extends TaskSlotPayload> implements AutoCloseableAsync {
      *
      * @return True if the new state of the slot is allocated; otherwise false
      */
+    // 失活TaskSlot
     public boolean markInactive() {
         if (TaskSlotState.ACTIVE == state || TaskSlotState.ALLOCATED == state) {
             state = TaskSlotState.ALLOCATED;
@@ -269,6 +298,8 @@ public class TaskSlot<T extends TaskSlotPayload> implements AutoCloseableAsync {
      *
      * @return The sot offer which this task slot can provide
      */
+    // 生成 Slot Offer。
+    // 将当前 TaskSlot 的关键信息（AllocationID、index、ResourceProfile）封装成一个 SlotOffer 对象，用于向 JobMaster 报告该 Slot 的可用性。
     public SlotOffer generateSlotOffer() {
         Preconditions.checkState(
                 TaskSlotState.ACTIVE == state || TaskSlotState.ALLOCATED == state,

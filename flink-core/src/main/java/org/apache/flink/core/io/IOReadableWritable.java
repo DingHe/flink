@@ -32,6 +32,9 @@ import java.io.IOException;
  * <p>When implementing this Interface make sure that the implementing class has a default
  * (zero-argument) constructor!
  */
+// IOReadableWritable 接口是 Flink 中用于实现**自定义序列化（Serialization）和反序列化（Deserialization）**的核心契约。
+// 数据交换的基础： 任何需要在 Flink 运行时环境（如在网络传输、磁盘 I/O 或内存缓冲区中存储）中以二进制形式表示、传输和存储的对象，都必须实现此接口。
+// 定义二进制表示： 它定义了两个方法，write 和 read，要求实现类明确指出如何将自己的内部状态写入到一个二进制流中，以及如何从二进制流中重建自己的内部状态。
 @Public
 public interface IOReadableWritable {
 

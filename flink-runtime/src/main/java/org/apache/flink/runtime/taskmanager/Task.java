@@ -164,6 +164,7 @@ public class Task
     private final JobID jobId;
 
     /** The type of this job. */
+    // 流任务还是批任务
     private final JobType jobType;
 
     /** The vertex in the JobGraph whose code the task executes. */

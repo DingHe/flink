@@ -67,6 +67,12 @@ import static org.apache.flink.util.concurrent.FutureUtils.assertNoException;
  *
  * <strong>It is NOT possible to recursively union union input gates.</strong>
  */
+// 合并多个输入门（InputGate）的输入流：它将两个或多个独立的 InputGate 封装在一起，对外提供一个统一的接口，
+// 使得下游操作符（Task）可以像处理单个 InputGate 一样，轮询地从所有底层的输入门中获取数据和事件。
+// 统一通道索引 (Channel Index Unification)：它将所有被联合的输入门中的本地通道索引（每个门的通道从 0 开始）映射到一个全局统一的通道索引。
+// 例如，Gate A 有 2 个通道 (0, 1)，Gate B 有 3 个通道 (0, 1, 2)。
+// UnionInputGate 对外提供的通道索引将是 (0, 1, 2, 3, 4)。其中 0, 1 对应 Gate A 的通道，2, 3, 4 对应 Gate B 的通道。
+// 简化 Task 代码：对于 Task 来说，无论是消费单个上游算子的输出，还是消费来自多个不同上游算子或多个不同 Slot 的输出（例如 Union 算子或 Keyed Stream 的重分区），它都只需要与一个 UnionInputGate 交互。
 public class UnionInputGate extends InputGate {
 
     /** The input gates to union. */

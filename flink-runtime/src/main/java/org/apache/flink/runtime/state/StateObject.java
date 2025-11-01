@@ -36,6 +36,10 @@ import java.util.EnumMap;
  * compatibility, they are not stored via {@link java.io.Serializable Java Serialization}, but
  * through custom serializers.
  */
+// StateObject 是 Flink 所有被持久化的状态（state snapshot）句柄的基类接口。
+// 用于描述：
+// Checkpoint 或 Savepoint 保存下来的状态信息；
+// 状态的 存储位置（内存、本地磁盘、远程存储等）
 public interface StateObject extends Serializable {
 
     /**
@@ -43,6 +47,11 @@ public interface StateObject extends Serializable {
      * persistent storage. This method is called when the state represented by this object will not
      * be used anymore.
      */
+    // 释放该状态占用的资源（如删除文件、释放缓存、关闭流等）
+    // 调用场景：
+    //当一个 Checkpoint 被废弃或过期；
+    //或 Job 被取消；
+    //或 Flink 清理旧状态 时。
     void discardState() throws Exception;
 
     /**
@@ -63,6 +72,7 @@ public interface StateObject extends Serializable {
      *
      * @return Size of the state in bytes.
      */
+    // 返回当前状态的 大小（字节数）
     long getStateSize();
 
     /**
@@ -72,14 +82,16 @@ public interface StateObject extends Serializable {
      *     {@link StateObjectLocation#UNKNOWN} as location.
      * @param collector the statistics collector.
      */
+    // 用于收集该状态对象的统计信息（大小 + 存储位置）
     default void collectSizeStats(StateObjectSizeStatsCollector collector) {
         collector.add(StateObjectLocation.UNKNOWN, getStateSize());
     }
 
     /** Enum for state locations. */
+    // 定义状态存储的位置类别
     enum StateObjectLocation {
         LOCAL_MEMORY,
-        LOCAL_DISK,
+        LOCAL_DISK, // 状态存在本地磁盘（如 RocksDB 本地快照）
         REMOTE,
         UNKNOWN,
     }
@@ -88,6 +100,7 @@ public interface StateObject extends Serializable {
      * Collector for size and location stats from a state object via {@link
      * StateObject#collectSizeStats(StateObjectSizeStatsCollector)}.
      */
+    // 用于收集并汇总多个 StateObject 的大小统计信息。
     final class StateObjectSizeStatsCollector {
         private final EnumMap<StateObjectLocation, Long> stats;
 

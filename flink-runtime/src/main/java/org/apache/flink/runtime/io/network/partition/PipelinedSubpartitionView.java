@@ -27,11 +27,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /** View over a pipelined in-memory only subpartition. */
+// PipelinedSubpartitionView 是 Flink 网络栈中一个关键的组件，
+// 它充当了下游消费者（例如 Netty I/O 线程）与数据源（PipelinedSubpartition）之间的桥梁或句柄
+// 数据读取接口： 它是下游任务拉取数据（Buffer 和 Event）的唯一接口。下游消费者通过调用其 getNextBuffer() 方法来获取数据。
+// 封装和解耦： 它将 ResultSubpartition 的复杂内部实现（如同步、队列管理、Checkpoint 处理）对消费者隐藏起来。消费者只需要通过 View 接口进行操作。
 public class PipelinedSubpartitionView implements ResultSubpartitionView {
 
     /** The subpartition this view belongs to. */
+    // 父分区引用。
+    // 持有对它所代表的 PipelinedSubpartition 实例的引用。所有实际的数据拉取和状态查询操作都会委托给这个父分区。
     private final PipelinedSubpartition parent;
-
+    // 可用性监听器。 当父分区有新数据可用时，用来通知消费者的回调接口。
+    // 通常由 PartitionRequestClient 或 Netty I/O 线程持有。
     private final BufferAvailabilityListener availabilityListener;
 
     /** Flag indicating whether this view has been released. */

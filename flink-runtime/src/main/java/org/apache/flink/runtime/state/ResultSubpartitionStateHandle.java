@@ -27,6 +27,10 @@ import java.util.List;
  * {@link StateObject Handle} to a {@link
  * org.apache.flink.runtime.io.network.partition.ResultSubpartition ResultSubpartition} state.
  */
+// 专门用于封装和引用 Flink 任务的输出结果子分区（Result Subpartition）中，在检查点时被持久化的飞行中数据（In-flight Data）状态
+// 在 Flink 的非对齐检查点（Unaligned Checkpointing）机制中：
+// ResultSubpartition： 是 TaskManager 中用于向下游任务发送数据的输出缓冲区和逻辑通道。
+// 状态保存： 当检查点屏障（Checkpoint Barrier）经过一个任务的输出端时，该任务的 ResultSubpartition 中所有尚未被下游任务接收的数据（即飞行中的数据）必须被保存起来。
 @Internal
 public class ResultSubpartitionStateHandle
         extends AbstractChannelStateHandle<ResultSubpartitionInfo> {

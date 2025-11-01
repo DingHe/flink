@@ -37,39 +37,44 @@ import java.io.File;
 import java.time.Duration;
 
 /** Configuration object for {@link TaskExecutor}. */
+// 专门用于封装 Flink TaskExecutor (即 TaskManager) 启动和运行时所需的所有核心配置和环境参数
+// 核心作用总结：
+// 集中配置： 它将 Flink 配置 (Configuration 对象) 中与 TaskExecutor 行为相关的关键参数（如插槽数量、超时时间、资源配置等）提取出来，作为独立的、类型安全（Type-safe）的字段存储。
+// 运行时信息： 它实现了 TaskManagerRuntimeInfo 接口，意味着它不仅是 TaskExecutor 的配置，也是其运行时环境信息的来源，供 TaskExecutor 内部的各个组件在运行时快速查询。
 public class TaskManagerConfiguration implements TaskManagerRuntimeInfo {
 
     private static final Logger LOG = LoggerFactory.getLogger(TaskManagerConfiguration.class);
-
+    // TaskSlot 数量。 该 TaskExecutor 将提供的并发任务插槽数量。
     private final int numberSlots;
-
+    // 单个 TaskSlot 默认拥有的资源配置（CPU、内存等）
     private final ResourceProfile defaultSlotResourceProfile;
-
+    // TaskExecutor 进程可用的全部资源总量。
     private final ResourceProfile totalResourceProfile;
-
+    // Flink 用于存储临时文件（如 Spill 文件）的本地文件系统目录列表。
     private final String[] tmpDirectories;
-
+    // TaskExecutor 与 JobManager 或其他组件进行 RPC 通信时的默认请求超时时间
     private final Duration rpcTimeout;
-
+    // TaskSlot 在一段时间内未被使用或被释放后，保持空闲状态的超时时间。
     private final Duration slotTimeout;
 
     // null indicates an infinite duration
+    // TaskExecutor 尝试向 JobManager 注册的最大持续时间。null 表示无限期尝试注册。
     @Nullable private final Duration maxRegistrationDuration;
-
+    // TaskExecutor 启动时使用的原始 Flink 配置，但被包装成不可修改版本，防止运行时被意外修改。
     private final UnmodifiableConfiguration configuration;
-
+    // 标志位，指示任务线程发生 OOM 时是否应该终止整个 JVM 进程。
     private final boolean exitJvmOnOutOfMemory;
-
+    // 完整的 TaskManager 日志文件路径。
     @Nullable private final String taskManagerLogPath;
-
+    // TaskManager 标准输出文件（stdout）的路径
     @Nullable private final String taskManagerStdoutPath;
-
+    // TaskManager 的日志文件所在的目录
     @Nullable private final String taskManagerLogDir;
-
+    // TaskExecutor 报告给 JobManager 的外部可访问的网络地址。
     private final String taskManagerExternalAddress;
-
+    // TaskExecutor 实例的临时工作目录的 File 对象
     private final File tmpWorkingDirectory;
-
+    // TaskExecutor 在注册失败时重试连接 JobManager 的相关配置，包括重试次数、延迟等。
     private final RetryingRegistrationConfiguration retryingRegistrationConfiguration;
 
     public TaskManagerConfiguration(

@@ -59,6 +59,10 @@ import static org.apache.flink.runtime.checkpoint.InflightDataRescalingDescripto
  * <p>This class should be called TaskState once the old class with this name that we keep for
  * backwards compatibility goes away.
  */
+// Flink 中任务（Task）级别的状态快照 的封装类
+// 封装任务状态： 封装一个 **TaskManager 上运行的单个物理任务（Task）**所包含的所有操作符实例（由于算子链，一个任务可能运行多个操作符）的状态句柄（State Handles）快照。
+// 检查点确认信息： 它是 TaskManager 在完成检查点操作后，发送给 JobManager（检查点协调器）的确认信息的主体部分。
+// 层次化结构： 提供了从整个任务级别的快照，到单个操作符子任务状态（OperatorSubtaskState）的映射，结构化地管理状态。
 public class TaskStateSnapshot implements CompositeStateHandle {
 
     private static final long serialVersionUID = 1L;
@@ -67,10 +71,13 @@ public class TaskStateSnapshot implements CompositeStateHandle {
             new TaskStateSnapshot(new HashMap<>(), true, true);
 
     /** Mapping from an operator id to the state of one subtask of this operator. */
+    // 存储一个任务中所有操作符实例的子任务状态快照。键是操作符的唯一 ID (OperatorID)，值是该操作符的本地子任务状态 (OperatorSubtaskState)
     private final Map<OperatorID, OperatorSubtaskState> subtaskStatesByOperatorID;
-
+    // 任务部署为完成。
+    // true 表示这个任务在恢复时，其所有操作符就已经是逻辑上已完成或已终止的状态（例如，源头数据已耗尽）
     private final boolean isTaskDeployedAsFinished;
-
+    // 任务已完成。
+    // true 表示这个任务的所有操作符在本次检查点时已经调用了 finished 方法，处于终止状态
     private final boolean isTaskFinished;
 
     public TaskStateSnapshot() {
@@ -105,6 +112,7 @@ public class TaskStateSnapshot implements CompositeStateHandle {
     }
 
     /** Returns the subtask state for the given operator id (or null if not contained). */
+    // 根据 OperatorID 返回对应操作符的子任务状态。如果不存在，则返回 null。
     @Nullable
     public OperatorSubtaskState getSubtaskStateByOperatorID(OperatorID operatorID) {
         return subtaskStatesByOperatorID.get(operatorID);
@@ -114,6 +122,7 @@ public class TaskStateSnapshot implements CompositeStateHandle {
      * Maps the given operator id to the given subtask state. Returns the subtask state of a
      * previous mapping, if such a mapping existed or null otherwise.
      */
+    // 将给定的 OperatorID 映射到 OperatorSubtaskState。如果该 ID 之前存在映射，则返回旧的 OperatorSubtaskState。
     public OperatorSubtaskState putSubtaskStateByOperatorID(
             @Nonnull OperatorID operatorID, @Nonnull OperatorSubtaskState state) {
 
@@ -121,6 +130,7 @@ public class TaskStateSnapshot implements CompositeStateHandle {
     }
 
     /** Returns the set of all mappings from operator id to the corresponding subtask state. */
+    // 返回内部 Map 的所有映射条目集合，方便遍历所有操作符子任务状态。
     public Set<Map.Entry<OperatorID, OperatorSubtaskState>> getSubtaskStateMappings() {
         return subtaskStatesByOperatorID.entrySet();
     }
@@ -129,6 +139,7 @@ public class TaskStateSnapshot implements CompositeStateHandle {
      * Returns true if at least one {@link OperatorSubtaskState} in subtaskStatesByOperatorID has
      * state.
      */
+    //是否至少存在一个状态
     public boolean hasState() {
         for (OperatorSubtaskState operatorSubtaskState : subtaskStatesByOperatorID.values()) {
             if (operatorSubtaskState != null && operatorSubtaskState.hasState()) {
@@ -142,6 +153,8 @@ public class TaskStateSnapshot implements CompositeStateHandle {
      * Returns the input channel mapping for rescaling with in-flight data or {@link
      * InflightDataRescalingDescriptor#NO_RESCALE}.
      */
+    // 获取输入数据重缩放描述符。
+    // 用于处理包含**飞行中数据（in-flight data）**的非对齐检查点在并行度变更时的重分配信息（Input Channel Mapping）
     public InflightDataRescalingDescriptor getInputRescalingDescriptor() {
         return getMapping(OperatorSubtaskState::getInputRescalingDescriptor);
     }
@@ -150,20 +163,26 @@ public class TaskStateSnapshot implements CompositeStateHandle {
      * Returns the output channel mapping for rescaling with in-flight data or {@link
      * InflightDataRescalingDescriptor#NO_RESCALE}.
      */
+    // 获取输出数据重缩放描述符。
+    // 作用与输入类似，但针对的是输出数据重分配信息（Output Channel Mapping）
     public InflightDataRescalingDescriptor getOutputRescalingDescriptor() {
         return getMapping(OperatorSubtaskState::getOutputRescalingDescriptor);
     }
-
+    // 弃状态。
+    // 释放由快照持有的所有持久化状态（如文件句柄或 StateBackend 资源）。
+    // 它通过调用 StateUtil.bestEffortDiscardAllStateObjects 尽力丢弃所有子状态。
     @Override
     public void discardState() throws Exception {
         StateUtil.bestEffortDiscardAllStateObjects(subtaskStatesByOperatorID.values());
     }
-
+    // 获取状态总大小（已检查点）。
+    // 计算并返回本次检查点中，所有操作符子任务状态的总大小。
     @Override
     public long getStateSize() {
         return streamOperatorSubtaskStates().mapToLong(StateObject::getStateSize).sum();
     }
-
+    // 收集大小统计信息。
+    // 递归地调用所有子状态的 collectSizeStats 方法，以便收集更细粒度的状态对象大小统计。
     @Override
     public void collectSizeStats(StateObjectSizeStatsCollector collector) {
         streamOperatorSubtaskStates().forEach(oss -> oss.collectSizeStats(collector));
@@ -172,7 +191,8 @@ public class TaskStateSnapshot implements CompositeStateHandle {
     private Stream<OperatorSubtaskState> streamOperatorSubtaskStates() {
         return subtaskStatesByOperatorID.values().stream().filter(Objects::nonNull);
     }
-
+    // 获取检查点总大小（已持久化）。
+    // 计算并返回所有子状态已持久化到 Checkpoint 存储的总字节数。
     @Override
     public long getCheckpointedSize() {
         long size = 0L;
@@ -185,7 +205,8 @@ public class TaskStateSnapshot implements CompositeStateHandle {
 
         return size;
     }
-
+    // 注册共享状态。
+    // 遍历所有子状态，将其中的共享状态句柄注册到 SharedStateRegistry 中，确保共享状态能够被正确引用和计数。
     @Override
     public void registerSharedStates(SharedStateRegistry stateRegistry, long checkpointID) {
         for (OperatorSubtaskState operatorSubtaskState : subtaskStatesByOperatorID.values()) {
@@ -229,6 +250,7 @@ public class TaskStateSnapshot implements CompositeStateHandle {
     }
 
     /** Returns the only valid mapping as ensured by {@link StateAssignmentOperation}. */
+    // 用于从所有 OperatorSubtaskState 中提取（并验证）唯一的、非 NO_RESCALE 的重缩放描述符。Flink 假设在一个任务链中，所有操作符的重缩放信息应该是一致的。
     private InflightDataRescalingDescriptor getMapping(
             Function<OperatorSubtaskState, InflightDataRescalingDescriptor> mappingExtractor) {
         return Iterators.getOnlyElement(
@@ -238,7 +260,8 @@ public class TaskStateSnapshot implements CompositeStateHandle {
                         .iterator(),
                 NO_RESCALE);
     }
-
+    // 序列化辅助方法。
+    // 将 TaskStateSnapshot 对象封装到 SerializedValue 中，便于在 Flink 内部进行高效传输。
     @Nullable
     public static SerializedValue<TaskStateSnapshot> serializeTaskStateSnapshot(
             TaskStateSnapshot subtaskState) {
@@ -248,7 +271,8 @@ public class TaskStateSnapshot implements CompositeStateHandle {
             throw new FlinkRuntimeException(e);
         }
     }
-
+    // 反序列化辅助方法。
+    // 从 SerializedValue 中反序列化出 TaskStateSnapshot 对象。
     @Nullable
     public static TaskStateSnapshot deserializeTaskStateSnapshot(
             SerializedValue<TaskStateSnapshot> subtaskState, ClassLoader classLoader) {

@@ -72,57 +72,79 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /** An input channel, which requests a remote partition queue. */
+// RemoteInputChannel 类是 Flink 网络栈中用于从远程 TaskManager 的结果分区（ResultPartition）接收数据的核心组件之一。
+// 发起远程分区请求： 负责向远程的生产任务（Producer Task）所在的 TaskManager 发起对特定结果分区的子分区（Subpartition）的数据请求。
+// 数据接收和缓存： 接收网络 I/O 线程从远程发送方接收到的数据缓冲区（Buffer）和事件（Event），并将它们按顺序（通过 expectedSequenceNumber 检查）排队存储在内部的 receivedBuffers 队列中。
+// 与上游通信： 负责发送任务事件（TaskEvent）给生产任务。
+// 容错和 Checkpoint： 参与 Flink 的 Checkpoint 机制，特别是在非对齐 Checkpoint 中，负责缓存（Spill）已接收但未被消费的数据，并通过 ChannelStatePersister 来持久化通道状态。
 public class RemoteInputChannel extends InputChannel {
     private static final Logger LOG = LoggerFactory.getLogger(RemoteInputChannel.class);
 
     private static final int NONE = -1;
 
     /** ID to distinguish this channel from other channels sharing the same TCP connection. */
+    // 此输入通道的唯一标识符，用于区分共享同一 TCP 连接的其他通道。
     private final InputChannelID id = new InputChannelID();
 
     /** The connection to use to request the remote partition. */
+    // 用于连接远程分区的连接标识符（包括远程 TaskExecutor 的地址和端口）
     private final ConnectionID connectionId;
 
     /** The connection manager to use connect to the remote partition provider. */
+    // 连接管理器，用于创建与远程分区提供者的连接。
     private final ConnectionManager connectionManager;
 
     /**
      * The received buffers. Received buffers are enqueued by the network I/O thread and the queue
      * is consumed by the receiving task thread.
      */
+    // 接收到的缓冲区队列。网络 I/O 线程将接收到的缓冲区和事件排队到此队列，任务线程从中消费数据。
+    // 它是一个带优先级的双端队列，支持优先级事件（如 Checkpoint Barrier 的宣告）
     private final PrioritizedDeque<SequenceBuffer> receivedBuffers = new PrioritizedDeque<>();
 
     /**
      * Flag indicating whether this channel has been released. Either called by the receiving task
      * thread or the task manager actor.
      */
+    // 释放标志。指示此通道是否已被释放
     private final AtomicBoolean isReleased = new AtomicBoolean();
 
     /** Client to establish a (possibly shared) TCP connection and request the partition. */
+    // 分区请求客户端。
+    // 用于建立（可能共享的）TCP 连接和向远程 TaskManager 请求分区数据。
     private volatile PartitionRequestClient partitionRequestClient;
 
     /** The next expected sequence number for the next buffer. */
+    // 下一个期望的缓冲区序列号。
+    // 用于检查接收到的数据包是否有乱序（BufferReorderingException）
     private int expectedSequenceNumber = 0;
 
     /** The initial number of exclusive buffers assigned to this channel. */
+    // 分配给此通道的专属缓冲区的初始数量
     private final int initialCredit;
 
     /** The milliseconds timeout for partition request listener in result partition manager. */
+    // 结果分区管理器中分区请求监听器的超时时间（毫秒）
     private final int partitionRequestListenerTimeout;
 
     /** The number of available buffers that have not been announced to the producer yet. */
+    // 尚未通知给生产者的可用缓冲区数量
     private final AtomicInteger unannouncedCredit = new AtomicInteger(0);
-
+    // 缓冲区管理器。
+    // 负责管理和请求此通道的专属（Exclusive）和浮动（Floating）缓冲区
     private final BufferManager bufferManager;
-
+    // 上一个接收到的 Checkpoint Barrier 的序列号。
+    // 在 receivedBuffers 锁保护下访问。
     @GuardedBy("receivedBuffers")
     private int lastBarrierSequenceNumber = NONE;
-
+    // 上一个接收到的 Checkpoint Barrier 的 ID。
+    // 在 receivedBuffers 锁保护下访问。
     @GuardedBy("receivedBuffers")
     private long lastBarrierId = NONE;
-
+    // 通道状态持久化器。
+    // 用于在 Checkpoint 期间将未消费的缓冲区持久化到状态后端。
     private final ChannelStatePersister channelStatePersister;
-
+    // receivedBuffers 队列中所有缓冲区和事件的总字节大小。
     private long totalQueueSizeInBytes;
 
     public RemoteInputChannel(
@@ -168,6 +190,9 @@ public class RemoteInputChannel extends InputChannel {
      * Setup includes assigning exclusive buffers to this input channel, and this method should be
      * called only once after this input channel is created.
      */
+    // 设置通道。
+    // 创建通道后应调用一次。
+    // 主要作用是向 BufferManager 请求分配 初始专属缓冲区 (initialCredit)
     @Override
     void setup() throws IOException {
         checkState(
@@ -184,6 +209,7 @@ public class RemoteInputChannel extends InputChannel {
     /** Requests a remote subpartition. */
     @VisibleForTesting
     @Override
+    // 请求远程子分区数据。
     public void requestSubpartitions() throws IOException, InterruptedException {
         if (partitionRequestClient == null) {
             LOG.debug(
@@ -193,6 +219,7 @@ public class RemoteInputChannel extends InputChannel {
                     partitionId,
                     channelStatePersister);
             // Create a client and request the partition
+            // 创建客户端
             try {
                 partitionRequestClient =
                         connectionManager.createPartitionRequestClient(connectionId);
@@ -201,13 +228,15 @@ public class RemoteInputChannel extends InputChannel {
                 // TaskExecutor
                 throw new PartitionConnectionException(partitionId, e);
             }
-
+            // 请求自分区
             partitionRequestClient.requestSubpartition(
                     partitionId, consumedSubpartitionIndexSet, this, 0);
         }
     }
 
     /** Retriggers a remote subpartition request. */
+    // 重新触发远程子分区请求。
+    // 在分区请求失败（如 PartitionNotFoundException）后，根据退避策略（Backoff）决定是否重试请求
     void retriggerSubpartitionRequest() throws IOException {
         checkPartitionRequestQueueInitialized();
 
@@ -226,6 +255,8 @@ public class RemoteInputChannel extends InputChannel {
      *
      * @return <code>true</code>, iff the operation was successful. Otherwise, <code>false</code>.
      */
+    // 增加当前退避时间，并考虑 partitionRequestListenerTimeout。
+    // 返回是否允许继续重试。
     @Override
     protected boolean increaseBackoff() {
         if (partitionRequestListenerTimeout > 0) {
@@ -236,7 +267,7 @@ public class RemoteInputChannel extends InputChannel {
         // Backoff is disabled
         return false;
     }
-
+    // 窥视 receivedBuffers 队列头部下一个缓冲区所属的子分区 ID，但不移除
     @Override
     protected int peekNextBufferSubpartitionIdInternal() throws IOException {
         checkPartitionRequestQueueInitialized();
@@ -251,7 +282,8 @@ public class RemoteInputChannel extends InputChannel {
             }
         }
     }
-
+    // 获取下一个可用的缓冲区/事件。
+    // 从 receivedBuffers 队列头部取出并移除一个 SequenceBuffer，更新队列大小，并记录接收到的字节数和缓冲区数量。
     @Override
     public Optional<BufferAndAvailability> getNextBuffer() throws IOException {
         checkPartitionRequestQueueInitialized();
@@ -295,7 +327,8 @@ public class RemoteInputChannel extends InputChannel {
     // ------------------------------------------------------------------------
     // Task events
     // ------------------------------------------------------------------------
-
+    // 发送任务事件。
+    // 将任务事件（如请求或通知）通过 partitionRequestClient 发送给远程的生产任务。
     @Override
     void sendTaskEvent(TaskEvent event) throws IOException {
         checkState(
@@ -309,13 +342,14 @@ public class RemoteInputChannel extends InputChannel {
     // ------------------------------------------------------------------------
     // Life cycle
     // ------------------------------------------------------------------------
-
+    // 检查此通道是否已释放
     @Override
     public boolean isReleased() {
         return isReleased.get();
     }
 
     /** Releases all exclusive and floating buffers, closes the partition request client. */
+    // 释放所有资源。将 isReleased 标志设置为 true，清空 receivedBuffers 队列并回收所有缓冲区，最后关闭 partitionRequestClient 或通道连接。
     @Override
     void releaseAllResources() throws IOException {
         if (isReleased.compareAndSet(false, true)) {

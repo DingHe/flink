@@ -36,28 +36,41 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * A record-oriented runtime result writer API for producing results.
- * 它负责将数据写入特定的结果分区，并提供了多种方法来处理数据的写入、事件广播、数据消费管理、检查点等操作。这个接口与 Flink 的数据流系统紧密集成，允许任务将输出数据写入到多个下游操作的输入中
  * <p>If {@link ResultPartitionWriter#close()} is called before {@link
  * ResultPartitionWriter#fail(Throwable)} or {@link ResultPartitionWriter#finish()}, it abruptly
  * triggers failure and cancellation of production. In this case {@link
  * ResultPartitionWriter#fail(Throwable)} still needs to be called afterwards to fully release all
  * resources associated the partition and propagate failure cause to the consumer if possible.
  */
+// ResultPartitionWriter 接口是 Flink **任务结果输出端（生产任务/Producer Task）**的核心 API。
+// 数据写入： 提供面向记录（record-oriented）的 API，负责将任务处理完的序列化数据记录和系统事件写入其管理的结果分区（ResultPartition）中。
+// 数据分发： 管理如何将记录发送到多个下游子分区（Subpartitions），包括定向发送和广播。
+// 下游连接： 允许创建子分区视图 (ResultSubpartitionView)，以便下游任务（消费者）可以连接并读取数据。
+// 代表了 Flink 任务中数据产生和发送的逻辑终点
 public interface ResultPartitionWriter extends AutoCloseable, AvailabilityProvider {
-    //在分区写入操作开始之前，初始化必要的资源。这个方法需要在分区写入之前调用
+
     /** Setup partition, potentially heavy-weight, blocking operation comparing to just creation. */
+    // 初始化分区。
+    // 在分区写入操作开始之前，初始化必要的资源（例如缓冲区分配、网络连接设置等）。这是一个可能比较耗时或阻塞的操作，必须在开始写入数据前调用
     void setup() throws IOException;
-   //获取当前分区的唯一标识符（ResultPartitionID）
+   // 获取当前分区的唯一标识符（ResultPartitionID）
     ResultPartitionID getPartitionId();
-    //确定当前分区中包含多少个子分区，通常每个子分区会处理流中的一部分数据
+    // 获取子分区数量。返回当前结果分区包含的子分区总数。
+    // 通常对应于下游消费任务实例的数量。
     int getNumberOfSubpartitions();
-    //用于分区键的分配，帮助分配数据到不同的目标键组中
+    // 获取目标 Key Groups 数量。
+    // 用于分区键的分配，帮助确定数据应该被分配到下游的哪个逻辑键组中，
+    // 这与 Flink 的 Keyed State 路由相关。
     int getNumTargetKeyGroups();
 
-    /** Sets the max overdraft buffer size of per gate. 管理每个任务网关的缓冲区资源，确保资源不被过度消耗*/
+    /** Sets the max overdraft buffer size of per gate. */
+    // 设置最大透支缓冲区大小。
+    // 用于流控，管理每个任务网关（Gate）可以“透支”使用的缓冲区资源上限，确保缓冲区资源不被过度消耗。
     void setMaxOverdraftBuffersPerGate(int maxOverdraftBuffersPerGate);
 
     /** Writes the given serialized record to the target subpartition.将处理过的记录写入特定的子分区进行后续处理 */
+    // 写入记录。
+    // 将给定的序列化记录 (ByteBuffer) 写入指定的目标子分区 (targetSubpartition)。这是任务写入用户数据的主要方法。
     void emitRecord(ByteBuffer record, int targetSubpartition) throws IOException;
 
     /**
@@ -65,26 +78,33 @@ public interface ResultPartitionWriter extends AutoCloseable, AvailabilityProvid
      * by emitting the same record to all subpartitions one by one, however, this method can have
      * better performance for the underlying implementation can do some optimizations, for example
      * coping the given serialized record only once to a shared channel which can be consumed by all
-     * subpartitions.将相同的记录同时发送到所有子分区，通常用于广播事件或公共数据
+     * subpartitions.
      */
+    // 广播记录。将相同的序列化记录同时发送到所有子分区。底层实现通常会优化，只复制一次数据到共享通道，以提高广播性能。
     void broadcastRecord(ByteBuffer record) throws IOException;
 
-    /** Writes the given {@link AbstractEvent} to all subpartitions. 用于广播特殊事件（如水印、停止事件等），并可以设置事件的优先级*/
+    /** Writes the given {@link AbstractEvent} to all subpartitions. */
+    // 广播事件。
+    // 将给定的系统事件 (AbstractEvent) 广播到所有子分区。isPriorityEvent 参数指示该事件是否应作为优先级事件发送，以绕过数据队列。
     void broadcastEvent(AbstractEvent event, boolean isPriorityEvent) throws IOException;
 
-    /** Timeout the aligned barrier to unaligned barrier.处理检查点时，若发生超时，允许转换为非对齐屏障 */
+    /** Timeout the aligned barrier to unaligned barrier. */
+    // 对齐屏障超时。
+    // 在处理 Checkpoint 时，如果对齐屏障在指定时间后仍未完成对齐，此方法允许将其转换为非对齐屏障，以防止阻塞时间过长。
     void alignedBarrierTimeout(long checkpointId) throws IOException;
 
     /** Abort the checkpoint. */
+    // 中止 Checkpoint。
+    // 通知结果分区中止指定的 Checkpoint 过程，通常是由于上游或协调器失败所致。同时会传播失败原因
     void abortCheckpoint(long checkpointId, CheckpointException cause);
 
     /**
      * Notifies the downstream tasks that this {@code ResultPartitionWriter} have emitted all the
      * user records.
-     * 标记数据流已经结束，通知下游任务开始处理
      * @param mode tells if we should flush all records or not (it is false in case of
      *     stop-with-savepoint (--no-drain))
      */
+    // 通知数据流结束。通知下游任务当前分区已发射完所有用户记录
     void notifyEndOfData(StopMode mode) throws IOException;
 
     /**
@@ -101,10 +121,12 @@ public interface ResultPartitionWriter extends AutoCloseable, AvailabilityProvid
             ResultSubpartitionIndexSet indexSet, BufferAvailabilityListener availabilityListener)
             throws IOException;
 
-    /** Manually trigger the consumption of data from all subpartitions.强制刷新所有子分区的数据，确保数据被及时消费 */
+    /** Manually trigger the consumption of data from all subpartitions. */
+    // 强制刷新所有子分区。手动触发所有子分区中缓冲数据的发送，确保数据被及时推送到下游消费者。
     void flushAll();
 
-    /** Manually trigger the consumption of data from the given subpartitions.强制刷新某个子分区的数据，通常在特定子分区的缓冲区已满时使用 */
+    /** Manually trigger the consumption of data from the given subpartitions. */
+    // 强制刷新特定子分区。手动触发指定子分区 (subpartitionIndex) 中缓冲数据的发送。
     void flush(int subpartitionIndex);
 
     /**
@@ -123,6 +145,8 @@ public interface ResultPartitionWriter extends AutoCloseable, AvailabilityProvid
      *
      * <p>Closing of partition is still needed afterwards.
      */
+    // 成功完成生产。
+    // 标记分区数据生产成功结束。资源释放（通过 close() 或 release()）仍需在之后调用。
     void finish() throws IOException;
 
     boolean isFinished();

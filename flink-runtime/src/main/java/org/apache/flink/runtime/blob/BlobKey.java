@@ -36,6 +36,11 @@ import static org.apache.flink.runtime.blob.BlobKey.BlobType.TRANSIENT_BLOB;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /** A BLOB key uniquely identifies a BLOB. */
+// BlobKey（Binary Large Object Key，二进制大对象键）是 Flink BLOB（Binary Large Object）存储服务中的核心概念。
+// 唯一标识符： BlobKey 用于唯一标识 Flink 集群中存储的每一个大型二进制对象（BLOB）。这些对象通常包括：
+// Job Jar 包： 包含用户代码的 JAR 文件。
+// 配置文件： 任务运行时需要的配置或依赖。
+// 大对象： 其他需要在 JobManager 和 TaskManager 之间分发的大型数据块
 public abstract class BlobKey implements Serializable, Comparable<BlobKey> {
 
     private static final long serialVersionUID = 3847117712521785209L;

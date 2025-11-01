@@ -35,6 +35,12 @@ package org.apache.flink.runtime.state;
  * {@link StateObject#discardState()} method, the {@link SharedStateRegistry} is responsible for
  * deleting shared states after they were registered.
  */
+// CompositeStateHandle 是 Flink 状态后端（StateBackend）在执行 Checkpoint 或 Savepoint 时生成的“快照描述对象”之一。
+// 代表一个“复合状态句柄”（Composite State Handle）
+// “复合”意味着它包含多个子状态对象（StateObject），这些状态对象可能是：
+//独立的本地状态文件；
+//共享的远程状态（例如 RocksDB 增量快照中的 SST 文件）；
+//或者元数据（如 KeyedStateHandle、OperatorStateHandle 等）
 public interface CompositeStateHandle extends StateObject {
 
     /**
@@ -49,6 +55,7 @@ public interface CompositeStateHandle extends StateObject {
      *
      * @param stateRegistry The registry where shared states are registered.
      */
+    // 注册该 CompositeStateHandle 中所有的 共享状态（shared states） 到共享状态注册表中
     void registerSharedStates(SharedStateRegistry stateRegistry, long checkpointID);
 
     /**
@@ -59,5 +66,6 @@ public interface CompositeStateHandle extends StateObject {
      *
      * @return The persisted data size during checkpoint execution in bytes.
      */
+    // 返回 在 checkpoint 执行期间实际持久化的数据大小（单位：字节
     long getCheckpointedSize();
 }

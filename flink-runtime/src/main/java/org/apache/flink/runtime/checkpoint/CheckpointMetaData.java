@@ -21,17 +21,23 @@ package org.apache.flink.runtime.checkpoint;
 import java.io.Serializable;
 
 /** Encapsulates all the meta data for a checkpoint. */
+// 封装一个检查点（Checkpoint）所需的所有基本元数据（Meta Data）
+// 个检查点是系统状态在某个特定时刻的全局快照。CheckpointMetaData 对象携带了识别和追踪这个快照所需的最小信息集
 public class CheckpointMetaData implements Serializable {
 
     private static final long serialVersionUID = -2387652345781312442L;
 
     /** The ID of the checkpoint. */
+    // 检查点的 ID
     private final long checkpointId;
 
     /** The timestamp of the checkpoint triggering. */
+    // 检查点触发时间戳。 记录 JobManager 或协调器**触发（Trigger）**检查点操作时的系统时间（通常是毫秒）。这代表了检查点的全局起始时间。
     private final long timestamp;
 
     /** The timestamp of the checkpoint receiving by this subtask. */
+    // 子任务接收时间戳。 记录**当前子任务（Task Subtask）**接收到检查点屏障（Checkpoint Barrier）时的本地系统时间（毫秒）。
+    // 这个时间戳对于分析检查点屏障在网络中传播的延迟非常有价值。
     private final long receiveTimestamp;
 
     public CheckpointMetaData(long checkpointId, long timestamp) {

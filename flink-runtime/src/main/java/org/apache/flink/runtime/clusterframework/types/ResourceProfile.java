@@ -60,6 +60,10 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * The extended resources are compared ordered by the resource names.
  */
+// 用于描述任务槽（TaskSlot）或任务（Task）所需/提供资源的不可变（Immutable）配置对象。
+// 它是 Flink 调度层的核心抽象，无论是在请求资源时（任务需要什么样的 Slot），还是在提供资源时（TaskExecutor 有什么样的 Slot），都使用它。
+// 统一规格描述： 它将 Task 运行所需的所有资源（CPU、各种内存、扩展资源）封装在一个单一的对象中。
+// 调度匹配依据： JobMaster 使用它来判断一个 Task 的资源需求 (required) 能否被 TaskExecutor 提供的 Slot 资源 (available) 所满足。
 public class ResourceProfile implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -71,9 +75,11 @@ public class ResourceProfile implements Serializable {
      * tasks with unknown resource requirements. It should not be used for describing total resource
      * of a task executor / slot, which should always be specific.
      */
+    // 未知资源配置。 用于描述不确定的资源需求（例如，未指定资源的任务），或包含这类任务的 Slot 剩余资源
     public static final ResourceProfile UNKNOWN = new ResourceProfile();
 
     /** A ResourceProfile that indicates infinite resource that matches any resource requirement. */
+    // 任意匹配配置。 表示无限资源，可以匹配任何资源需求。主要用于测试和特殊场景
     @VisibleForTesting
     public static final ResourceProfile ANY =
             newBuilder()
@@ -85,36 +91,55 @@ public class ResourceProfile implements Serializable {
                     .build();
 
     /** A ResourceProfile describing zero resources. */
+    // 零资源配置。
+    // 表示所有资源量均为零的配置。
     public static final ResourceProfile ZERO = newBuilder().build();
 
     /** Maximum number of cpu cores to output in {@link #toString()}. */
+    // 日志输出时的最大限制值，防止数值过大导致日志难以阅读。
     static final BigDecimal MAX_CPU_CORE_NUMBER_TO_LOG = new BigDecimal(16384);
 
     /** Maximum memory resource size to output in {@link #toString()}. */
+    // 日志输出时的最大限制值，防止数值过大导致日志难以阅读。
     static final MemorySize MAX_MEMORY_SIZE_TO_LOG = new MemorySize(1L << 50); // 1Pb
 
     // ------------------------------------------------------------------------
 
     /** How many cpu cores are needed. Can be null only if it is unknown. */
+    // CPU 核心数。
+    // 可以是分数（如 0.2 或 1.5），代表任务或槽位占用的 CPU 份额
     @Nullable private final CPUResource cpuCores;
 
     /** How much task heap memory is needed. */
+    // 任务堆内存。
+    // 任务运行时在 JVM 堆上占用的内存大小。
     @Nullable // can be null only for UNKNOWN
     private final MemorySize taskHeapMemory;
 
     /** How much task off-heap memory is needed. */
+    // 任务堆外内存。
+    // 任务运行时在 JVM 堆外占用的内存大小（如直接内存）
+    // 主要用途 外部组件支持： Netty 网络缓冲区、RocksDBStateBackend 的 Native 内存、JVM Direct Buffer（例如用于文件 I/O）
     @Nullable // can be null only for UNKNOWN
     private final MemorySize taskOffHeapMemory;
 
     /** How much managed memory is needed. */
+    // 托管内存。
+    // 由 Flink 自身管理和使用的内存，主要用于批处理中的排序、哈希表等。
+    // 也是分配在堆外内存，由 MemoryManager 管理
+    // 主要用途 内部算法工作空间： 批处理的 Sort/Hash Join、缓存中间数据、Spill 到磁盘的缓冲区。
     @Nullable // can be null only for UNKNOWN
     private final MemorySize managedMemory;
 
     /** How much network memory is needed. */
+    // 网络内存。
+    // 用于网络栈（如数据传输缓冲区）的内存大小。
     @Nullable // can be null only for UNKNOWN
     private final MemorySize networkMemory;
 
     /** A extensible field for user specified resources from {@link ResourceSpec}. */
+    // 扩展资源。
+    // 用于描述用户自定义的外部资源，如 GPU、FPGA 或其他自定义设备，键是资源名称。
     private final Map<String, ExternalResource> extendedResources;
 
     // ------------------------------------------------------------------------

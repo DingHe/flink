@@ -31,6 +31,14 @@ import java.util.Set;
  * org.apache.flink.runtime.checkpoint.CheckpointCoordinator CheckpointCoordinator} to keep track of
  * usage of {@link StreamStateHandle}s by a key that (logically) identifies them.
  */
+// SharedStateRegistry 是 增量 Checkpoint 的关键机制之一，负责在多个 Checkpoint 之间 跟踪共享状态的引用计数与清理逻辑。
+// 管理在多个 checkpoint 间 共享使用的状态文件；
+// 跟踪状态的引用（ref count）；
+// 删除不再被任何 checkpoint 使用的状态
+// Flink 的 增量 Checkpoint（Incremental Checkpoint） 会复用前一次的部分数据（例如 RocksDB 的 SST 文件），
+// 这些复用的状态就是“共享状态”（Shared State）。
+// 而 SharedStateRegistry 的职责就是：
+// 保证共享状态只在“无人使用”时才被真正删除，防止被提前清理。
 public interface SharedStateRegistry extends AutoCloseable {
 
     /** A singleton object for the default implementation of a {@link SharedStateRegistryFactory} */

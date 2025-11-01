@@ -63,18 +63,32 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <p>The method calls to create readers, dispose readers, and dispose the partition are thread-safe
  * vis-a-vis each other.
  */
+// 阻塞式传输： 实现结果分区的阻塞式数据传输模型，即数据必须先完全生产并写入存储（如文件）后，才能开始消费。
+// 这与流处理中的管道化（Pipelined）传输模型（边生产边消费）形成鲜明对比。
+// 有界性 (Bounded)： 专用于处理有界数据集（即批处理）或流处理中需要阻塞 Shuffle 的阶段。
+// 持久化存储： 利用 BoundedData 抽象，将数据持久化到外部存储（如磁盘文件或内存映射文件），使得数据可以被多次消费（例如，在下游任务失败重试时）。
+// 支持多读者： 允许在数据写入完成后，多个下游任务并行创建 ResultSubpartitionView 来读取相同的数据。
+// 总结来说，它是 Flink 批处理（或流批一体）模式下，用于将数据完整地写入文件存储，并允许多个下游任务读取该文件的核心组件。
+
 final class BoundedBlockingSubpartition extends ResultSubpartition {
 
     /** This lock guards the creation of readers and disposal of the memory mapped file. */
     private final Object lock = new Object();
 
     /** The current buffer, may be filled further over time. */
+    // 当前缓冲区。
+    // 存储上游写入但尚未通过 flush() 或 finish() 写入到底层 BoundedData 的 BufferConsumer。
     @Nullable private BufferConsumer currentBuffer;
 
     /** The bounded data store that we store the data in. */
+    // 有界数据存储。
+    // 负责将数据实际持久化。实现可以是写入磁盘文件 (FileChannelBoundedData) 或内存映射文件 (MemoryMappedBoundedData)。
     private final BoundedData data;
 
     /** All created and not yet released readers. */
+    // 读者集合。
+    // 存储所有已创建但尚未释放的 ResultSubpartitionView 实例。
+    // 用于追踪读者的生命周期，以便在最后一个读者释放时清理底层数据存储。
     @GuardedBy("lock")
     private final Set<ResultSubpartitionView> readers;
 
@@ -82,18 +96,31 @@ final class BoundedBlockingSubpartition extends ResultSubpartition {
      * Flag to transfer file via FileRegion way in network stack if partition type is file without
      * SSL enabled.
      */
+    // 直接文件传输标志。
+    // 指示是否可以使用 Netty 的 FileRegion 机制进行数据传输（通常适用于数据存储在文件且未启用 SSL 的情况）。
+    // 使用这种方式可以绕过 JVM 堆内存，提高传输效率。
     private final boolean useDirectFileTransfer;
 
     /** Counter for the number of data buffers (not events!) written. */
+    // 数据 Buffer 计数器。
+    // 记录已写入到底层存储的数据 Buffer 的数量（不包括 Event 事件）。
+    // 用于统计和下游读取时的 Backlog 信息。
     private int numDataBuffersWritten;
 
     /** The counter for the number of data buffers and events. */
+    // 总 Buffer 和 Event 计数器。
+    // 记录已写入到底层存储的所有 Buffer 和 Event 的总数量。用于统计。
     private int numBuffersAndEventsWritten;
 
     /** Flag indicating whether the writing has finished and this is now available for read. */
+    // 完成标志。
+    // 标志数据写入阶段是否已完成。
+    // 只有当此标志为 true 时，才允许创建新的读者。
     private boolean isFinished;
 
     /** Flag indicating whether the subpartition has been released. */
+    // 释放标志。
+    // 标志子分区是否已被释放（销毁）。一旦释放，写入和读取操作都将被禁止。
     private boolean isReleased;
 
     public BoundedBlockingSubpartition(

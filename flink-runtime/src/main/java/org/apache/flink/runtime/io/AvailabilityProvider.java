@@ -25,15 +25,24 @@ import java.util.concurrent.CompletableFuture;
  * Interface defining couple of essential methods for listening on data availability using {@link
  * CompletableFuture}. For usage check out for example {@link PullingAsyncDataInput}.
  */
+// 提供一种高性能、基于 CompletableFuture 的机制来跟踪和通知某个组件（如数据源、网络输入通道或缓冲区）是否“可用”（Available），即是否准备好进行下一步处理或是否有数据可供拉取。
+// 在 Flink 异步拉取数据（Pull-based）的组件中（例如 PullingAsyncDataInput）：
+// 统一可用性模型： 无论组件是否立即可用，它都返回一个 CompletableFuture。
+// 如果立即可用： 返回一个已完成的 Future（常量 AVAILABLE）
+// 如果不立即可用： 返回一个未完成的 Future，当组件变为可用时，该 Future 会被完成（Complete）
+
+
 @Internal
 public interface AvailabilityProvider {
-    /** 一个已经完成的常量，用于优化性能，避免频繁地调用 CompletableFuture#isDone()（会涉及 volatile 变量的访问开销）。在性能敏感的场景下，可以快速判断是否可用
+    /**
      * Constant that allows to avoid volatile checks {@link CompletableFuture#isDone()}. Check
      * {@link #isAvailable()} and {@link #isApproximatelyAvailable()} for more explanation.
      */
+    // 常量：立即可用。 这是一个已经完成（completed）的 CompletableFuture 实例。它用于表示提供者当前立即可用的状态
     CompletableFuture<?> AVAILABLE = CompletableFuture.completedFuture(null);
 
-    /** @return a future that is completed if the respective provider is available. 返回一个 CompletableFuture，当组件可用时，这个 Future 会被标记为完成状态（complete）*/
+    /** @return a future that is completed if the respective provider is available.*/
+    // 如果提供者当前可用，则返回 AVAILABLE；如果不可用，则返回一个未完成的 Future，当提供者变为可用时，该 Future 将被完成
     CompletableFuture<?> getAvailableFuture();
 
     /**
@@ -43,9 +52,11 @@ public interface AvailabilityProvider {
      *
      * <p>It is always safe to use this method in performance nonsensitive scenarios to get the
      * precise state.
-     *  判断当前组件是否可用
+     *
      * @return true if this instance is available for further processing.
      */
+    // 精确判断是否可用
+    // 首先检查 getAvailableFuture() 是否是 AVAILABLE 常量；如果不是，则调用 future.isDone() 来获取精确的完成状态
     default boolean isAvailable() {
         CompletableFuture<?> future = getAvailableFuture();
         return future == AVAILABLE || future.isDone();
@@ -60,13 +71,16 @@ public interface AvailabilityProvider {
      * <p>This method is still safe to get the precise state if {@link #getAvailableFuture()} was
      * touched via (.get(), .wait(), .isDone(), ...) before, which also has a "happen-before"
      * relationship with this call.
-     * 判断当前组件是否“近似可用”（approximate availability）
      * @return true if this instance is available for further processing.
      */
+    // 近似判断是否可用（性能优化）
+    // 只检查 getAvailableFuture() 是否等于 AVAILABLE 常量。它避免了调用 isDone() 产生的 volatile 访问开销，适用于性能敏感的热循环场景。
     default boolean isApproximatelyAvailable() {
         return getAvailableFuture() == AVAILABLE;
     }
-    //生成一个新的 CompletableFuture，当 first 和 second 都完成时，新的 Future 才会完成
+
+    //逻辑 AND 组合。
+    // 接收两个 CompletableFuture，返回一个新的 Future，该 Future 仅在两者都完成时才会完成
     static CompletableFuture<?> and(CompletableFuture<?> first, CompletableFuture<?> second) {
         if (first == AVAILABLE && second == AVAILABLE) {
             return AVAILABLE;
@@ -78,7 +92,9 @@ public interface AvailabilityProvider {
             return CompletableFuture.allOf(first, second);
         }
     }
-   //生成一个新的 CompletableFuture，当 first 或 second 任何一个完成时，新的 Future 会完成
+
+   // 逻辑 OR 组合。 静态方法
+   // 接收两个 CompletableFuture，返回一个新的 Future，该 Future 在两者中任一完成时就会完成
     static CompletableFuture<?> or(CompletableFuture<?> first, CompletableFuture<?> second) {
         if (first == AVAILABLE || second == AVAILABLE) {
             return AVAILABLE;
@@ -86,10 +102,11 @@ public interface AvailabilityProvider {
         return CompletableFuture.anyOf(first, second);
     }
 
-    /** AvailabilityHelper 是 AvailabilityProvider 的一个具体实现，提供了额外的状态管理方法，允许组件动态切换“可用”和“不可用”状态
+    /**
      * A availability implementation for providing the helpful functions of resetting the
      * available/unavailable states.
      */
+    // 内部管理着一个 availableFuture 实例，并提供了一系列方法来动态控制组件的可用状态，方便实现类使用
     final class AvailabilityHelper implements AvailabilityProvider {
 
         private CompletableFuture<?> availableFuture = new CompletableFuture<>();

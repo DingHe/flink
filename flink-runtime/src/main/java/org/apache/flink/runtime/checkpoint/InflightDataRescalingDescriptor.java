@@ -30,24 +30,31 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @see InflightDataGateOrPartitionRescalingDescriptor
  */
+// 封装了在 Flink 并行度发生变化（伸缩）时，如何将任务的“飞行中数据”（In-flight Data，即通道状态）从旧的通道/任务分配给新的通道/任务的完整映射信息。
+// 当 Flink 任务的并行度发生变化（例如，从 2 个任务扩展到 3 个任务）并使用非对齐检查点恢复时：
+// 旧任务保存的状态（飞行中数据）必须被新的任务正确加载。
+// 这个过程涉及到旧任务（Old Subtask）、旧通道（Old Channel）、**新任务（New Subtask）和新通道（New Channel）**之间的复杂多对多映射。
 public class InflightDataRescalingDescriptor implements Serializable {
-
+    // 表示当前任务没有发生并行度伸缩
     public static final InflightDataRescalingDescriptor NO_RESCALE = new NoRescalingDescriptor();
 
     private static final long serialVersionUID = -3396674344669796295L;
 
     /** Set when several operator instances are merged into one. */
+    // 网关或分区描述符数组。
+    // 这是核心属性，它包含了任务的每个**输入网关（Gate）或输出结果分区（Partition）**的重分配细节
     private final InflightDataGateOrPartitionRescalingDescriptor[] gateOrPartitionDescriptors;
 
     public InflightDataRescalingDescriptor(
             InflightDataGateOrPartitionRescalingDescriptor[] gateOrPartitionDescriptors) {
         this.gateOrPartitionDescriptors = checkNotNull(gateOrPartitionDescriptors);
     }
-
+    // 获取旧任务索引列表
     public int[] getOldSubtaskIndexes(int gateOrPartitionIndex) {
         return gateOrPartitionDescriptors[gateOrPartitionIndex].oldSubtaskIndexes;
     }
-
+    // 获取通道映射。
+    // 返回一个 RescaleMappings 对象，它描述了旧通道到新通道**之间的映射关系
     public RescaleMappings getChannelMapping(int gateOrPartitionIndex) {
         return gateOrPartitionDescriptors[gateOrPartitionIndex].rescaledChannelsMappings;
     }
@@ -110,22 +117,29 @@ public class InflightDataRescalingDescriptor implements Serializable {
      * simultaneously used. If the input subtask subsumes the state of 3 old subtasks and a channel
      * corresponds to 2 old channels, then there are 6 virtual channels to be demultiplexed.
      */
+    // 封装了单个输入网关或输出分区的重分配信息
     public static class InflightDataGateOrPartitionRescalingDescriptor implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
         /** Set when several operator instances are merged into one. */
+        // 旧任务索引。
+        // 当前新任务合并的（即承担了状态的）所有旧任务的索引列表。
         private final int[] oldSubtaskIndexes;
 
         /**
          * Set when channels are merged because the connected operator has been rescaled for each
          * gate/partition.
          */
+        // 通道映射对象。 包含了旧通道到新通道的详细映射表
         private final RescaleMappings rescaledChannelsMappings;
 
         /** All channels where upstream duplicates data (only valid for downstream mappings). */
+        // 模糊任务索引集合。
+        // 包含了所有可能导致数据重复的旧任务索引集合，仅在某些 Downstream 映射中有效。
         private final Set<Integer> ambiguousSubtaskIndexes;
-
+        // 映射类型。
+        // 指示当前映射是 IDENTITY（恒等/无伸缩）还是 RESCALING（伸缩）
         private final MappingType mappingType;
 
         /** Type of mapping which should be used for this in-flight data. */

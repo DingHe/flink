@@ -57,32 +57,48 @@ import static org.apache.flink.core.memory.MemorySegmentFactory.allocateOffHeapU
  * MemorySegment}). Releasing a memory segment will make it re-claimable by the garbage collector,
  * but does not necessarily immediately releases the underlying memory.
  */
+// MemoryManager 是 Flink **托管内存（Managed Memory）**机制的实现者和核心管理者。
+// 它的主要职责是
+// 统一内存管理： 管理 TaskExecutor（TaskManager）预先分配的一大块堆外（Off-Heap）原始内存。这部分内存用于 Flink 内部的高性能操作，如排序（Sort）、哈希连接（Hash Join）、网络缓冲区、以及 RocksDBStateBackend 等。
+// 避免 JVM GC： 通过管理堆外或预分配内存，并以固定大小的内存页（MemorySegment）形式分配给内部算子，它将大量数据操作移出 JVM 堆的控制，从而显著降低 JVM 垃圾回收（GC）的压力和停顿时间。
+// 精确分配与回收： 提供精确的内存分配（按页或按字节）和显式（手动）回收机制，确保内存的高效复用和预算控制。
 public class MemoryManager {
 
     private static final Logger LOG = LoggerFactory.getLogger(MemoryManager.class);
     /** The default memory page size. Currently set to 32 KiBytes. */
+    // 默认内存页大小，当前设置为 32 KiBytes。是 MemorySegment 的标准大小。
     public static final int DEFAULT_PAGE_SIZE = 32 * 1024;
 
     /** The minimal memory page size. Currently set to 4 KiBytes. */
+    // 最小内存页大小，当前设置为 4 KiBytes。用于参数校验。
     public static final int MIN_PAGE_SIZE = 4 * 1024;
 
     // ------------------------------------------------------------------------
 
     /** Memory segments allocated per memory owner. */
+    // 已分配的内存页记录。
+    // 这是一个并发哈希映射表，键是内存的所有者（Owner）（通常是 Task 或算子实例），值是分配给该所有者的 MemorySegment 集合
     private final Map<Object, Set<MemorySegment>> allocatedSegments;
 
     /** Reserved memory per memory owner. */
+    // 保留的内存记录。
+    // 这是一个并发哈希映射表，键是内存的所有者，值是该所有者以非 MemorySegment 形式（即大块字节）保留的内存总量（单位：字节）。
+    // 主要用于 RocksDB 等需要大块内存而非固定页的组件。
     private final Map<Object, Long> reservedMemory;
-
+    // 实际使用的内存页大小。
+    // TaskManager 启动时配置的内存页大小。
     private final long pageSize;
-
+    // 总页数。
+    // TaskManager 托管内存总量除以页大小后得到的总页数。
     private final long totalNumberOfPages;
-
+    // 内存预算管理器
+    // 负责管理和跟踪总内存的分配和释放，确保分配的内存总量不超过初始设定的预算。
     private final UnsafeMemoryBudget memoryBudget;
-
+    // 于管理 Flink 内部组件可能共享的、不透明（Opaque）的内存资源，例如某些 Native 库的内存。
     private final SharedResources sharedResources;
 
     /** Flag whether the close() has already been invoked. */
+    // 指示 MemoryManager 是否已经被关闭
     private volatile boolean isShutDown;
 
     /**
@@ -190,6 +206,9 @@ public class MemoryManager {
      * @throws MemoryAllocationException Thrown, if this memory manager does not have the requested
      *     amount of memory pages any more.
      */
+    // 分配内存页。
+    // 为指定的所有者分配请求数量 (numPages) 的 MemorySegment 列表。
+
     public List<MemorySegment> allocatePages(Object owner, int numPages)
             throws MemoryAllocationException {
         List<MemorySegment> segments = new ArrayList<>(numPages);
@@ -208,6 +227,8 @@ public class MemoryManager {
      * @throws MemoryAllocationException Thrown, if this memory manager does not have the requested
      *     amount of memory pages any more.
      */
+    // 分配内存页。
+    // 首先在 memoryBudget 中保留内存，然后调用 allocateOffHeapUnsafeMemory 创建实际的堆外内存段，并记录到 allocatedSegments 中。
     public void allocatePages(Object owner, Collection<MemorySegment> target, int numberOfPages)
             throws MemoryAllocationException {
         // sanity check
@@ -226,6 +247,7 @@ public class MemoryManager {
 
         long memoryToReserve = numberOfPages * pageSize;
         try {
+            // 首先保留分配大小的内存
             memoryBudget.reserveMemory(memoryToReserve);
         } catch (MemoryReservationException e) {
             throw new MemoryAllocationException(

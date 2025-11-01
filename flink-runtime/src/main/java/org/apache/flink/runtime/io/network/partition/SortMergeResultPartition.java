@@ -62,6 +62,11 @@ import static org.apache.flink.util.Preconditions.checkState;
  * appended to an empty {@link DataBuffer} will be spilled to the result {@link PartitionedFile}
  * separately.
  */
+// SortMergeResultPartition 是 Flink 在批处理场景和某些特定的流批一体场景中用于实现高性能**阻塞式（BLOCKING）**数据交换的核心组件。
+// 实现基于内存排序和磁盘落盘合并的阻塞式数据交换机制（Shuffle）
+// 与流式 PipelinedResultPartition（数据即时发送）不同，SortMergeResultPartition 的数据流是阻塞的：
+// 生产者（Task）： 上游任务先将所有输出数据写入内存中的缓冲区 (DataBuffer)。当内存缓冲区满时，数据会根据子分区顺序被排序/归类，然后一次性批量刷写（Spill）到磁盘上的分区文件（PartitionedFile）
+// 消费者（Task）： 只有当上游任务完全完成并关闭分区后，下游任务才能开始从磁盘读取整个分区的数据。
 @NotThreadSafe
 public class SortMergeResultPartition extends ResultPartition {
 
@@ -82,15 +87,21 @@ public class SortMergeResultPartition extends ResultPartition {
     private final Object lock = new Object();
 
     /** {@link PartitionedFile} produced by this result partition. */
+    // 结果文件。表示该分区最终产生的、存储在磁盘上的分区数据文件和索引文件。
     @GuardedBy("lock")
     private PartitionedFile resultFile;
-
+    // 数据结束通知标志。
+    // 标记是否已经向下游广播了 EndOfData 事件
     private boolean hasNotifiedEndOfUserRecords;
 
     /** Size of network buffer and write buffer. */
+    // 网络缓冲区大小。
+    // 网络层缓冲区和写入缓冲区的大小，通常由 BatchShuffleReadBufferPool 决定。
     private final int networkBufferSize;
 
     /** File writer for this result partition. */
+    // 分区文件写入器。
+    // 负责将内存中的数据块（Buffers）高效地写入磁盘上的 PartitionedFile。
     @GuardedBy("lock")
     private PartitionedFileWriter fileWriter;
 
@@ -98,40 +109,54 @@ public class SortMergeResultPartition extends ResultPartition {
      * Selected storage path to be used by this result partition to store shuffle data file and
      * index file.
      */
+    // 结果文件基础路径。
+    // 该分区存储其 Shuffle 数据和索引文件的磁盘路径。
     private final String resultFileBasePath;
 
     /** Subpartition orders of coping data from {@link DataBuffer} and writing to file. */
+    // 子分区写入顺序。
+    // 一个随机的子分区索引数组。写入数据到磁盘时，会按照这个随机顺序来避免所有上游任务都以相同顺序写出，从而平衡下游读取的 I/O 负载。
     private final int[] subpartitionOrder;
 
     /**
      * A shared buffer pool to allocate buffers from when reading data from this result partition.
      */
+    // 读取缓冲区池。一个共享的缓冲区池，专用于从该分区读取数据时分配内存。
     private final BatchShuffleReadBufferPool readBufferPool;
 
     /**
      * Data read scheduler for this result partition which schedules data read of all subpartitions.
      */
+    // 读取调度器。负责调度和管理所有子分区的磁盘数据读取操作。
     private final SortMergeResultPartitionReadScheduler readScheduler;
 
     /** All available network buffers can be used by this result partition for a data region. */
+    // 空闲内存段列表。
+    // 当前 ResultPartition 从 bufferPool 中请求到的、可用于写入和排序的空闲内存块列表。
     private final LinkedList<MemorySegment> freeSegments = new LinkedList<>();
 
     /**
      * Number of guaranteed network buffers can be used by {@link #unicastDataBuffer} and {@link
      * #broadcastDataBuffer}.
      */
+    // 排序缓冲区数量。用于排序和哈希操作的内存段（Segments）数量。
     private int numBuffersForSort;
 
     /**
      * If true, {@link HashBasedDataBuffer} will be used, otherwise, {@link SortBasedDataBuffer}
      * will be used.
      */
+    // 使用哈希缓冲区标志。如果为 true，将使用 HashBasedDataBuffer，否则使用 SortBasedDataBuffer。选择取决于可用的缓冲区数量。
     private boolean useHashBuffer;
 
     /** {@link DataBuffer} for records sent by {@link #broadcastRecord(ByteBuffer)}. */
+    // 广播数据缓冲区。
+    // 用于缓冲和处理通过 broadcastRecord 或 broadcastEvent 发送的数据。
     private DataBuffer broadcastDataBuffer;
 
     /** {@link DataBuffer} for records sent by {@link #emitRecord(ByteBuffer, int)}. */
+    // 单播数据缓冲区。
+    // 用于缓冲和处理通过 emitRecord 发送的、定向到特定子分区的数据。
     private DataBuffer unicastDataBuffer;
 
     public SortMergeResultPartition(

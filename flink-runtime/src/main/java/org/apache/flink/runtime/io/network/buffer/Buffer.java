@@ -269,10 +269,17 @@ public interface Buffer {
      * org.apache.flink.runtime.io.network.netty.NettyMessage.BufferResponse}, so the maximum number
      * of supported data types is 128.
      */
+    // 用于标识 Flink 网络数据缓冲区（Buffer）中包含的数据类型，从而可以在 不反序列化 实际数据的情况下，快速获取关于该数据的关键信息和处理方式。
+    // 在 Flink 的网络 I/O 过程中，每个 Buffer 在发送前都会附带一个 DataType 标志。接收端（如 RemoteInputChannel）通过这个标志可以立即知道：
+    // 数据的本质： 是用户数据（Data Buffer）还是系统事件（Event Buffer）
+    // 流控影响： 它是否是一个会阻塞上游数据流的事件（例如对齐 Checkpoint Barrier）
+    // 处理优先级： 它是否是一个需要优先处理的事件。
     enum DataType {
         /** {@link #NONE} indicates that there is no buffer. */
+        // 空缓冲区。表示没有缓冲区（占位符或特殊状态）。
         NONE(false, false, false, false, false, false),
-
+        // 常规数据缓冲区。
+        // 包含用户非事件数据，且可能包含被截断（split）的记录。
         /** {@link #DATA_BUFFER} indicates that this buffer represents a non-event data buffer. */
         DATA_BUFFER(true, false, false, false, false, true),
 
@@ -281,8 +288,10 @@ public interface Buffer {
          * Note that this type can be further divided into more fine-grained event types like {@link
          * #ALIGNED_CHECKPOINT_BARRIER} and etc.
          */
+        // 通用事件缓冲区。包含已序列化的事件数据（非特殊类型，如非 Checkpoint Barrier）
         EVENT_BUFFER(false, true, false, false, false, false),
-
+        // 优先级事件缓冲区。
+        // 与 EVENT_BUFFER 相同，但表示该事件被赋予了高优先级，可以插队处理（如 Checkpoint Barrier 的宣告消息）
         /** Same as EVENT_BUFFER, but the event has been prioritized (e.g. it skipped buffers). */
         PRIORITIZED_EVENT_BUFFER(false, true, false, true, false, false),
 
@@ -290,6 +299,7 @@ public interface Buffer {
          * {@link #ALIGNED_CHECKPOINT_BARRIER} indicates that this buffer represents a serialized
          * checkpoint barrier of aligned exactly-once checkpoint mode.
          */
+        // 对齐 Checkpoint Barrier。表示一个对齐模式下的 Checkpoint 屏障。它会阻塞上游（等待所有输入通道到达），直到 Checkpoint 完成
         ALIGNED_CHECKPOINT_BARRIER(false, true, true, false, false, false),
 
         /**
@@ -297,15 +307,19 @@ public interface Buffer {
          * serialized checkpoint barrier of aligned exactly-once checkpoint mode, that can be
          * time-out'ed to an unaligned checkpoint barrier.
          */
+
+        // 可超时的对齐 Checkpoint Barrier。表示一个可超时的对齐屏障，如果超时，将降级为非对齐模式。它也阻塞上游，并且需要宣告。
         TIMEOUTABLE_ALIGNED_CHECKPOINT_BARRIER(false, true, true, false, true, false),
 
         /**
          * Indicates that this subpartition state is fully recovered (emitted). Further data can be
          * consumed after unblocking.
          */
+        // 恢复完成事件 (EndOfChannelStateEvent)。指示此子分区的状态已完全恢复（或已发出），后续数据可以正常消费，它阻塞上游（因为流被恢复数据暂时阻塞）
         RECOVERY_COMPLETION(false, true, true, false, false, false),
 
         /** {@link #END_OF_SEGMENT} indicates that a segment is finished in a subpartition. */
+        // 分段结束。指示子分区中的一个分段（segment）已结束。
         END_OF_SEGMENT(false, true, false, false, false, false),
 
         /**
@@ -313,17 +327,21 @@ public interface Buffer {
          * data buffer, and that at the end of this buffer there is no data cut and split into the
          * next buffer.
          */
+        // 明确结束的数据缓冲区。包含用户非事件数据，并保证在该缓冲区的末尾没有被截断的记录。
         DATA_BUFFER_WITH_CLEAR_END(true, false, false, false, false, false),
 
         /**
          * {@link #END_OF_DATA} indicates that there will be no more data buffer in a subpartition.
          */
+        // 数据结束 (EndOfData)。表示在子分区中将不再有数据缓冲区。
         END_OF_DATA(false, true, false, false, false, false),
 
         /** {@link #END_OF_PARTITION} marks a subpartition as fully consumed. */
+        // 分区结束 (EndOfPartitionEvent)。标记一个子分区已被完全消费。
         END_OF_PARTITION(false, true, false, false, false, false),
 
         /** Contains the metadata used during a recovery process. */
+        // 恢复元数据。包含在恢复过程中使用的元数据信息。
         RECOVERY_METADATA(false, true, false, false, false, false);
 
         private final boolean isBuffer;

@@ -23,6 +23,7 @@ import org.apache.flink.runtime.checkpoint.channel.ChannelStateWriter;
  * Implemented by entities that hold any kind of channel state and need a reference to the {@link
  * ChannelStateWriter}.
  */
+// 表明任何实现该接口的实体（Entity）都持有某种形式的通道状态（Channel State），因此需要在运行时接收和引用一个用于写入这些状态的 ChannelStateWriter
 public interface ChannelStateHolder {
     /** Injects the {@link ChannelStateWriter}. Must only be called once. */
     void setChannelStateWriter(ChannelStateWriter channelStateWriter);

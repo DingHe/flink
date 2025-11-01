@@ -94,6 +94,14 @@ import org.apache.flink.annotation.Public;
  * completed got lost, the artifacts will be published as part of the next checkpoint that
  * completes.
  */
+// CheckpointListener 接口是 Flink 状态管理和**端到端一致性（End-to-End Consistency）**机制中非常重要的一环。
+// 它使得 Flink 的算子（Operator）能够与外部系统进行事务性交互。
+// 允许 Flink 的 状态（State） 或 算子（Operator） 接收关于 分布式检查点（Checkpoint） 完成或中止的通知。
+// 核心作用是：
+// 外部事务提交： 主要用于实现 Flink 的两阶段提交（Two-Phase Commit, 2PC）模式。
+// 在检查点成功完成并持久化后，实现了此接口的算子会收到通知，此时它可以安全地向外部系统（如 Kafka、数据库）提交在检查点期间产生的外部副作用（External Side Effects），从而保证数据从 Flink 到外部系统的**精确一次（Exactly-Once）**语义。
+// 清理/资源管理： 允许在检查点完成或中止后，进行必要的清理工作或资源释放（尽管不常用）。
+// 关键概念： 任何需要对外部世界进行事务性操作（比如提交 Kafka 偏移量或写入事务文件）的 Flink 组件，都应该实现这个接口。
 @Public
 public interface CheckpointListener {
 
@@ -119,6 +127,10 @@ public interface CheckpointListener {
      * @throws Exception This method can propagate exceptions, which leads to a failure/recovery for
      *     the task. Note that this will NOT lead to the checkpoint being revoked.
      */
+    // 检查点完成通知
+    // 当具有给定 checkpointId 的分布式检查点成功完成并被 Flink 视为持久化后，该方法会被调用。
+    // 核心用途： 触发外部事务的提交（第二阶段）。例如，一个 Kafka Sink 收到此通知后，会提交该检查点对应的所有已写入数据的事务，从而使数据对消费者可见。
+    // 异常处理： 抛出异常不会撤销已完成的检查点，但会导致任务或作业失败并触发恢复。
     void notifyCheckpointComplete(long checkpointId) throws Exception;
 
     /**
@@ -143,5 +155,8 @@ public interface CheckpointListener {
      * @throws Exception This method can propagate exceptions, which leads to a failure/recovery for
      *     the task or job.
      */
+    // 检查点中止通知
+    // 当具有给定 checkpointId 的分布式检查点被中止或失败时，该方法会被调用。这是一个默认方法，意味着不是必须实现。
+    // 核心用途： 主要用于提前清理辅助资源（例如，清理一个本地的、与失败检查点相关的临时状态缓存）
     default void notifyCheckpointAborted(long checkpointId) throws Exception {}
 }

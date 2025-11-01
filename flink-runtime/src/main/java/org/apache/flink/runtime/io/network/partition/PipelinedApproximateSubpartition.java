@@ -33,6 +33,11 @@ import static org.apache.flink.util.Preconditions.checkState;
  * A pipelined in-memory only subpartition, which allows to reconnect after failure. Only one view
  * is allowed at a time to read teh subpartition.
  */
+// Flink 中用于实现近似恢复（Approximate Recovery）或称为弹性恢复（Resilience/Eager Scheduling）场景的特殊子分区
+// 在支持流式数据传输的同时，允许下游消费者在失败后重新连接到该子分区，并从头开始消费数据，以支持弹性恢复策略。
+// 可重连（Reconnectable）： 允许新的读取视图在旧视图被释放后创建，而标准管道化子分区一旦被消费就不能再创建新的视图。
+// 部分记录清理（Partial Record Cleanup）： 专为处理重连时队列中可能残留的不完整记录而设计。由于消费者失败，最后一个 BufferConsumer 中的记录可能只写入了一部分，重连后需要清理这部分不完整数据，以避免向下游发送错误或截断的记录
+// 不支持通道状态恢复： 明确表示不参与精确一次 (Exactly-Once) Checkpoint 机制中的飞行中数据 (In-flight Data) 捕获和恢复（通过 isSupportChannelStateRecover() 返回 false 体现）。
 public class PipelinedApproximateSubpartition extends PipelinedSubpartition {
 
     private static final Logger LOG =

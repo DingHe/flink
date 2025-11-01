@@ -28,14 +28,17 @@ import java.util.Iterator;
  * keyspace of a job is partitioned for keyed state-handling in state backends. The boundaries of
  * the range are inclusive.
  */
+// 以紧凑、高效的方式表示和管理一个连续的 Key Group ID 区间，并且这个区间是闭区间（包含起始和结束边界）
+// 在 Flink 中，键控状态（Keyed State）被划分为一系列 Key Group。一个并行任务（Subtask）通常被分配到一个或多个连续的 Key Group 范围。KeyGroupRange 就是用来描述其中一个连续范围的数据结构。
 public class KeyGroupRange implements KeyGroupsList, Serializable {
 
     private static final long serialVersionUID = 4869121477592070607L;
 
     /** The empty key-group */
     public static final KeyGroupRange EMPTY_KEY_GROUP_RANGE = new KeyGroupRange();
-
+    // 范围的起始 Key Group ID（包含）。 范围的下界。
     private final int startKeyGroup;
+    // 范围的结束 Key Group ID（包含）。 范围的上界。
     private final int endKeyGroup;
 
     /** Empty KeyGroup Constructor */

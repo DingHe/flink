@@ -63,12 +63,19 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * collections can then store all the state handles that are relevant to build up the new subtask
  * state.
  */
+// 封装和表示一个 Flink 算子（Operator）的一个并行实例（Subtask）在某个检查点时刻的完整状态快照**的元数据集合。
+// 一个 Flink 作业（Job）的完整状态是由所有并行任务的状态总和构成的。OperatorSubtaskState 就是其中的一个最小、可恢复的状态单元。
+// 它将一个子任务的所有状态分解为以下六个主要的状态句柄集合（StateObjectCollection），以及两个用于弹性伸缩的描述符：
+//算子状态（Operator State）： 键控无关的状态，通常用于 Source 或 Sink。
+//键控状态（Keyed State）： 键控相关状态，与 Key Group 关联。
+//通道状态（Channel State）： 飞行中数据，用于非对齐检查点。
 public class OperatorSubtaskState implements CompositeStateHandle {
 
     private static final Logger LOG = LoggerFactory.getLogger(OperatorSubtaskState.class);
 
     private static final long serialVersionUID = -2394696997971923995L;
-
+    // 托管算子状态句柄集合
+    // 由 Flink 状态后端托管（Managed）的算子列表状态（List State）和联合列表状态（Union List State）的句柄集合。
     /** Snapshot from the {@link org.apache.flink.runtime.state.OperatorStateBackend}. */
     private final StateObjectCollection<OperatorStateHandle> managedOperatorState;
 
@@ -76,8 +83,11 @@ public class OperatorSubtaskState implements CompositeStateHandle {
      * Snapshot written using {@link
      * org.apache.flink.runtime.state.OperatorStateCheckpointOutputStream}.
      */
+    // 原始算子状态句柄集合
+    // 通过用户自定义流（Raw Stream）方式写入的算子状态的句柄集合。
     private final StateObjectCollection<OperatorStateHandle> rawOperatorState;
-
+    // 托管键控状态句柄集合。
+    // 由 Flink 状态后端托管的键控状态（如 ValueState, MapState 等）的句柄集合。
     /** Snapshot from {@link org.apache.flink.runtime.state.KeyedStateBackend}. */
     private final StateObjectCollection<KeyedStateHandle> managedKeyedState;
 
@@ -85,10 +95,14 @@ public class OperatorSubtaskState implements CompositeStateHandle {
      * Snapshot written using {@link
      * org.apache.flink.runtime.state.KeyedStateCheckpointOutputStream}.
      */
+    // 原始键控状态句柄集合。
+    // 通过用户自定义流方式写入的键控状态的句柄集合
     private final StateObjectCollection<KeyedStateHandle> rawKeyedState;
-
+    // 输入通道状态句柄集合。
+    // 非对齐检查点中，上游任务发送给该任务的输入通道中的飞行中数据句柄集合。
     private final StateObjectCollection<InputChannelStateHandle> inputChannelState;
-
+    // 结果子分区状态句柄集合。
+    // 非对齐检查点中，该任务发送给下游任务的输出子分区中的飞行中数据句柄集合。
     private final StateObjectCollection<ResultSubpartitionStateHandle> resultSubpartitionState;
 
     /**
@@ -98,6 +112,8 @@ public class OperatorSubtaskState implements CompositeStateHandle {
      * StateAssignmentOperation} and will not be persisted in the checkpoint itself as it can only
      * be calculated if the post-recovery scale factor is known.
      */
+    // 输入弹性伸缩描述符。
+    // 运行时由 StateAssignmentOperation 填充，用于描述该子任务的输入通道从旧并行度到新并行度的映射关系，用于恢复通道状态。不随检查点一起持久化。
     private final InflightDataRescalingDescriptor inputRescalingDescriptor;
 
     /**
@@ -107,14 +123,19 @@ public class OperatorSubtaskState implements CompositeStateHandle {
      * be persisted in the checkpoint itself as it can only be calculated if the post-recovery scale
      * factor is known.
      */
+    // 输出弹性伸缩描述符。
+    // 运行时由 StateAssignmentOperation 填充，用于描述该子任务的输出分区从旧并行度到新并行度的映射关系。不随检查点一起持久化。
     private final InflightDataRescalingDescriptor outputRescalingDescriptor;
 
     /**
      * The state size. This is also part of the deserialized state handle. We store it here in order
      * to not deserialize the state handle when gathering stats.
      */
+    // 状态句柄引用的总大小（逻辑大小）。
+    // 该子任务所有状态句柄（包括共享和非共享部分）引用的状态数据的总大小（字节）。
     private final long stateSize;
-
+    // 实际检查点写入大小。
+    // 所有状态句柄（包括共享部分）在创建检查点时实际写入存储系统的聚合大小（字节）。
     private final long checkpointedSize;
 
     private OperatorSubtaskState(

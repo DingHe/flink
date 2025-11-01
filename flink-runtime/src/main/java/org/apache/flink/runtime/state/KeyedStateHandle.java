@@ -26,9 +26,13 @@ import javax.annotation.Nullable;
  * Base for the handles of the checkpointed states in keyed streams. When recovering from failures,
  * the handle will be passed to all tasks whose key group ranges overlap with it.
  */
+// 抽象地表示和引用一个或多个 Key Group 的键控状态（Keyed State）的持久化快照。
+// 键控状态是 Flink 中最主要的状态类型，它与数据流中的键（Key）相关联。在 Flink 进行检查点时，Job 的整个键空间会被划分成 Key Group，每个并行任务负责一部分 Key Group 的状态。
 public interface KeyedStateHandle extends CompositeStateHandle {
 
     /** Returns the range of the key groups contained in the state. */
+    // 获取 Key Group 范围
+    // 返回一个 KeyGroupRange 对象，精确地定义了该状态句柄中包含的键控状态数据属于哪个连续的 Key Group ID 范围
     KeyGroupRange getKeyGroupRange();
 
     /**
@@ -38,6 +42,7 @@ public interface KeyedStateHandle extends CompositeStateHandle {
      * @param keyGroupRange The key group range to intersect with, will return null if the
      *     intersection of this handle's key-group and the provided key-group is empty.
      */
+    // 当一个任务被分配到一个新的 Key Group 范围 (keyGroupRange) 时，Flink 调用此方法计算当前句柄所负责的范围与新任务范围的交集
     @Nullable
     KeyedStateHandle getIntersection(KeyGroupRange keyGroupRange);
 

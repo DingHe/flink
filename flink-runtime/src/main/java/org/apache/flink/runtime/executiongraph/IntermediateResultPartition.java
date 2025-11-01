@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.apache.flink.util.Preconditions.checkState;
-//更多地是作为一个元数据对象来管理和描述数据的生产、消费和状态信息，而不直接存储数据本身
+// 更多地是作为一个元数据对象来管理和描述数据的生产、消费和状态信息，而不直接存储数据本身
 public class IntermediateResultPartition {
 
     static final int NUM_SUBPARTITIONS_UNKNOWN = -1;
