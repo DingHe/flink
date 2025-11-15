@@ -25,7 +25,8 @@ import java.io.Closeable;
 
 /**
  * An {@link Output} that measures the last emitted watermark with a {@link WatermarkGauge}.
- * 主要用于暴露水印（Watermark）的度量信息。简单来说，它提供了一种方式来获取当前输出的水印值，从而方便进行水印相关的监控和调试,Gauge ->测量的意思
+ * 主要用于暴露水印（Watermark）的度量信息。
+ * 简单来说，它提供了一种方式来获取当前输出的水印值，从而方便进行水印相关的监控和调试,Gauge ->测量的意思
  * @param <T> The type of the elements that can be emitted.
  */
 public interface WatermarkGaugeExposingOutput<T> extends Output<T>, Closeable {

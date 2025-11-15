@@ -76,10 +76,17 @@ import org.apache.flink.streaming.runtime.tasks.StreamTask;
  * instead of {@link WatermarkStatus#IDLE}. Watermark Status elements only serve as markers for
  * temporary status.
  */
+// 向 Flink 拓扑中的下游任务传达上游数据流的活跃状态，进而影响 Watermark 的计算和传播。
+// 在 Flink 的 Watermark 机制中，下游任务（如 Join、Window）通常会等待所有输入流中 Watermark 的最小值来推进自身的 Watermark。
+// 当某个输入流因为数据源暂停、分区耗尽或外部原因而长时间**空闲（Idle）**时，这个空闲流的 Watermark 会停止前进。如果不加以干预，
+// 这个停滞的 Watermark 将成为瓶颈，阻止整个下游任务的 Watermark 推进，导致基于时间的操作（如窗口触发）无限期延迟，这被称为 Watermark 停滞问题
+// IDLE (空闲): 通知下游，该输入流暂时不会发送新的 Watermark 或数据。下游任务接收到 IDLE 状态后，应将该输入流的 Watermark 排除在全局最小 Watermark 的计算之外。
+// ACTIVE (活跃): 通知下游，该输入流已恢复数据传输，下游应再次将其 Watermark 重新纳入全局最小 Watermark 的计算。
 @Internal
 public final class WatermarkStatus extends StreamElement {
-
+    // 空闲状态的整数常量
     public static final int IDLE_STATUS = -1;
+    // 活跃状态的整数常量
     public static final int ACTIVE_STATUS = 0;
 
     public static final WatermarkStatus IDLE = new WatermarkStatus(IDLE_STATUS);

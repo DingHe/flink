@@ -41,6 +41,14 @@ import java.util.Collection;
  * @param <N> The type of the namespace.
  * @param <V> The type of value that the state state stores.
  */
+// RocksDBReducingState<K, N, V> 是 Flink 归约状态 (ReducingState) 的具体实现，它利用 RocksDB 作为底层存储。
+// 实现归约逻辑： 它负责将流入的数据元素 (V)，通过用户提供的 ReduceFunction 持续地合并为一个单一的归约结果 (V)，并将这个结果存储在 RocksDB 磁盘上。
+// 持久化 Keyed State： 它是 Keyed State 的一种，状态的存取基于 Flink 的 Key (K) 和 Namespace (N)。由于存储在磁盘上的 RocksDB，它非常适合处理累计值巨大或需要长期保存的状态。
+// 增量更新 (Put)： 与 RocksDBListState 使用 merge() 不同，RocksDBReducingState 的 add() 操作会读取当前状态值，执行 ReduceFunction.reduce(oldValue, newValue) 得到新的归约值，然后使用 put() 操作覆盖写入 RocksDB。
+// 支持窗口合并： 它实现了 InternalReducingState 接口，包含处理 Flink 窗口合并时所需的 mergeNamespaces 逻辑。在合并时，它会使用 ReduceFunction 的 reduce() 方法将来自多个源 Namespace 的归约结果合并到目标 Namespace 中。
+// 它是一个基于 RocksDB 的 Keyed 状态组件，用于高效、持久地维护一个不断通过 ReduceFunction 累积和归约而成的单一结果值。
+
+
 class RocksDBReducingState<K, N, V> extends AbstractRocksDBAppendingState<K, N, V, V, V>
         implements InternalReducingState<K, N, V> {
 

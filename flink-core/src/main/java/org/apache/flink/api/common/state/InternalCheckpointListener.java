@@ -26,6 +26,9 @@ import org.apache.flink.annotation.Internal;
  * The internal checkpoint listener add another {@link #notifyCheckpointSubsumed(long)} interface
  * for internal usage.
  */
+// InternalCheckpointListener 接口是对用户级别的 CheckpointListener 接口的扩展，主要作用是提供一个额外的钩子（Hook），
+// 用于通知 Flink 内部组件某个 Checkpoint 已经被废弃（Subsumed）
+// 处理 Checkpoint 废弃： 它增加了 notifyCheckpointSubsumed() 方法，专门用于通知 Flink 不再需要某个特定的 Checkpoint，因为它已经被更新、更完整的 Checkpoint 所取代。
 @Internal
 public interface InternalCheckpointListener extends CheckpointListener {
 

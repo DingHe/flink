@@ -36,8 +36,8 @@ import java.io.IOException;
  *
  * @param <T> Type of the value in the state.
  */
-//用于处理键控状态（Keyed State）的一种特殊类型。它的核心作用是存储和管理一个单一的、与当前处理的键（key）相关联的值
-//允许你为数据流中的每一个不同的键（例如，用户ID、设备ID）维护一个独立的、可更新的变量。这个变量会随着数据流的流转，
+// 用于处理键控状态（Keyed State）的一种特殊类型。它的核心作用是存储和管理一个单一的、与当前处理的键（key）相关联的值
+// 允许你为数据流中的每一个不同的键（例如，用户ID、设备ID）维护一个独立的、可更新的变量。这个变量会随着数据流的流转，
 // 根据当前的键自动切换，并且可以被 Flink 的检查点机制（checkpointing）持久化，从而实现容错
 @PublicEvolving
 public interface ValueState<T> extends State {

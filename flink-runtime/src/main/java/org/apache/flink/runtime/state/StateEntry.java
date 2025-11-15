@@ -25,6 +25,13 @@ package org.apache.flink.runtime.state;
  * @param <N> type of namespace.
  * @param <S> type of state.
  */
+
+// Flink 状态后端（State Backend） 在底层存储和迭代状态数据时，用于抽象单个状态条目的关键结构。
+// StateEntry 接口的作用是定义 Flink 键控状态（Keyed State） 的单个逻辑条目。
+// 在 Flink 的状态后端中，一个完整的状态数据点总是由三元组 (Key, Namespace, State Value) 唯一标识。
+// 统一抽象： 它将 Keyed State 的基本组成部分（Key、Namespace、状态值）抽象成一个单一的接口，方便状态后端在内部进行读写、迭代和快照操作。
+// 迭代器基础： Flink 在进行全量快照（Full Snapshot）时，会通过迭代器遍历状态后端中的所有状态条目。StateEntry 就是这些迭代器返回的基本单元。
+//
 public interface StateEntry<K, N, S> {
 
     /** Returns the key of this entry. */
@@ -35,6 +42,7 @@ public interface StateEntry<K, N, S> {
 
     /** Returns the state of this entry. */
     S getState();
+    // 过滤或转换状态条目。
 
     default StateEntry<K, N, S> filterOrTransform(StateSnapshotTransformer<S> transformer) {
         S newState = transformer.filterOrTransform(getState());

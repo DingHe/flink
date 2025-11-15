@@ -81,12 +81,19 @@ import java.util.concurrent.RejectedExecutionException;
  * }
  * }</pre>
  */
+// Flink 的 Task Mailbox 模型旨在将所有 Task 相关的活动（数据处理、事件处理、定时器、Checkpoint 等）串行化到单个线程中执行，从而避免复杂的并发控制和死锁问题。
+// 统一任务提交： 允许任何线程（包括 Task 线程、网络 I/O 线程、定时器线程等）以线程安全的方式，将各种**待办事项（Mail）**提交到 Task Mailbox 中排队。
+// 实现协作式多任务： 它提供了 yield() 和 tryYield() 方法。这使得 Task 线程在处理数据时，如果遇到阻塞或需要处理高优先级事件（如 Checkpoint），可以主动让出控制权，去执行 Mailbox 中排队的下一个任务，从而避免了 Task 线程的僵死（Livelock
+// 保障单线程执行： 无论 Mailbox 中的任务来自哪里，它们都保证在同一个 Task Mailbox 线程中以 FIFO 顺序执行，维护了 Flink 状态访问的单线程模型。
+
 @PublicEvolving
 public interface MailboxExecutor { //主要作用是向 TaskMailbox 中投递 Mail
     /** A constant for empty args to save on object allocation. */
+    // 空参数常量
     Object[] EMPTY_ARGS = new Object[0];
 
     /** Extra options to configure enqueued mails. */
+    // 用于配置提交给 Mailbox 的任务（Mail）行为的接口
     @PublicEvolving
     interface MailOptions {
         static MailOptions options() {
@@ -101,6 +108,8 @@ public interface MailboxExecutor { //主要作用是向 TaskMailbox 中投递 Ma
          * #yield()} or {@link #tryYield()}. This is done to speed up checkpointing, by skipping
          * execution of potentially long-running mails.
          */
+        // 标记该 Mail 可以被运行时延迟执行。例如，在 Task 线程主动调用 yield() 或 tryYield() 时，可延迟的 Mail 不会被执行。
+        // 用途： 主要是为了加速 Checkpoint 过程，让 Task 线程在 Checkpoint 期间优先处理高优先级事件，跳过可能耗时的低优先级 Mail。
         static MailOptions deferrable() {
             return MailOptionsImpl.DEFERRABLE;
         }
@@ -180,6 +189,10 @@ public interface MailboxExecutor { //主要作用是向 TaskMailbox 中投递 Ma
      * @throws RejectedExecutionException if this task cannot be accepted for execution, e.g.
      *     because the mailbox is quiesced or closed.
      */
+    // 提交并执行任务。
+    // 功能： 将一个 ThrowingRunnable 任务添加到 Mailbox 队列中，以待在 Mailbox 线程中执行。
+    // 关键参数： command（要执行的逻辑），descriptionFormat 和 descriptionArgs（可选的格式化描述，用于调试和报错）。
+    // 执行保证： 任务将在未来某个时间点被 Mailbox 线程执行。
     void execute(
             MailOptions mailOptions,
             ThrowingRunnable<? extends Exception> command,
@@ -207,6 +220,9 @@ public interface MailboxExecutor { //主要作用是向 TaskMailbox 中投递 Ma
      * @throws RejectedExecutionException if this task cannot be accepted for execution, e.g.
      *     because the mailbox is quiesced or closed.
      */
+    // 提交带有 Future 的任务。
+    // 功能： 将一个 RunnableWithException 或 Callable 任务添加到 Mailbox 队列，并立即返回一个 Future 对象。
+    // 区别： 允许外部线程等待或检查任务的执行结果和异常
     default @Nonnull Future<Void> submit(
             @Nonnull RunnableWithException command,
             String descriptionFormat,
@@ -303,12 +319,15 @@ public interface MailboxExecutor { //主要作用是向 TaskMailbox 中投递 Ma
      * blocks until another command to run is available in the mailbox and must only be called from
      * the mailbox thread. Must only be called from the mailbox thread to not violate the
      * single-threaded execution model.
-     * 在mailThrea从头开始执行任务
+     *
      * @throws InterruptedException on interruption.
      * @throws IllegalStateException if the mailbox is closed and can no longer supply runnables for
      *     yielding.
      * @throws FlinkRuntimeException if executed {@link RunnableWithException} thrown an exception.
      */
+    // 阻塞式让步。
+    // 功能： Task 线程阻塞，从 Mailbox 中取出并执行下一个可用的 Mail。
+    // 用途： 当 Task 线程需要等待某个资源（该资源将在另一个 Mail 中被释放）时使用。它会一直阻塞，直到 Mailbox 中有 Mail 被执行
     void yield() throws InterruptedException, FlinkRuntimeException;
 
     /**
@@ -324,6 +343,9 @@ public interface MailboxExecutor { //主要作用是向 TaskMailbox 中投递 Ma
      *     yielding.
      * @throws RuntimeException if executed {@link RunnableWithException} thrown an exception.
      */
+    // 非阻塞式让步。
+    // 功能： 尝试从 Mailbox 中取出并执行下一个可用的 Mail。
+    // 返回值： 如果 Mailbox 中有 Mail 且成功执行，返回 true；否则（Mailbox 为空），返回 false 并立即返回控制权。
     boolean tryYield() throws FlinkRuntimeException;
 
     /**
@@ -333,5 +355,6 @@ public interface MailboxExecutor { //主要作用是向 TaskMailbox 中投递 Ma
      *
      * @return whether operator/function should interrupt its computation.
      */
+    // 是否应该中断检查
     boolean shouldInterrupt();
 }

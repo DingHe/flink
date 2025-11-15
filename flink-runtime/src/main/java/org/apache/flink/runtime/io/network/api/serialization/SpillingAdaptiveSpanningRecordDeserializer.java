@@ -30,7 +30,10 @@ import java.io.IOException;
 import static org.apache.flink.runtime.io.network.api.serialization.RecordDeserializer.DeserializationResult.INTERMEDIATE_RECORD_FROM_BUFFER;
 import static org.apache.flink.runtime.io.network.api.serialization.RecordDeserializer.DeserializationResult.LAST_RECORD_FROM_BUFFER;
 import static org.apache.flink.runtime.io.network.api.serialization.RecordDeserializer.DeserializationResult.PARTIAL_RECORD;
-
+// 核心作用是实现 RecordDeserializer 接口，它提供了自适应和**溢写（Spilling）**的反序列化机制，以优化网络数据的处理
+// Non-Spanning Wrapper（不跨越模式）: 默认且优化的模式。用于处理记录的长度信息以及那些完全包含在一个网络缓冲区内的记录（这是大多数小记录的情况）。这种模式速度最快。
+// Spanning Wrapper（跨越/溢写模式）: 用于处理跨越多个网络缓冲区的记录，尤其是那些超大记录。
+// 溢写支持（Spilling）：当超大记录需要聚合的数据量超过预设的内存阈值时，SpanningWrapper 会将部分已接收但未完全反序列化的数据溢写到磁盘上的临时文件，从而避免内存溢出（OOM）。
 /** @param <T> The type of the record to be deserialized. */
 public class SpillingAdaptiveSpanningRecordDeserializer<T extends IOReadableWritable>
         implements RecordDeserializer<T> {

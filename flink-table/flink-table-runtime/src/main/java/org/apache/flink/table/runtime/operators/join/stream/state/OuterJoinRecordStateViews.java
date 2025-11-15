@@ -139,7 +139,14 @@ public final class OuterJoinRecordStateViews {
             return reusedTupleList;
         }
     }
-
+    // 该类的作用是为外连接的输入侧提供状态管理，假设该输入侧具有唯一键（Unique Key, UK）。它将唯一键的优势与外连接所需的关联计数功能结合起来。
+    // 利用唯一键优化： 由于输入流保证了唯一性，对于同一个 Join Key，每个唯一键只会存储一条记录。这确保了状态简洁，并且所有的添加操作本质上都是更新/覆盖操作。
+    // 存储复合状态（UK -> (Record, Count)）： 它使用 MapState<RowData, Tuple2<RowData, Integer>> 存储状态。其中：
+    //Map 的 Key 是记录的唯一键 (UK)。
+    //Map 的 Value 是一个二元组 Tuple2<Record, Count>，其中包含：
+    //f0：完整的输入记录 (RowData)。
+    //f1：关联计数 (Integer)，记录该记录与 Join 另一侧匹配的记录数量。
+    // 高效的 Null Padding 判断： 外连接可以直接通过查询唯一键，并检查其关联计数 (f1) 来判断是否需要发出或撤回 Null Padding Row，无需处理记录重复问题。
     private static final class InputSideHasUniqueKey implements OuterJoinRecordStateView {
 
         // stores record in the mapping <UK, <Record, associated-num>>
@@ -201,10 +208,19 @@ public final class OuterJoinRecordStateViews {
             return recordState.values();
         }
     }
-
+    // 该类的作用是为外连接的输入侧提供状态管理，假设该输入侧没有唯一键。
+    // 由于没有唯一键，同一 Join Key 下可能存在多条相同的记录，且由于是外连接，还需要跟踪每条记录与另一侧匹配的次数，即关联计数。
+    // 它的核心功能是：
+    // 存储复合状态： 使用 MapState<RowData, Tuple2<Integer, Integer>> 存储状态。其中：
+    //Map 的 Key 是 输入记录本身 (RowData)。
+    //Map 的 Value 是一个二元组 Tuple2<Integer, Integer>：
+    //f0 (第一个 Integer)：记录该 RowData 在当前 Join Key 下的出现次数（appear-times），用于处理数据重复和撤回。
+    //f1 (第二个 Integer)：记录该 RowData 与 Join 另一侧匹配的记录数量（associated-num），用于外连接（Null Padding Row）的判断。
+    // 实现计数和关联跟踪： 维护记录的出现次数以支持撤回，同时维护关联计数以支持外连接的输出逻辑。
     private static final class InputSideHasNoUniqueKey implements OuterJoinRecordStateView {
 
         // stores record in the mapping <Record, <appear-times, associated-num>>
+        // 记录状态
         private final MapState<RowData, Tuple2<Integer, Integer>> recordState;
 
         private InputSideHasNoUniqueKey(
@@ -221,15 +237,17 @@ public final class OuterJoinRecordStateViews {
             }
             this.recordState = ctx.getMapState(recordStateDesc);
         }
-
+        // 添加记录（无关联计数）。
+        // 这是一个兼容性方法，它调用重载的 addRecord 方法，并将关联计数设置为 -1（通常表示未指定或初始值）
         @Override
         public void addRecord(RowData record) throws Exception {
             addRecord(record, -1);
         }
-
+        // 添加记录（指定关联计数）
         @Override
         public void addRecord(RowData record, int numOfAssociations) throws Exception {
             Tuple2<Integer, Integer> tuple = recordState.get(record);
+            // 如果存在，f0 (出现次数) 加 1；并将 f1 (关联计数) 更新为传入的 numOfAssociations
             if (tuple != null) {
                 tuple.f0 = tuple.f0 + 1;
                 tuple.f1 = numOfAssociations;

@@ -43,11 +43,21 @@ import java.util.Collection;
  * @param <ACC> The type of the value stored in the state (the accumulator type)
  * @param <R> The type of the value returned from the state
  */
+// RocksDBAggregatingState<K, N, T, ACC, R> 是 Flink 聚合状态 (AggregatingState) 的具体实现，它使用 RocksDB 作为底层存储。
+// 实现聚合逻辑： 它负责将流入的数据元素 (T)，
+// 通过用户提供的 AggregateFunction 持续地合并到一个中间结果（累加器 ACC）中，并将这个累加器存储在 RocksDB 磁盘上。
+// 持久化 Keyed State： 作为 Keyed State 的一种，状态的存取依赖于 Flink 的 Key (K) 和 Namespace (N)。这种基于磁盘的存储适用于需要处理巨大累计状态的应用。
+// 支持窗口合并： 它实现了 InternalAggregatingState 接口，包含处理 Flink 窗口合并场景所需的 mergeNamespaces 逻辑。在合并时，它会取出源 Namespace 的累加器，使用 AggregateFunction 的 merge() 方法将其与目标 Namespace 的累加器进行合并，最终将合并结果写回 RocksDB。
+// 实时转换输出： 在用户调用 get() 方法时，它读取 RocksDB 中的累加器 (ACC)，并立即使用 AggregateFunction 的 getResult() 方法将其转换为最终的输出结果 (R) 返回。
+// <T>	输入元素的类型（添加到状态中的数据）。
+// <ACC>	累加器 (Accumulator) 的类型（实际存储在 RocksDB 中的中间结果）
+// <R>	最终结果 (Result) 的类型（get() 方法返回的类型）。
 class RocksDBAggregatingState<K, N, T, ACC, R>
         extends AbstractRocksDBAppendingState<K, N, T, ACC, R>
         implements InternalAggregatingState<K, N, T, ACC, R> {
 
     /** User-specified aggregation function. */
+    // 用户定义的聚合函数
     private AggregateFunction<T, ACC, R> aggFunction;
 
     /**
@@ -86,7 +96,9 @@ class RocksDBAggregatingState<K, N, T, ACC, R>
     public TypeSerializer<ACC> getValueSerializer() {
         return valueSerializer;
     }
-
+    // 1. 调用父类的 getInternal() 从 RocksDB 中读取累加器 (ACC)。
+    // 2. 如果累加器存在，调用 aggFunction.getResult(accumulator) 将累加器转换为最终结果 R 并返回。
+    // 3. 如果累加器为 null，返回 null。
     @Override
     public R get() throws IOException, RocksDBException {
         ACC accumulator = getInternal();
@@ -95,7 +107,10 @@ class RocksDBAggregatingState<K, N, T, ACC, R>
         }
         return aggFunction.getResult(accumulator);
     }
-
+    // 1. 读取当前 Key 和 Namespace 下的现有累加器 (ACC)。
+    // 2. 如果累加器为 null，调用 aggFunction.createAccumulator() 创建一个新的累加器。
+    // 3. 调用 aggFunction.add(value, accumulator) 将新值合并到累加器中。
+    // 4. 调用父类的 updateInternal() 将新的累加器覆盖写入 RocksDB。
     @Override
     public void add(T value) throws IOException, RocksDBException {
         byte[] key = getKeyBytes();
@@ -103,7 +118,11 @@ class RocksDBAggregatingState<K, N, T, ACC, R>
         accumulator = accumulator == null ? aggFunction.createAccumulator() : accumulator;
         updateInternal(key, aggFunction.add(value, accumulator));
     }
-
+    // 1. 遍历所有源 Namespace (sources)。
+    // 2. 从 RocksDB 读取每个源 Namespace 对应的累加器，并使用 aggFunction.merge(current, value) 将它们累积合并到一个 current 累加器中，并删除源状态。
+    // 3. 如果 current 累加器非空，读取目标 Namespace (target) 的现有累加器。
+    // 4. 再次调用 aggFunction.merge() 将源累积结果和目标现有结果合并。
+    // 5. 将最终合并的累加器写入目标 Namespace 的 RocksDB 键下。
     @Override
     public void mergeNamespaces(N target, Collection<N> sources)
             throws IOException, RocksDBException {

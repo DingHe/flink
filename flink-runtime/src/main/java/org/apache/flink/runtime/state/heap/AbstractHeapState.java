@@ -39,7 +39,7 @@ import org.apache.flink.util.Preconditions;
 public abstract class AbstractHeapState<K, N, SV> implements InternalKvState<K, N, SV> {
 
     /** Map containing the actual key/value pairs. */
-    //状态的底层存储结构
+    // 状态的底层存储结构
     protected final StateTable<K, N, SV> stateTable;
 
     /** The current namespace, which the access methods will refer to. */

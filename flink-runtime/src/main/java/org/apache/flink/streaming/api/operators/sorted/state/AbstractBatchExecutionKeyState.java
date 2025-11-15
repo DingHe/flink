@@ -26,15 +26,24 @@ import java.util.Map;
 import java.util.Objects;
 
 /** A common class for all internal states in a single key state backend. */
+// 该类的核心作用是为 Flink 在批处理场景中处理 Keyed Stream 排序后的数据时，提供一种内存中的、基于命名空间的状态管理机制。
+// 在 Flink 批处理模式中，数据通常是按键排序后处理的。这意味着：
+// 一次只处理一个 Key： 状态后端一次只需要管理一个 Key 的状态。
+// 状态管理简化： 状态不需要像流处理那样跨 Key Groups 存储或处理并发访问。
+// Namespace 隔离： 尽管只处理一个 Key，但状态仍需要按 Namespace（通常是窗口标识）进行隔离和管理。
 abstract class AbstractBatchExecutionKeyState<K, N, V> implements InternalKvState<K, N, V> {
-
+    // 状态的默认值。
     private final V defaultValue;
     private final TypeSerializer<V> stateTypeSerializer;
     private final TypeSerializer<K> keySerializer;
     private final TypeSerializer<N> namespaceSerializer;
-
+    // 状态存储核心。
+    // 一个 HashMap，用于存储当前正在处理的 Key 在所有不同 Namespace 下的状态值。
     private final Map<N, V> valuesForNamespaces = new HashMap<>();
+    // 当前命名空间。缓存当前正在操作的 Namespace。
     private N currentNamespace;
+    // 当前命名空间的值。
+    // 缓存当前正在操作的 Namespace 对应的状态值
     private V currentNamespaceValue;
 
     protected AbstractBatchExecutionKeyState(

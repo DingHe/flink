@@ -32,7 +32,7 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
  *
  * @param <T> The type of the values that the value state can hold.
  */
-//作为 ValueState 状态的配置蓝图。
+// 作为 ValueState 状态的配置蓝图。
 // 它继承自 StateDescriptor 抽象类，专门用于创建和定义一个 单值键控状态（ValueState） 的所有必要元数据，如状态的名称、类型和序列化器
 @PublicEvolving
 public class ValueStateDescriptor<T> extends StateDescriptor<ValueState<T>, T> {

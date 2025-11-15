@@ -23,6 +23,9 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 
 /** An element in a data stream. Can be a record, a Watermark, or a RecordAttributes. */
+// 在 Flink 的流处理世界中，操作符（如 Source、Map、Window）不仅仅处理用户数据，还需要处理各种控制信息（如时间戳、检查点、背压信号等）。StreamElement 将这些不同类型的“流元素”统一起来：
+// 数据/控制流混合： 它允许用户数据（StreamRecord）和控制信号（Watermark、LatencyMarker、WatermarkStatus）在同一个流、同一个网络通道中传输，简化了流处理的管道设计。
+// 多态性封装： Flink 运行时只需处理 StreamElement，并通过其 is...() 方法确定具体类型，然后通过 as...() 方法安全地进行类型转换和处理。
 @Internal
 public abstract class StreamElement {
 
@@ -31,6 +34,7 @@ public abstract class StreamElement {
      *
      * @return True, if this element is a watermark, false otherwise.
      */
+    // 检查是否为水位线。
     public final boolean isWatermark() {
         return this instanceof Watermark;
     }
@@ -40,6 +44,7 @@ public abstract class StreamElement {
      *
      * @return True, if this element is a watermark status, false otherwise.
      */
+    // 检查是否为水位线状态
     public final boolean isWatermarkStatus() {
         return getClass() == WatermarkStatus.class;
     }
@@ -49,6 +54,7 @@ public abstract class StreamElement {
      *
      * @return True, if this element is a record, false otherwise.
      */
+    // 检查是否为用户数据记录
     public final boolean isRecord() {
         return getClass() == StreamRecord.class;
     }
@@ -58,6 +64,7 @@ public abstract class StreamElement {
      *
      * @return True, if this element is a latency marker, false otherwise.
      */
+    // 检查是否为延迟标记
     public final boolean isLatencyMarker() {
         return getClass() == LatencyMarker.class;
     }
@@ -67,6 +74,7 @@ public abstract class StreamElement {
      *
      * @return True, if this element is record attributes, false otherwise.
      */
+    // 检查是否为记录属性
     public final boolean isRecordAttributes() {
         return getClass() == RecordAttributes.class;
     }

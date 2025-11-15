@@ -35,12 +35,12 @@ import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
  * @param <IN2> The input type of the operator
  * @param <OUT> The output type of the operator
  */
-//处理双输入流的算子的接口
-//定义双流处理逻辑：它规定了如何处理来自第一个输入流 (IN1) 和第二个输入流 (IN2) 的元素
-//处理控制流数据：除了数据元素本身，它还定义了如何处理来自两个输入流的控制流数据，例如水印（Watermark）、延迟标记（LatencyMarker）和水印状态（WatermarkStatus）
-//IN1：表示第一个输入流中元素的类型
-//IN2：表示第二个输入流中元素的类型
-//OUT：表示输出流中元素的类型
+// 处理双输入流的算子的接口
+// 定义双流处理逻辑：它规定了如何处理来自第一个输入流 (IN1) 和第二个输入流 (IN2) 的元素
+// 处理控制流数据：除了数据元素本身，它还定义了如何处理来自两个输入流的控制流数据，例如水印（Watermark）、延迟标记（LatencyMarker）和水印状态（WatermarkStatus）
+// IN1：表示第一个输入流中元素的类型
+// IN2：表示第二个输入流中元素的类型
+// OUT：表示输出流中元素的类型
 @PublicEvolving
 public interface TwoInputStreamOperator<IN1, IN2, OUT> extends StreamOperator<OUT> {
 
@@ -48,14 +48,14 @@ public interface TwoInputStreamOperator<IN1, IN2, OUT> extends StreamOperator<OU
      * Processes one element that arrived on the first input of this two-input operator. This method
      * is guaranteed to not be called concurrently with other methods of the operator.
      */
-    //处理来自第一个输入流的单个元素
+    // 处理来自第一个输入流的单个元素
     void processElement1(StreamRecord<IN1> element) throws Exception;
 
     /**
      * Processes one element that arrived on the second input of this two-input operator. This
      * method is guaranteed to not be called concurrently with other methods of the operator.
      */
-    //处理来自第二个输入流的单个元素
+    // 处理来自第二个输入流的单个元素
     void processElement2(StreamRecord<IN2> element) throws Exception;
 
     /**
@@ -64,7 +64,7 @@ public interface TwoInputStreamOperator<IN1, IN2, OUT> extends StreamOperator<OU
      *
      * @see org.apache.flink.streaming.api.watermark.Watermark
      */
-    //处理来自第一个输入流的水印（Watermark）
+    // 处理来自第一个输入流的水印（Watermark）
     void processWatermark1(Watermark mark) throws Exception;
 
     /**
@@ -73,7 +73,7 @@ public interface TwoInputStreamOperator<IN1, IN2, OUT> extends StreamOperator<OU
      *
      * @see org.apache.flink.streaming.api.watermark.Watermark
      */
-    //处理来自第二个输入流的水印
+    // 处理来自第二个输入流的水印
     void processWatermark2(Watermark mark) throws Exception;
 
     /**
@@ -82,7 +82,7 @@ public interface TwoInputStreamOperator<IN1, IN2, OUT> extends StreamOperator<OU
      *
      * @see org.apache.flink.streaming.runtime.streamrecord.LatencyMarker
      */
-    //处理来自第一个输入流的延迟标记（LatencyMarker）
+    // 处理来自第一个输入流的延迟标记（LatencyMarker）
     void processLatencyMarker1(LatencyMarker latencyMarker) throws Exception;
 
     /**
@@ -92,7 +92,7 @@ public interface TwoInputStreamOperator<IN1, IN2, OUT> extends StreamOperator<OU
      *
      * @see org.apache.flink.streaming.runtime.streamrecord.LatencyMarker
      */
-    //处理来自第二个输入流的延迟标记
+    // 处理来自第二个输入流的延迟标记
     void processLatencyMarker2(LatencyMarker latencyMarker) throws Exception;
 
     /**
@@ -102,7 +102,7 @@ public interface TwoInputStreamOperator<IN1, IN2, OUT> extends StreamOperator<OU
      *
      * @see org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus
      */
-    //处理来自第一个输入流的水印状态（WatermarkStatus）
+    // 处理来自第一个输入流的水印状态（WatermarkStatus）
     void processWatermarkStatus1(WatermarkStatus watermarkStatus) throws Exception;
 
     /**
@@ -112,14 +112,14 @@ public interface TwoInputStreamOperator<IN1, IN2, OUT> extends StreamOperator<OU
      *
      * @see org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus
      */
-    //处理来自第二个输入流的水印状态
+    // 处理来自第二个输入流的水印状态
     void processWatermarkStatus2(WatermarkStatus watermarkStatus) throws Exception;
 
     /**
      * Processes a {@link RecordAttributes} that arrived on the first input of this operator. This
      * method is guaranteed to not be called concurrently with other methods of the operator.
      */
-    //处理来自第一个输入流的记录属性（RecordAttributes）
+    // 处理来自第一个输入流的记录属性（RecordAttributes）
     @Experimental
     default void processRecordAttributes1(RecordAttributes recordAttributes) throws Exception {}
 

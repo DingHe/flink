@@ -35,6 +35,13 @@ import org.apache.flink.annotation.PublicEvolving;
  * @param <IN> Type of the value that can be added to the state.
  * @param <OUT> Type of the value that can be retrieved from the state.
  */
+// AppendingState<IN, OUT> 是 Flink 分区状态（Partitioned State）的基接口，设计用于支持增量添加元素和查询当前累计状态的场景。
+// AppendingState 抽象了两种常见的状态操作模式：
+// 列表（List-like）： 将所有添加的元素 (IN) 保持在一个列表中（例如 ListState）。
+// 聚合（Aggregated）： 将所有添加的元素 (IN) 聚合或合并成一个单一的结果值 (OUT)（例如 ReducingState 和 AggregatingState）。
+// 它确保了状态操作仅在 KeyedStream 上可用，系统会自动将操作路由到当前输入元素的主键（Flink Key）所对应的状态分区。
+// <IN> (Input Type): 可以增量添加到状态中的元素的类型。
+// <OUT> (Output Type): 可以从状态中检索出来的当前累计结果的类型。
 @PublicEvolving
 public interface AppendingState<IN, OUT> extends State {
 
@@ -51,6 +58,7 @@ public interface AppendingState<IN, OUT> extends State {
      *     state is empty.
      * @throws Exception Thrown if the system cannot access the state.
      */
+    // 获取当前状态：返回当前 Flink Key 和 Namespace 下累计或存储的所有元素所代表的结果值。如果状态为空，应返回 null。
     OUT get() throws Exception;
 
     /**
@@ -64,5 +72,7 @@ public interface AppendingState<IN, OUT> extends State {
      * @param value The new value for the state.
      * @throws Exception Thrown if the system cannot access the state.
      */
+    // 增量添加：将给定的 value 添加到状态中。
+    // 对于 ListState 而言，是追加到列表中；对于 ReducingState 或 AggregatingState 而言，是与现有累计值进行合并或聚合。
     void add(IN value) throws Exception;
 }

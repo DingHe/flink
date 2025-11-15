@@ -23,6 +23,10 @@ import org.apache.flink.api.common.state.StateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.state.internal.InternalValueState;
+// BatchExecutionKeyValueState<K, N, T> 类是 Flink 内部用于批处理执行模式下，实现 ValueState（值状态）的类。
+// 该类的作用是为 Flink 批处理作业（特别是处理按键排序的数据流）提供一个高效、内存优化的 ValueState 实现。
+// 单 Key 状态管理： 继承自 AbstractBatchExecutionKeyState，这意味着它一次只管理一个 Key 的状态。在批处理模式中，数据是按 Key 分组和排序的，当处理完一个 Key 的所有数据后，该状态实例会被清除并用于下一个 Key。
+// 内存 Namespace 隔离： 它依赖父类的 HashMap (valuesForNamespaces) 来管理当前 Key 在不同 Namespace（通常代表不同的窗口）下的状态值，确保状态隔离。
 
 /** A {@link ValueState} which keeps value for a single key at a time. */
 class BatchExecutionKeyValueState<K, N, T> extends AbstractBatchExecutionKeyState<K, N, T>
@@ -35,7 +39,7 @@ class BatchExecutionKeyValueState<K, N, T> extends AbstractBatchExecutionKeyStat
             TypeSerializer<T> stateTypeSerializer) {
         super(defaultValue, keySerializer, namespaceSerializer, stateTypeSerializer);
     }
-
+    // 获取当前状态值
     @Override
     public T value() {
         return getOrDefault();

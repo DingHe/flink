@@ -121,6 +121,14 @@ public final class KeyGroupRangeAssignment {
      * @return The index of the operator to which elements from the given key-group should be routed
      *     under the given parallelism and maxParallelism.
      */
+    // Flink 中键组（KeyGroup）分配机制的核心所在。
+    // 它用于确定一个特定的键组 ID 应该被路由到哪个并行实例（即操作符的哪个子任务/索引）进行处理。
+    // maxParallelism: 最大并行度（$P_{max}$）。
+    // 这是作业最初创建时定义的最大并行度，它等于总键组数量（MAX_PARALLELISM = TOTAL_KEY_GROUPS）。键组 ID 的范围是 $[0, P_{max} - 1]$。
+    // parallelism: 当前并行度（$P_{curr}$）。 这是作业当前运行的并行度（即操作符子任务的数量）。
+    // keyGroupId: 键组 ID（$G_{id}$）。 待分配的键组的唯一标识符。
+    // 比例因子 parallelism / maxParallelism: 首先，计算当前并行度与最大并行度的比值。这个比值决定了每个并行实例应该接收多少个键组。
+    // 键组位置 ($G_{id}$): 键组 ID 本身可以看作是它在整个键组空间 $[0, P_{max}-1]$ 中的位置。
     public static int computeOperatorIndexForKeyGroup(
             int maxParallelism, int parallelism, int keyGroupId) {
         return keyGroupId * parallelism / maxParallelism;

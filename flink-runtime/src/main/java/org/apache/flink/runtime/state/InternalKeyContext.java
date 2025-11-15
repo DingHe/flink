@@ -30,19 +30,29 @@ import javax.annotation.Nonnull;
  * <p>The typical use case for this interface is providing a view on the current-key selection
  * aspects of {@link org.apache.flink.runtime.state.KeyedStateBackend}.
  */
+// 作用是定义和提供 Flink 键控状态（Keyed State） 运行时的当前 Key 上下文信息。
+// Key 切换管理： 在 Flink 的 KeyedStream 上，算子是按 Key 分区处理数据的。每当处理一个新 Key 的数据时，StreamTask 都必须告诉状态后端（KeyedStateBackend） 当前正在处理哪个 Key，以便状态后端可以访问和修改正确的 Key 对应的数据。
+// 提供上下文视图： 该接口提供了访问当前选定 Key、Key 所属的Key Group，以及整个 Key 分区结构（如 Key Group 总数）的统一视图。
+// 它是一个内部的“指针”，始终指向状态后端当前应该操作的 Key 和 Key Group，确保状态访问的正确性。
+// <K>	类型参数	定义当前上下文中 Key 的数据类型。
 @Internal
 public interface InternalKeyContext<K> {
 
     /** Used by states to access the current key. */
+    // 获取当前选定的 Key。
     K getCurrentKey();
 
     /** Returns the key-group to which the current key belongs. */
+    // 获取当前 Key 所属的 Key Group 索引。
     int getCurrentKeyGroupIndex();
 
     /** Returns the number of key-groups aka max parallelism. */
+    // 获取 Key Group 的总数
     int getNumberOfKeyGroups();
 
     /** Returns the key groups for this backend. */
+    // 获取本地 Key Group 范围。
+    // 返回当前 StreamTask（即当前算子实例）负责处理的 Key Group 编号的范围（KeyGroupRange 对象）
     KeyGroupRange getKeyGroupRange();
 
     /**

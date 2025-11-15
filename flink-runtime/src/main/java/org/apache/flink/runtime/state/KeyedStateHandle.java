@@ -27,7 +27,8 @@ import javax.annotation.Nullable;
  * the handle will be passed to all tasks whose key group ranges overlap with it.
  */
 // 抽象地表示和引用一个或多个 Key Group 的键控状态（Keyed State）的持久化快照。
-// 键控状态是 Flink 中最主要的状态类型，它与数据流中的键（Key）相关联。在 Flink 进行检查点时，Job 的整个键空间会被划分成 Key Group，每个并行任务负责一部分 Key Group 的状态。
+// 键控状态是 Flink 中最主要的状态类型，它与数据流中的键（Key）相关联。
+// 在 Flink 进行检查点时，Job 的整个键空间会被划分成 Key Group，每个并行任务负责一部分 Key Group 的状态。
 public interface KeyedStateHandle extends CompositeStateHandle {
 
     /** Returns the range of the key groups contained in the state. */

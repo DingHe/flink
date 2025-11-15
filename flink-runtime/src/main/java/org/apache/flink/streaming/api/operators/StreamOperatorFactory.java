@@ -31,20 +31,29 @@ import java.io.Serializable;
  *
  * @param <OUT> The output type of the operator
  */
+// 主要作用是充当 StreamOperator（流式算子）的工厂
+// 在 Flink 运行时，直接创建 StreamOperator 实例是比较繁琐的，因为它需要大量的上下文信息（如配置、运行时数据结构等）。
+// StreamOperatorFactory 职责是将算子的定义与算子的实际创建解耦，并允许在 作业图（StreamGraph）生成阶段 对算子进行一些必要的配置和优化。
+// 创建算子实例： 根据运行时参数（StreamOperatorParameters）创建具体的 StreamOperator 实例，该实例将会在 StreamTask 中执行实际的计算逻辑。
+// 配置与优化： 允许 Flink 框架在构建作业图时，配置算子的输入/输出类型（如果算子支持）和链式策略（Chaining Strategy），从而影响作业的并行执行和优化。
+// <OUT>  表示此工厂创建的 StreamOperator 的输出数据类型。
 @PublicEvolving
 public interface StreamOperatorFactory<OUT> extends Serializable {
 
     /** Create the operator. Sets access to the context and the output. */
+    // 创建算子实例
     <T extends StreamOperator<OUT>> T createStreamOperator(
             StreamOperatorParameters<OUT> parameters);
 
     /** Set the chaining strategy for operator factory. */
+    // 用于指定当前算子是否可以与其上游/下游算子链在一起（Chain），以在同一个线程/任务槽中执行，从而减少网络传输和序列化开销。
     void setChainingStrategy(ChainingStrategy strategy);
 
     /** Get the chaining strategy of operator factory. */
     ChainingStrategy getChainingStrategy();
 
     /** Is this factory for {@link StreamSource}. */
+    // 标记是否为 Source 算子。 返回 true 表示此工厂创建的是一个 新的 StreamSource 类型的算子
     default boolean isStreamSource() {
         return false;
     }
@@ -58,6 +67,8 @@ public interface StreamOperatorFactory<OUT> extends Serializable {
      * generation. This can be useful for cases where the output type is specified by the returns
      * method and, thus, after the stream operator has been created.
      */
+    // 检查算子是否需要在 StreamGraph 生成阶段配置其输出类型
+    // 如果返回 true，则 Flink 会调用 setOutputType 方法。默认返回 false。
     default boolean isOutputTypeConfigurable() {
         return false;
     }
@@ -70,9 +81,11 @@ public interface StreamOperatorFactory<OUT> extends Serializable {
      * @param type Output type information of the {@link StreamTask}
      * @param executionConfig Execution configuration
      */
+    //设置算子的输出类型。 在 StreamGraph 生成时，如果 isOutputTypeConfigurable() 返回 true，此方法会被调用来传入最终确定的输出 TypeInformation 和 ExecutionConfig。
     default void setOutputType(TypeInformation<OUT> type, ExecutionConfig executionConfig) {}
 
     /** If the stream operator need to be configured with the data type they will operate on. */
+    // 检查算子是否需要在 StreamGraph 生成阶段配置其输入类型
     default boolean isInputTypeConfigurable() {
         return false;
     }
@@ -95,6 +108,8 @@ public interface StreamOperatorFactory<OUT> extends Serializable {
      *
      * @return OperatorAttributes of the operator.
      */
+    // 获取算子的属性。 返回 OperatorAttributes 对象，
+    // 该对象可以向 Flink 框架提供算子的特性信息，以便框架进行优化（
     @Experimental
     default OperatorAttributes getOperatorAttributes() {
         return new OperatorAttributesBuilder().build();

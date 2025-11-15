@@ -39,8 +39,14 @@ import java.util.Set;
  * org.apache.flink.queryablestate.client.QueryableStateClient Queryable State Client} and providing
  * an {@link MapStateDescriptor}.
  */
+// ImmutableMapState<K, V> 的作用是作为 Flink 可查询状态（Queryable State） 客户端的结果容器，提供一个 只读的 MapState 视图。
+// 只读封装： 它实现了 Flink 的 MapState 接口，但会阻止任何修改状态的操作（如 put、remove、clear），并在调用这些方法时抛出异常。
+// 可查询状态结果： 当外部客户端（通过 QueryableStateClient）查询 Flink 任务的状态，并且查询的是一个 MapStateDescriptor 时，后端返回的序列化数据会被反序列化并封装成 ImmutableMapState 对象。
+// 数据隔离： 它确保外部查询只能查看当前的状态快照，而无法意外或恶意地修改正在运行的 Flink 应用程序的状态数据，从而保证了运行时的数据安全和一致性。
 public final class ImmutableMapState<K, V> extends ImmutableState implements MapState<K, V> {
 
+    // 状态数据存储：这是一个 final 字段，用于存储从 Flink 状态后端查询并反序列化得到的底层 Map 数据。
+    // 它是此类的核心数据结构，所有读取操作都委托给这个 Map。
     private final Map<K, V> state;
 
     private ImmutableMapState(final Map<K, V> mapState) {

@@ -41,6 +41,11 @@ import java.util.Map;
  * @param <UK> The type of the keys in the state.
  * @param <UV> The type of the values in the state.
  */
+// HeapMapState<K, N, UK, UV> 是 Flink 中 MapState (映射状态) 接口的一个实现，它使用 JVM 堆内存（Heap） 作为底层存储
+// 基于堆的存储： 它是 Flink HeapStateBackend 的核心组件之一。与 RocksDBMapState 将每个内部条目平铺到磁盘不同，HeapMapState 将整个内部 Map (Map<UK, UV>) 作为一个对象，存储在 JVM 堆内存中，并由父类 StateTable 统一管理。
+// 高性能访问： 由于所有状态数据都保存在内存中，对 Map 的读写操作（get, put 等）速度非常快，是 $O(1)$ 的哈希表操作复杂度，适用于读写密集且状态大小适中的应用场景。
+// 快照机制： 虽然数据在内存中，但 Flink 的检查点（Checkpoint）机制会负责将这些内存中的 Map 对象序列化并写入外部文件存储（如 HDFS、S3），从而实现容错和持久化。
+// 它提供了基于内存的 Map 状态功能，追求极致的访问速度，同时通过 Flink 的 Checkpoint 机制保证数据的安全。
 class HeapMapState<K, N, UK, UV> extends AbstractHeapState<K, N, Map<UK, UV>>
         implements InternalMapState<K, N, UK, UV> {
 

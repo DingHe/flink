@@ -26,8 +26,13 @@ import org.apache.flink.annotation.Internal;
  *
  * @see SnapshotStrategy
  */
+// 资源抽象： 它是对 Checkpoint/Savepoint 同步阶段（Sync Phase）所创建的任何临时或辅助性资源的抽象。这些资源可能是锁、文件句柄、内存缓冲区等。
+// 生命周期管理： 它确保这些资源能够存活到异步快照阶段（Async Phase） 结束，并在完成后被安全、及时地释放
+// 它是一个 Checkpoint 流程中的 “临时资源提货单” ，确保状态后端在完成快照后能够进行必要的清理工作
 @Internal
 public interface SnapshotResources {
     /** Cleans up the resources after the asynchronous part is done. */
+    // 释放封装的资源。
+    // 调用时机： Flink 运行时会在整个快照过程完成（包括同步部分和异步部分，无论成功还是失败）之后调用此方法。
     void release();
 }

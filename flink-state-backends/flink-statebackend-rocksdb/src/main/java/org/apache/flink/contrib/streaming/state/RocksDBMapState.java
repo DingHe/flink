@@ -63,6 +63,11 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * @param <UK> The type of the keys in the map state.
  * @param <UV> The type of the values in the map state.
  */
+// RocksDBMapState<K, N, UK, UV> 是 Flink 中 MapState (映射状态) 接口的一个实现，它使用 RocksDB 作为底层存储。
+// 实现 Map 状态语义： 针对 Flink Keyed Stream 的主键 $K$ 和命名空间 $N$，它提供了一个内部 Map 结构的操作接口 (get, put, remove, iterator 等)，允许用户存储和管理一组内部键值对 ($UK, UV$)。
+// 细粒度 RocksDB 存储： 与将整个 Map 序列化为一个 RocksDB 记录不同，RocksDBMapState 采取了平铺 (sharding) 策略：它将 Map 中的每个内部键值对 ($UK, UV$) 作为一个独立的记录存储在 RocksDB 中。
+// 复合键结构： 为了在 RocksDB 中区分不同的内部条目，它构造了一个复合键，格式通常为：KeyGroup + Flink_Key + Namespace + User_Key。这种结构允许 RocksDB 利用其迭代器按前缀（即 $KeyGroup + Flink\_Key + Namespace$）进行范围扫描，从而高效地实现 entries()、keys()、values() 和 clear() 操作。
+// 它将 Flink Map 状态的抽象转化为 RocksDB 中的一系列独立键值对，以实现高性能和可扩展的状态管理。
 class RocksDBMapState<K, N, UK, UV> extends AbstractRocksDBState<K, N, Map<UK, UV>>
         implements InternalMapState<K, N, UK, UV> {
 

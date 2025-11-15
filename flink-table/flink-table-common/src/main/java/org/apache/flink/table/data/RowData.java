@@ -111,13 +111,13 @@ import static org.apache.flink.table.types.logical.utils.LogicalTypeChecks.getSc
  *
  * <p>Nullability is always handled by the container data structure.
  */
-//Flink Table API & SQL 内部使用的核心数据结构，用于在运行时高效地表示一行数据。
-//它是 Flink 内部数据模型的基础，旨在减少序列化和反序列化的开销，从而优化性能
-//它代表了数据的物理存储格式。与 DataType 关注逻辑类型和外部 Java 对象不同，RowData 是 Flink 内部用于处理和传输数据的紧凑、二进制友好的格式
-//它包含了数据的变更信息。每个 RowData 实例都带有一个 RowKind 标记，用于表示该行数据的类型（例如插入、删除、更新前、更新后），这对于流式处理中的变更日志（Changelog）至关重要
-//有两种主要实现
-//BinaryRowData：面向二进制的实现，通过直接操作内存段 (MemorySegment) 来存储数据，极大地减少了 JVM 对象的创建和垃圾回收开销，适用于高性能的批处理和流处理场景
-//GenericRowData：面向对象的实现，基于一个 Java Object 数组，易于构造和修改，通常用于测试或数据转换的边缘场景
+// Flink Table API & SQL 内部使用的核心数据结构，用于在运行时高效地表示一行数据。
+// 它是 Flink 内部数据模型的基础，旨在减少序列化和反序列化的开销，从而优化性能
+// 它代表了数据的物理存储格式。与 DataType 关注逻辑类型和外部 Java 对象不同，RowData 是 Flink 内部用于处理和传输数据的紧凑、二进制友好的格式
+// 它包含了数据的变更信息。每个 RowData 实例都带有一个 RowKind 标记，用于表示该行数据的类型（例如插入、删除、更新前、更新后），这对于流式处理中的变更日志（Changelog）至关重要
+// 有两种主要实现
+// BinaryRowData：面向二进制的实现，通过直接操作内存段 (MemorySegment) 来存储数据，极大地减少了 JVM 对象的创建和垃圾回收开销，适用于高性能的批处理和流处理场景
+// GenericRowData：面向对象的实现，基于一个 Java Object 数组，易于构造和修改，通常用于测试或数据转换的边缘场景
 @PublicEvolving
 public interface RowData {
 

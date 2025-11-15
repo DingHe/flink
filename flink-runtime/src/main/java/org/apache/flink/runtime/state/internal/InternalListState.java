@@ -31,6 +31,9 @@ import java.util.List;
  * @param <N> The type of the namespace
  * @param <T> The type of elements in the list
  */
+// 内部状态接口： 它不直接暴露给 Flink 应用程序开发者（用户通常使用 org.apache.flink.api.common.state.ListState），
+// 而是作为 Keyed State Backend (键控状态后端) 的实现层与用户 API 之间的桥梁。
+// 例如，HeapListState 和 RocksDBListState 等具体实现会实现这个内部接口。
 public interface InternalListState<K, N, T>
         extends InternalMergingState<K, N, T, List<T>, Iterable<T>>, ListState<T> {
 
@@ -47,6 +50,7 @@ public interface InternalListState<K, N, T>
      * @throws Exception The method may forward exception thrown internally (by I/O or functions, or
      *     sanity check for null value).
      */
+    // 用新的列表完全替换当前 Key 和 Namespace 下的列表状态。
     void update(List<T> values) throws Exception;
 
     /**
@@ -62,5 +66,7 @@ public interface InternalListState<K, N, T>
      * @throws Exception The method may forward exception thrown internally (by I/O or functions, or
      *     sanity check for null value).
      */
+    // 追加列表：
+    // 将给定的列表中的所有元素追加到现有状态的末尾。
     void addAll(List<T> values) throws Exception;
 }

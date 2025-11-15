@@ -19,7 +19,10 @@
 package org.apache.flink.runtime.state;
 
 /** Determines how the write-part of a snapshot should be executed. */
+// 状态快照的持久化（写入）操作 应该采用同步（Synchronous） 模式还是异步（Asynchronous） 模式执行。
 public enum SnapshotExecutionType {
+    // 同步执行
     SYNCHRONOUS,
+    // 异步执行
     ASYNCHRONOUS
 }

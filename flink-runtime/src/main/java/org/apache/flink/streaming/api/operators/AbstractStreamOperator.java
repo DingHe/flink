@@ -92,12 +92,18 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * @param <OUT> The output type of the operator.
  */
-//Flink 所有流式算子（StreamOperator）实现的基类
+// Flink 所有流式算子（Stream Operator）的核心基类。
+// 它封装了所有算子运行所需的基础设施、生命周期管理、状态处理、计时器服务和运行时上下文。
+// 统一算子基线： 作为 Flink 流计算图（StreamGraph）中所有节点的通用实现基础，无论是 Source、Map、Filter 还是 Window 算子，都直接或间接继承自它。
+// 封装运行时环境： 管理算子与 Flink 运行时环境（StreamTask、StreamConfig、Environment）之间的交互，提供了访问执行配置、类加载器和度量指标的接口。
+// 处理状态与容错： 集中管理**键控状态（Keyed State）和算子状态（Operator State）**的初始化、快照（Snapshot）和恢复逻辑，是 Flink Checkpoint 机制在算子层面的入口。
+// 提供服务： 实现了事件时间和处理时间**定时器服务（Timer Service）**和键（Key）的上下文管理，这是实现窗口、ProcessFunction 等复杂逻辑的基础。
+// 处理控制流： 提供了处理 Watermark、LatencyMarker 和 RecordAttributes 等控制消息的默认逻辑。
 @PublicEvolving
 public abstract class AbstractStreamOperator<OUT>
         implements StreamOperator<OUT>,
-                SetupableStreamOperator<OUT>, //提供setup方法、设置ChainingStrategy等
-                YieldingOperator<OUT>,  //设置MailboxExecutor
+                SetupableStreamOperator<OUT>, // 提供setup方法、设置ChainingStrategy等
+                YieldingOperator<OUT>,  // 设置MailboxExecutor
                 CheckpointedStreamOperator,  //检查点的接口
                 KeyContextHandler, //hasKeyContext
                 Serializable {
@@ -109,27 +115,33 @@ public abstract class AbstractStreamOperator<OUT>
     // ----------- configuration properties -------------
 
     // A sane default for most operators
-    //定义算子链接策略。ChainingStrategy.HEAD 表示该算子是链的起点，ChainingStrategy.ALWAYS 表示它可以与前一个算子链接
+    // 定义算子链接策略。ChainingStrategy.HEAD 表示该算子是链的起点，ChainingStrategy.ALWAYS 表示它可以与前一个算子链接
     protected ChainingStrategy chainingStrategy = ChainingStrategy.HEAD;
 
     // ---------------- runtime fields ------------------
 
     /** The task that contains this operator (and other operators in the same chain). */
-    //指向包含该算子的流任务（StreamTask）。StreamTask 是 Flink 运行时中的一个执行单元，一个 StreamTask 可能包含一个或多个链接在一起的算子
+    //指向包含该算子的流任务（StreamTask）。
+    // StreamTask 是 Flink 运行时中的一个执行单元，一个 StreamTask 可能包含一个或多个链接在一起的算子
     private transient StreamTask<?, ?> container;
-    //算子配置。包含了关于该算子的所有配置信息，如输入输出类型、算子 ID、并行度、状态分区器等
+    // 算子配置。
+    // 包含了关于该算子的所有配置信息，如输入输出类型、算子 ID、并行度、状态分区器等
     protected transient StreamConfig config;
-    //输出接口。用于将处理后的数据或控制消息（如水印）发送到下游算子
+    //输出接口。
+    // 用于将处理后的数据或控制消息（如水印）发送到下游算子
     protected transient Output<StreamRecord<OUT>> output;
-
+    // 组合水位线状态。
+    // 用于双输入算子（TwoInputStreamOperator），跟踪并计算两个输入流的组合水位线。
     private transient IndexedCombinedWatermarkStatus combinedWatermark;
 
     /** The runtime context for UDFs. */
     //运行时上下文。这是用户函数（UDF）访问 Flink 运行时信息的接口，如获取任务信息、配置、累加器、状态和定时器服务等
     private transient StreamingRuntimeContext runtimeContext;
-
+    // 邮箱执行器。
+    // 用于将控制请求（Mail）提交到 StreamTask 的邮箱中，实现与单线程邮箱模型的协作。
     private transient @Nullable MailboxExecutor mailboxExecutor;
-
+    // 邮箱水位线处理器。
+    // 当启用可拆分定时器（Splittable Timers）时，用于通过 Mailbox 机制发送 Watermark，以确保与定时器的交互是线程安全的。
     private transient @Nullable MailboxWatermarkProcessor watermarkProcessor;
 
     // ---------------- key/value state ------------------
@@ -140,7 +152,9 @@ public abstract class AbstractStreamOperator<OUT>
      *
      * <p>This is for elements from the first input.
      */
-    //键选择器。用于从输入元素中提取键，以便将状态操作（如访问键控状态）限定在特定键的范围内。对于非键控算子，这些属性为 null
+    // 输入 1 键选择器。
+    // 用于从第一个输入元素中提取键，以便将状态操作限定在特定键的范围内。
+    // 对于非键控算子，此属性为 null。
     protected transient KeySelector<?, ?> stateKeySelector1;
 
     /**
@@ -149,30 +163,41 @@ public abstract class AbstractStreamOperator<OUT>
      *
      * <p>This is for elements from the second input.
      */
+    // 输入 2 键选择器。
+    // 用于从第二个输入元素中提取键。
     protected transient KeySelector<?, ?> stateKeySelector2;
-    //状态处理器。这是管理算子所有状态（键控状态和算子状态）的内部组件，它处理状态的初始化、快照和恢复
+    // 状态处理器。
+    // 管理算子的所有状态（键控状态和算子状态）的内部组件，处理状态的初始化、快照和恢复。
     protected transient StreamOperatorStateHandler stateHandler;
-    //时间服务管理器。负责管理算子的事件时间和处理时间定时器
+    // 时间服务管理器。
+    // 负责管理算子的事件时间和处理时间定时器
     protected transient InternalTimeServiceManager<?> timeServiceManager;
 
     // --------------- Metrics ---------------------------
 
     /** Metric group for the operator. */
+    // 度量指标组。
+    // 用于收集和报告算子级别的运行时指标（如吞吐量、延迟等）。
     protected transient InternalOperatorMetricGroup metrics;
-
+    // 延迟统计。
+    // 用于记录和报告端到端数据处理延迟的工具。
     protected transient LatencyStats latencyStats;
 
     // ---------------- time handler ------------------
-
+    // 处理时间服务。
+    // 用于获取当前的机器时间并注册基于处理时间的定时器。
     protected transient ProcessingTimeService processingTimeService;
-
+    // 输入 1 记录属性。
+    // 用于存储最近接收到的第一个输入流的记录属性。
     protected transient RecordAttributes lastRecordAttributes1;
+    // 输入 2 记录属性。
+    // 用于存储最近接收到的第二个输入流的记录属性。
     protected transient RecordAttributes lastRecordAttributes2;
 
     // ------------------------------------------------------------------------
     //  Life Cycle
     // ------------------------------------------------------------------------
-    //算子的初始化。在算子生命周期中最早被调用，用于将算子与运行时环境绑定。
+    // 算子的初始化。在算子生命周期中最早被调用，用于将算子与运行时环境绑定。
     // 它会设置 container、config、output、metrics、runtimeContext 等关键属性，并初始化延迟统计等
     @Override
     public void setup(

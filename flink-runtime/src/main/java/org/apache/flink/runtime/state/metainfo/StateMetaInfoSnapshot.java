@@ -34,14 +34,19 @@ import java.util.Map;
  * Generalized snapshot for meta information about one state in a state backend (e.g. {@link
  * RegisteredKeyValueStateBackendMetaInfo}).
  */
+// 主要作用是封装 Flink 单个状态（State） 在进行 Checkpoint 或 Savepoint 时所需的所有元数据信息的快照。
+// 容错元数据持久化： 在创建 Checkpoint 时，不仅仅需要保存状态数据本身，还需要保存如何读取这些数据的信息。这个类就是用来保存这些“如何读取”的信息。
+// 类型版本管理： 它记录了状态所使用的序列化器（TypeSerializer） 的快照 (TypeSerializerSnapshot)。这对于 Flink 在作业重启或升级时，正确地处理类型模式演进（Schema Evolution） 至关重要。
+
 public class StateMetaInfoSnapshot {
 
     /** Enum that defines the different types of state that live in Flink backends. */
+    // 后端状态类型
     public enum BackendStateType {
-        KEY_VALUE(0),
-        OPERATOR(1),
-        BROADCAST(2),
-        PRIORITY_QUEUE(3);
+        KEY_VALUE(0), // 键值状态。 指的是 Keyed State，例如 ValueState, ListState 等。
+        OPERATOR(1),  // 算子状态。 指的是 Operator State，例如 ListCheckpointed 实现的状态。
+        BROADCAST(2), // 广播状态。 指的是 BroadcastState。
+        PRIORITY_QUEUE(3); // 优先级队列状态。 通常用于 Flink 内部的时间服务（Timer Service）
         private final byte code;
 
         BackendStateType(int code) {
@@ -63,37 +68,48 @@ public class StateMetaInfoSnapshot {
     }
 
     /** Predefined keys for the most common options in the meta info. */
+    // 常用选项键
     public enum CommonOptionsKeys {
         /** Key to define the {@link StateDescriptor.Type} of a key/value keyed-state */
-        KEYED_STATE_TYPE,
+        KEYED_STATE_TYPE, // 用于定义 Keyed State 的具体类型（例如，是 ValueState 还是 ListState）。
         /**
          * Key to define {@link org.apache.flink.runtime.state.OperatorStateHandle.Mode}, about how
          * operator state is distributed on restore
          */
-        OPERATOR_STATE_DISTRIBUTION_MODE,
+        OPERATOR_STATE_DISTRIBUTION_MODE, // 用于定义 Operator State 在恢复时如何被分配到不同的并行实例（例如，EVENLY 或 UNION）
     }
 
     /** Predefined keys for the most common serializer types in the meta info. */
+    // 常用序列化器键
     public enum CommonSerializerKeys {
-        KEY_SERIALIZER,
-        NAMESPACE_SERIALIZER,
-        VALUE_SERIALIZER
+        KEY_SERIALIZER, // 在 Keyed State 中，用于 Key 的序列化器。
+        NAMESPACE_SERIALIZER, // 在 Keyed State 中，用于命名空间（Namespace）的序列化器（通常用于窗口操作）。
+        VALUE_SERIALIZER  // 用于状态值（Value）的序列化器。
     }
 
     /** The name of the state. */
+    // 状态名称。 例如，在 StateDescriptor 中定义的名称
     @Nonnull private final String name;
 
+    // 后端状态类型。
+    // 标识该快照描述的是哪种类型（如 KEY_VALUE）。
     @Nonnull private final BackendStateType backendStateType;
 
     /** Map of options (encoded as strings) for the state. */
+    // 状态选项 Map。
+    // 以字符串形式存储状态的各种配置选项（键值对），包括通过 CommonOptionsKeys 定义的那些选项。
     @Nonnull private final Map<String, String> options;
 
     /** The configurations of all the type serializers used with the state. */
+    // 序列化器快照 Map（核心）。
+    // 这是最重要的属性。它存储了所有用于状态的序列化器（Key, Value, Namespace）的快照。
     @Nonnull private final Map<String, TypeSerializerSnapshot<?>> serializerSnapshots;
 
     // TODO this will go away once all serializers have the restoreSerializer() factory method
     // properly implemented.
     /** The serializers used by the state. */
+    // 序列化器 Map（已弃用/临时）。
+    // 存储实际的 TypeSerializer 实例。
     @Nonnull private final Map<String, TypeSerializer<?>> serializers;
 
     public StateMetaInfoSnapshot(

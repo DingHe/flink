@@ -41,7 +41,7 @@ public final class FunctionUtils {
             richFunction.close();
         }
     }
-
+    // 如果是富函数，则把运行时上下文设置到函数中
     public static void setFunctionRuntimeContext(Function function, RuntimeContext context) {
         if (function instanceof RichFunction) {
             RichFunction richFunction = (RichFunction) function;

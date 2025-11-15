@@ -26,6 +26,10 @@ import org.apache.flink.state.changelog.StateChangeOperation;
 
 import java.util.ArrayList;
 import java.util.Collection;
+// KvStateChangeApplier（键值状态变更应用器）为所有 Keyed State 的具体应用器（如 ValueStateChangeApplier、ListStateChangeApplier 等）提供了通用的、预处理的逻辑。
+// 实现通用应用流程： 实现了 StateChangeApplier 接口的 apply 方法。在这个方法中，它处理了所有 Keyed State 都需要的共同前置步骤。
+// 设置 Key 和 Namespace 上下文： 每次应用变更前，它会从日志流中读取 Key 和 Namespace，并正确地设置到 Flink 的运行时上下文 (keyContext) 和底层状态实例 (InternalKvState) 中。
+
 
 abstract class KvStateChangeApplier<K, N> implements StateChangeApplier {
     private final InternalKeyContext<K> keyContext;

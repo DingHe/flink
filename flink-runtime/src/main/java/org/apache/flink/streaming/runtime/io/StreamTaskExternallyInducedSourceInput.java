@@ -23,11 +23,18 @@ import org.apache.flink.streaming.api.operators.SourceOperator;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-
+// 适配外部触发 Checkpoint 的 Source： 专门用于封装实现了 ExternallyInducedSourceReader 接口的 Source Reader
+// 触发 Checkpoint 机制： 在 Source Reader 暂时没有数据可读时，它会询问 Source Reader 是否应该触发一次 Checkpoint，并将触发逻辑（checkpointTriggeringHook）注入到 Flink 的运行时。
+// Flink 内部支持具有外部 Checkpoint 机制的 Source 的桥梁，负责将外部的 Checkpoint 信号转换为 Flink 内部的 Checkpoint 触发流程。
 /** A subclass of {@link StreamTaskSourceInput} for {@link ExternallyInducedSourceReader}. */
 public class StreamTaskExternallyInducedSourceInput<T> extends StreamTaskSourceInput<T> {
+    // Checkpoint 触发钩子
+    // 用于实际向 JobManager 触发 Checkpoint 的逻辑。它接收 Checkpoint ID 作为参数。当 Source Reader 判断需要触发 Checkpoint 时，会调用此 Hook
     private final Consumer<Long> checkpointTriggeringHook;
+    // 外部触发 Source Reader 实例
     private final ExternallyInducedSourceReader<T, ?> sourceReader;
+    // 阻塞 Future。
+    // 用于实现外部控制的 I/O 阻塞机制。如果此 Future 不为 null 且未完成，emitNext 方法将返回 NOTHING_AVAILABLE，直到 Future 完成。
     private CompletableFuture<?> blockFuture;
 
     @SuppressWarnings("unchecked")

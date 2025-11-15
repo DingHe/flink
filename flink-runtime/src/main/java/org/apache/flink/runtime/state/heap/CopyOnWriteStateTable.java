@@ -35,6 +35,11 @@ import java.util.List;
  * @param <N> type of namespace.
  * @param <S> type of state.
  */
+// CopyOnWriteStateTable 是 Flink 堆内存状态后端（Heap State Backend）中用于管理键值状态的核心容器。
+// 键组分片管理：它充当了一个顶级容器，将所有的键值状态根据 Key Group（键组）划分到一系列底层的 StateMap 实例中。Flink 的状态是按键组（Key Group）分片的，这是实现并行和重分布的基础。
+// 启用异步快照：这个类继承自抽象类 StateTable，但它特意通过其 createStateMap() 方法指定使用 CopyOnWriteStateMap（或其相关实现如 CopyOnWriteSkipListStateMap）作为底层存储。
+// 这意味着它为整个状态表提供了 写时复制 (Copy-On-Write, COW) 能力，从而支持 异步快照。
+// CopyOnWriteStateTable 是一个支持异步快照的、按键组分片的键值状态管理器。
 public class CopyOnWriteStateTable<K, N, S> extends StateTable<K, N, S> {
 
     /**
@@ -50,7 +55,7 @@ public class CopyOnWriteStateTable<K, N, S> extends StateTable<K, N, S> {
             TypeSerializer<K> keySerializer) {
         super(keyContext, metaInfo, keySerializer);
     }
-
+    // 返回一个基于写时复制原理实现的 CopyOnWriteStateMap 实例。
     @Override
     protected CopyOnWriteStateMap<K, N, S> createStateMap() {
         return new CopyOnWriteStateMap<>(getStateSerializer());

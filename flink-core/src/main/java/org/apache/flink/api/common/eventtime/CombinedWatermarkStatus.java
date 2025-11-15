@@ -29,15 +29,28 @@ import static org.apache.flink.util.Preconditions.checkState;
  * A {@link CombinedWatermarkStatus} combines the watermark (and idleness) updates of multiple
  * partitions/shards/splits into one combined watermark.
  */
+// CombinedWatermarkStatus 类在 Flink 事件时间处理中扮演着多路复用（Multiplexing）和同步协调的角色。
+// 组合 Watermark (Minimum Logic): 在一个算子（通常是 StreamTask 或 Operator，
+// 例如 TwoInputStreamOperator 双输入算子）接收来自多个输入源、多个分区或多个内部逻辑分片的 Watermark 时，
+// 它负责根据 Flink 的 Watermark 语义计算出组合 Watermark。
+// 组合 Watermark 总是所有非空闲（non-idle）分片 Watermark 中的最小值。
+// 管理空闲状态 (Idleness): 它跟踪所有内部输入分片的空闲状态。只有当所有分片都处于空闲状态时，整个组合 Watermark 状态才被标记为空闲。
+// 驱动 Watermark 前进： 通过定期调用 updateCombinedWatermark()，它驱动组合 Watermark 前进，并决定是否应该向更下游的算子发出新的 Watermark 消息。
+// 确保了 Flink 的事件时间进展总是受限于最慢的那个非空闲输入分片。
+
 @Internal
 final class CombinedWatermarkStatus {
 
     /** List of all watermark outputs, for efficient access. */
+    // 存储所有参与组合计算的 Watermark 分片状态（即每个输入源或内部逻辑分片的状态）
     private final List<PartialWatermark> partialWatermarks = new ArrayList<>();
 
     /** The combined watermark over the per-output watermarks. */
+    // 组合 Watermark 的值。
+    // 它是所有非空闲 PartialWatermark 的当前 Watermark 值中的最小值。初始值为 Long.MIN_VALUE
     private long combinedWatermark = Long.MIN_VALUE;
-
+    // 组合空闲状态。
+    // 表示整个组合 Watermark 状态是否处于空闲。仅当所有 partialWatermarks 都处于空闲状态时，此值为 true。
     private boolean idle = false;
 
     public long getCombinedWatermark() {
@@ -92,9 +105,16 @@ final class CombinedWatermarkStatus {
     }
 
     /** Per-output watermark state. */
+    // 代表一个单一的输入源、分片或输出的水位线状态
     static class PartialWatermark {
+        // 当前分片的 Watermark 值。
+        // 初始值为 Long.MIN_VALUE。
         private long watermark = Long.MIN_VALUE;
+        // 当前分片的空闲状态。
+        // true 表示该分片当前没有数据流经。
         private boolean idle = false;
+        // 水位线更新监听器。
+        // 一个回调函数，用于在 Watermark 发生变化时通知外部组件（如 CombinedWatermarkStatus 或 WatermarkOutputMultiplexer）
         private final WatermarkOutputMultiplexer.WatermarkUpdateListener onWatermarkUpdate;
 
         public PartialWatermark(

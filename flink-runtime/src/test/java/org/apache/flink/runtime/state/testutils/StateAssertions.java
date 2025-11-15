@@ -51,7 +51,7 @@ public final class StateAssertions {
                 .map(StateEntryWithEquals::new)
                 .containsExactlyInAnyOrderElementsOf(expectedEntries);
     }
-
+    // 含等值判断的状态实体类
     private static class StateEntryWithEquals<K, N, S> implements StateEntry<K, N, S> {
 
         private final N namespace;

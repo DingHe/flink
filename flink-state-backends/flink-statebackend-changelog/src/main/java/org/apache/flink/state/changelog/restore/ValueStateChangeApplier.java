@@ -23,6 +23,9 @@ import org.apache.flink.runtime.state.internal.InternalKvState;
 import org.apache.flink.runtime.state.internal.InternalValueState;
 import org.apache.flink.state.changelog.StateChangeOperation;
 
+// 该类的作用是作为 Value State（值状态）的状态变更应用器。
+// 它实现了 StateChangeApplier 接口的逻辑，专门负责读取状态变更日志中记录的针对 Value State 的操作（如 SET 或 CLEAR），
+// 并将这些操作精确地重放到关联的 InternalValueState 实例上。
 class ValueStateChangeApplier<K, N, T> extends KvStateChangeApplier<K, N> {
     private final InternalValueState<K, N, T> state;
 

@@ -24,6 +24,8 @@ import org.apache.flink.runtime.state.internal.InternalKvState;
 import org.apache.flink.runtime.state.internal.InternalMapState;
 import org.apache.flink.state.changelog.StateChangeOperation;
 
+// 该类的作用是作为 Map State (映射状态) 的状态变更应用器。它实现了将状态变更日志中记录的针对 Map State 的操作（如 ADD、ADD_ELEMENT、REMOVE_ELEMENT、CLEAR 等）精确地重放到关联的 InternalMapState 实例上。
+//它从变更日志流 (DataInputView) 中读取序列化的 Map 键和值，并调用底层 MapState 实例的相应方法（如 put、remove）来恢复 Map State 的数据。
 class MapStateChangeApplier<K, N, UK, UV> extends KvStateChangeApplier<K, N> {
     private final InternalMapState<K, N, UK, UV> mapState;
     private final MapSerializer<UK, UV> mapSerializer;

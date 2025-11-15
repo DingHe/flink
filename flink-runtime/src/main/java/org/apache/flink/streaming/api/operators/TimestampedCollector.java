@@ -34,11 +34,19 @@ import org.apache.flink.util.OutputTag;
  *
  * @param <T> The type of the elements that can be emitted.
  */
+// TimestampedCollector 的核心作用是作为一个包装器（Wrapper）和时间戳注入器，
+// 将 Flink 底层需要 StreamRecord 作为输出的机制，适配到用户自定义函数（UDF）通常只需要 Collector<T> 的接口上。
+// 时间戳同步： 它允许 Flink 算子在处理每个输入元素之前，预先设置一个时间戳（通常是输入元素自身的时间戳）。当用户函数通过 collect(T record) 发射新元素时，这个预设的时间戳会被自动应用到新的输出 StreamRecord 上。
+// 避免重复创建对象： 它内部维护了一个可重用的 StreamRecord 实例 (reuse)。每次发射元素时，它只替换其中的值，而时间戳和对象本身可以复用，这显著减少了对象创建和垃圾回收的开销，是 Flink 内部性能优化的关键。
+// 桥接 UDF 和底层： 实现了 Output<T> 接口，满足了 UDF 对 Collector 的需求，但其内部输出 (output) 接受的是 StreamRecord<T>，从而桥接了用户代码和 Flink 底层数据结构。
+
 @Internal
 public final class TimestampedCollector<T> implements Output<T> {
-
+    // 底层输出接口。
+    // 这是实际执行数据发送给下游算子的接口。
+    // 它期望接收带有 StreamRecord 封装的数据（包括时间戳等元数据）
     private final Output<StreamRecord<T>> output;
-
+    // 可重用的 StreamRecord 实例
     private final StreamRecord<T> reuse;
 
     /** Creates a new {@link TimestampedCollector} that wraps the given {@link Output}. */

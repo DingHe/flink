@@ -39,13 +39,25 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * returns the {@link DataInputStatus} to indicate whether the source state is available,
  * unavailable or finished.
  */
+// 在 Flink 的 Source Task 中，数据不是来自上游任务的网络传输，而是由本地的 SourceOperator 负责生成和拉取（例如从 Kafka、文件系统等）。
+// StreamTaskSourceInput 的作用就是将这个 Source Operator 适配到 Flink 统一的 StreamTaskInput 接口和 Checkpoint 机制中
+// Source 适配器： 它将 Flink 的新 Source API 中用于生成数据的 SourceOperator 封装成 Task 期望的 StreamTaskInput 形式。
 @Internal
 public class StreamTaskSourceInput<T> implements StreamTaskInput<T>, CheckpointableInput {
-
+    // Source 算子实例（核心）。
+    // 持有底层的 SourceOperator 实例。所有实际的数据生成和 Checkpoint 逻辑都委托给它
     private final SourceOperator<T, ?> operator;
+    // 输入门索引。
+    // Flink Task 内部标识该输入的索引。
+    // 对于 Source Task，通常只有一个逻辑输入，这个索引标识了它在 Task 输入数组中的位置。
     private final int inputGateIndex;
+    // 用于管理该输入的阻塞状态。主要用途是在 Checkpoint 期间标记 Source 是否应该暂停数据生成，以实现 Checkpoint 屏障的“想象中对齐”
     private final AvailabilityHelper isBlockedAvailability = new AvailabilityHelper();
+    // 输入通道信息列表。
+    // 由于 Source Task 没有来自网络的实际输入通道，它构造了一个包含单个虚拟通道信息的列表，以满足 CheckpointableInput 接口的要求。
     private final List<InputChannelInfo> inputChannelInfos;
+    // 输入索引。
+    // 标识该输入在整个 Task 所有输入中的逻辑索引
     private final int inputIndex;
 
     public StreamTaskSourceInput(
@@ -56,7 +68,8 @@ public class StreamTaskSourceInput<T> implements StreamTaskInput<T>, Checkpointa
         isBlockedAvailability.resetAvailable();
         this.inputIndex = inputIndex;
     }
-
+    // 推送下一个元素。
+    // 功能： 尝试从 Source 生成并推送下一个元素。
     @Override
     public DataInputStatus emitNext(DataOutput<T> output) throws Exception {
         /**

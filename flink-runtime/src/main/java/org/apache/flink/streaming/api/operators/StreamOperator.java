@@ -43,7 +43,8 @@ import java.io.Serializable;
  *
  * @param <OUT> The output type of the operator
  */
-//所有算子（Operator） 的基本接口。算子是 Flink 流处理程序的核心执行单元，它们定义了对数据流进行转换、处理、聚合等操作的逻辑
+// 所有算子（Operator） 的基本接口。
+// 算子是 Flink 流处理程序的核心执行单元，它们定义了对数据流进行转换、处理、聚合等操作的逻辑
 @PublicEvolving
 public interface StreamOperator<OUT> extends CheckpointListener, KeyContext, Serializable {
 
@@ -61,7 +62,7 @@ public interface StreamOperator<OUT> extends CheckpointListener, KeyContext, Ser
      *     head operator).
      * @throws java.lang.Exception An exception in this method causes the operator to fail.
      */
-    //算子启动时的初始化方法
+    // 算子启动时的初始化方法
     void open() throws Exception;
 
     /**
@@ -96,8 +97,8 @@ public interface StreamOperator<OUT> extends CheckpointListener, KeyContext, Ser
      * <p><b>NOTE:</b>It can not emit any records! If you need to emit records at the end of
      * processing, do so in the {@link #finish()} method.
      */
-    //算子生命周期结束时的资源释放方法
-    //在作业成功完成或失败取消时，都会调用此方法。
+    // 算子生命周期结束时的资源释放方法
+    // 在作业成功完成或失败取消时，都会调用此方法。
     // 其目的是彻底释放算子所持有的所有外部资源，例如关闭数据库连接、文件句柄等。此方法中不能再发送任何记录到下游
     void close() throws Exception;
 
@@ -127,7 +128,8 @@ public interface StreamOperator<OUT> extends CheckpointListener, KeyContext, Ser
      */
     // 在算子发出检查点屏障（Checkpoint Barrier）之前，准备进行快照的方法
     // 此方法在同步快照阶段被调用，但其主要目的不是持久化状态，而是处理一些瞬态数据。
-    // 例如，一个预聚合算子可能将少量累积的状态刷新到下游，以便在快照中不需要包含这些状态，从而提高效率。它确保了在正式快照之前，算子已经处理并发送了所有必要的数据
+    // 例如，一个预聚合算子可能将少量累积的状态刷新到下游，以便在快照中不需要包含这些状态，从而提高效率。
+    // 它确保了在正式快照之前，算子已经处理并发送了所有必要的数据
     void prepareSnapshotPreBarrier(long checkpointId) throws Exception;
 
     /**
@@ -137,9 +139,9 @@ public interface StreamOperator<OUT> extends CheckpointListener, KeyContext, Ser
      *     synchronous implementations, the runnable might already be finished.
      * @throws Exception exception that happened during snapshotting.
      */
-    //创建状态快照的核心方法
-    //当检查点屏障到达时，此方法被调用，负责将算子的所有状态（keyed state 和 operator state）序列化并异步地写入到持久化存储中。
-    // 它返回一个 OperatorSnapshotFutures 对象，其中包含指向快照状态句柄的可运行未来，允许 Flink 异步地处理快照写入，避免阻塞数据流
+    // 创建状态快照的核心方法
+    // 当检查点屏障到达时，此方法被调用，负责将算子的所有状态（keyed state 和 operator state）序列化并异步地写入到持久化存储中。
+    // 它返回一个 OperatorSnapshotFutures 对象，其中包含指向快照状态句柄的可运行Future，允许 Flink 异步地处理快照写入，避免阻塞数据流
     OperatorSnapshotFutures snapshotState(
             long checkpointId,
             long timestamp,
@@ -156,8 +158,8 @@ public interface StreamOperator<OUT> extends CheckpointListener, KeyContext, Ser
     // ------------------------------------------------------------------------
     //  miscellaneous
     // ------------------------------------------------------------------------
-    //设置键上下文的方法
-    //这些方法用于为键控操作（如 keyBy 后续的操作）设置当前的键上下文。
+    // 设置键上下文的方法
+    // 这些方法用于为键控操作（如 keyBy 后续的操作）设置当前的键上下文。
     // 当一个元素被处理时，Flink 运行时会调用这些方法，将该元素的键信息传递给算子。这使得算子能够访问和修改与该键绑定的状态
     void setKeyContextElement1(StreamRecord<?> record) throws Exception;
 
@@ -173,7 +175,7 @@ public interface StreamOperator<OUT> extends CheckpointListener, KeyContext, Ser
      *
      * @return OperatorAttributes of the operator.
      */
-    //获取算子属性的方法
+    // 获取算子属性的方法
     @Experimental
     default OperatorAttributes getOperatorAttributes() {
         return new OperatorAttributesBuilder().build();

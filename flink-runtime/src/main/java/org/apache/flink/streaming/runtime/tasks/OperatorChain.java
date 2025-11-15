@@ -101,7 +101,6 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <p>The main entry point to the chain is it's {@code mainOperator}. {@code mainOperator} is
  * driving the execution of the {@link StreamTask}, by pulling the records from network inputs
  * and/or source inputs and pushing produced records to the remaining chained operators.
- *用于管理一组算子（operator）的链式执行的核心组件。它的主要作用是将多个算子（如 StreamOperator）连接成一个执行链，这样就可以减少数据传输的开销，提高执行效率
  * @param <OUT> The type of elements accepted by the chain, i.e., the input type of the chain's main
  *     operator.
  */
@@ -109,9 +108,10 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
         implements BoundedMultiInput, Closeable {
 
     private static final Logger LOG = LoggerFactory.getLogger(OperatorChain.class);
-    //这是一个记录写入器输出的数组，用于处理当前任务输出到下游的所有流数据
+    // 这是一个记录写入器输出的数组，
+    // 用于处理当前任务输出到下游的所有流数据
     protected final RecordWriterOutput<?>[] streamOutputs;
-    //Watermark度量信息
+    // Watermark度量信息
     protected final WatermarkGaugeExposingOutput<StreamRecord<OUT>> mainOperatorOutput;
 
     /**
@@ -134,40 +134,53 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
      * <p>Where "first" and "second" (there can be more) are chained source operators. When it comes
      * to things like closing, stat initialisation or state snapshotting, the operator chain is
      * traversed: first, second, main, ..., tail or in reversed order: tail, ..., main, second,
-     * first  包装主算子的包装器，通常是链中的第一个算子。它是整个操作链的入口，用于管理主算子的生命周期
+     * first
      */
+    // 包装主算子的包装器，通常是链中的第一个算子。
+    // 它是整个操作链的入口，用于管理主算子的生命周期
     @Nullable protected final StreamOperatorWrapper<OUT, OP> mainOperatorWrapper;
-    //链中第一个算子的包装器。如果算子链中有多个源算子，它可能不是 mainOperatorWrapper
+    //链中第一个算子的包装器。
+    // 如果算子链中有多个源算子，它可能不是 mainOperatorWrapper
     @Nullable protected final StreamOperatorWrapper<?, ?> firstOperatorWrapper;
-    @Nullable protected final StreamOperatorWrapper<?, ?> tailOperatorWrapper;//链中最后一个算子的包装器。通常是主算子链的末尾，但在一些特殊情况下，它可能会是其他算子
-    //存储与源输入相关的链式源算子映射。这些源算子负责从外部输入读取数据
+    //链中最后一个算子的包装器。
+    // 通常是主算子链的末尾，但在一些特殊情况下，它可能会是其他算子
+    @Nullable protected final StreamOperatorWrapper<?, ?> tailOperatorWrapper;
+    // 存储与源输入相关的链式源算子映射。
+    // 这些源算子负责从外部输入读取数据
     protected final Map<StreamConfig.SourceInputConfig, ChainedSource> chainedSources;
-    //当前操作链中算子的数量
+    // 当前操作链中算子的数量
     protected final int numOperators;
-    //用于分发操作事件的调度器，它负责将操作事件传递到各个算子
+    // 用于分发操作事件的调度器，
+    // 它负责将操作事件传递到各个算子
     protected final OperatorEventDispatcherImpl operatorEventDispatcher;
-   //用于关闭相关资源的工具类。确保所有资源在任务结束时正确释放
+   // 用于关闭相关资源的工具类。
+   // 确保所有资源在任务结束时正确释放
     protected final Closer closer = Closer.create();
-    //当任务恢复时，记录恢复输入状态。它是任务恢复机制的一部分，用于标记和管理恢复后的状态
+    // 当任务恢复时，记录恢复输入状态。
+    // 它是任务恢复机制的一部分，用于标记和管理恢复后的状态
     protected final @Nullable FinishedOnRestoreInput finishedOnRestoreInput;
     //表示 OperatorChain 是否已被关闭
     protected boolean isClosed;
 
+    // 参数 1：containingTask。持有这个算子链的父级 StreamTask 实例。
+    // 它是获取运行时环境、配置和执行资源的入口。OUT 是主算子的输出类型，OP 是主算子的类型。
+    // 参数 2：recordWriterDelegate。一个代理对象，用于将数据写入到任务的网络输出通道 (RecordWriter)。它代表了数据流出这个任务的出口。
     public OperatorChain(
             StreamTask<OUT, OP> containingTask,
             RecordWriterDelegate<SerializationDelegate<StreamRecord<OUT>>> recordWriterDelegate) {
-        //事件调度器用于管理和分发算子之间的事件。事件调度器会向算子链中的各个算子发送事件，例如检查点事件、算子协调事件等
+        // 实例化算子事件调度器，用于处理算子和协调器之间的通信。
         this.operatorEventDispatcher =
                 new OperatorEventDispatcherImpl(
                         containingTask.getEnvironment().getUserCodeClassLoader().asClassLoader(),
                         containingTask.getEnvironment().getOperatorCoordinatorEventGateway());
-
+        // 获取用于加载用户代码的 ClassLoader，后续所有涉及配置和算子实例化的操作都需要它。
         final ClassLoader userCodeClassloader = containingTask.getUserCodeClassLoader();
+        // 获取当前任务的 Stream 配置。这是 Flink 从 JobGraph 中提取出的、包含任务执行所需所有元数据的配置对象。
         final StreamConfig configuration = containingTask.getConfiguration();
 
         StreamOperatorFactory<OUT> operatorFactory =
                 configuration.getStreamOperatorFactory(userCodeClassloader);
-         //chainedConfigs 是一个包含当前任务以及其所有相关联的算子配置的映射
+        //  hainedConfigs 是一个包含当前任务以及其所有相关联的算子配置的映射
         // we read the chained configs, and the order of record writer registrations by output name
         Map<Integer, StreamConfig> chainedConfigs =
                 configuration.getTransitiveChainedTaskConfigsWithSelf(userCodeClassloader);
@@ -486,8 +499,12 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
     }
 
     /** Wrapper class to access the chained sources and their's outputs. */
+    // 在 Flink 中，为了提高效率，如果一个 Source Operator 后面紧跟着一个或多个不需要 Shuffle 的下游 Operator，
+    // 它们可能会被链在一起（Chained）并在同一个 Task 中运行。
     public static class ChainedSource {
+        // 输出接口（chainedSourceOutput）: Source Operator 用于向 Task 内部的下一个 Operator 发送数据和 Watermark 的接口。
         private final WatermarkGaugeExposingOutput<StreamRecord<?>> chainedSourceOutput;
+        // 输入接口（sourceTaskInput）: Source Operator 被抽象为 Task 的一个输入，用于与 Task 的 Mailbox 调度机制集成。
         private final StreamTaskSourceInput<?> sourceTaskInput;
 
         public ChainedSource(
@@ -509,12 +526,20 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
     // ------------------------------------------------------------------------
     //  initialization utilities
     // ------------------------------------------------------------------------
-
+    // 负责为操作符链（Operator Chain）的末端配置所有非链式（Non-Chained）输出。
+    // 这些非链式输出通常对应于需要通过 Flink 网络栈发送数据到下游 Task 的连接。
     private void createChainOutputs(
+            // 非链式输出配置列表。
+            // 包含了当前操作符链末端所有需要通过网络发送数据的输出流的配置信息，且这些配置是按特定顺序排列的。
             List<NonChainedOutput> outputsInOrder,
+            // 记录写入器委托。 一个抽象层，负责管理所有底层的网络写入器 (RecordWriter)
             RecordWriterDelegate<SerializationDelegate<StreamRecord<OUT>>> recordWriterDelegate,
+            // 链上操作符配置的映射。 包含链上所有操作符（由其节点 ID 标识）的 StreamConfig。用于获取正确的序列化器等信息。
             Map<Integer, StreamConfig> chainedConfigs,
+            // 包含该操作符链的 Task 实例。 用于获取 Task 的运行时环境 (Environment)，例如类加载器。
             StreamTask<OUT, OP> containingTask,
+            // 输出映射集合。
+            // 这是一个用于存储创建好的 RecordWriterOutput 实例的 Map，键是中间数据集 ID。
             Map<IntermediateDataSetID, RecordWriterOutput<?>> recordWriterOutputs) {
         for (int i = 0; i < outputsInOrder.size(); ++i) {
             NonChainedOutput output = outputsInOrder.get(i);
@@ -530,17 +555,24 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
             recordWriterOutputs.put(output.getDataSetId(), recordWriterOutput);
         }
     }
-
+    // 核心作用是创建非链式连接（即需要通过网络 I/O 发送数据）的输出对象。
+    // 负责根据输出是主输出还是侧输出来配置正确的序列化器，并将底层的网络写入器 (RecordWriter) 封装成一个 RecordWriterOutput 实例，供上游操作符使用。
+    // 返回一个 RecordWriterOutput 实例，这是 Flink 中用于将数据写入网络/外部系统的输出实现。
     private RecordWriterOutput<OUT> createStreamOutput(
+            // 网络记录写入器。 这是一个底层的网络 I/O 组件，负责将序列化后的数据（被 SerializationDelegate 包装的 StreamRecord）发送到下游 Subtask。
             RecordWriter<SerializationDelegate<StreamRecord<OUT>>> recordWriter,
+            // 非链式输出配置。 包含该输出流的配置信息，例如是否是侧输出以及相关的标签。
             NonChainedOutput streamOutput,
+            // 上游操作符的配置。 包含了该操作符的序列化器等配置信息。
             StreamConfig upStreamConfig,
+            // 任务运行时环境。 提供了诸如类加载器等运行时上下文信息。
             Environment taskEnvironment) {
+        // 从输出配置 streamOutput 中获取关联的 OutputTag（侧输出标签）
         OutputTag sideOutputTag =
                 streamOutput.getOutputTag(); // OutputTag, return null if not sideOutput
 
         TypeSerializer outSerializer;
-
+        // 判断是否为侧输出。
         if (streamOutput.getOutputTag() != null) {
             // side output
             outSerializer =
@@ -701,22 +733,28 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
          */
         return closer.register(chainedSourceOutput);
     }
+    // 用于为操作符链的起点（即链中的第一个操作符）或非链式操作符创建一个统一的输出收集器（Output Collector）
+    // 这个收集器是操作符逻辑代码（UDF）向 Flink 运行时发送数据和 Watermark 的主要接口。该方法将所有的下游输出（无论是网络输出还是链式输出）封装在一起。
 
     private <T> WatermarkGaugeExposingOutput<StreamRecord<T>> createOutputCollector(
-            StreamTask<?, ?> containingTask,
-            StreamConfig operatorConfig,
-            Map<Integer, StreamConfig> chainedConfigs,
-            ClassLoader userCodeClassloader,
-            Map<IntermediateDataSetID, RecordWriterOutput<?>> recordWriterOutputs,
-            List<StreamOperatorWrapper<?, ?>> allOperatorWrappers,
-            MailboxExecutorFactory mailboxExecutorFactory,
+            StreamTask<?, ?> containingTask, // 当前的 StreamTask，用于创建计数器、访问执行配置等
+            StreamConfig operatorConfig, // 当前算子的 StreamConfig（配置信息）
+            Map<Integer, StreamConfig> chainedConfigs, // 同一 chain 内其他算子的 StreamConfig 映射（key 为 operator id）
+            ClassLoader userCodeClassloader, // 用户代码的类加载器，用于反射/反序列化等。
+            Map<IntermediateDataSetID, RecordWriterOutput<?>> recordWriterOutputs, // 外部（网络）输出的 RecordWriterOutput 映射（根据 IntermediateDataSetID）
+            List<StreamOperatorWrapper<?, ?>> allOperatorWrappers, // 链内所有 operator 的封装（用于构建 operator chain）
+            MailboxExecutorFactory mailboxExecutorFactory, // 创建 mailbox executor 的工厂（用于异步调度）
             boolean shouldAddMetric) {
+        // 创建一个 List 用来装当前算子的所有输出目标（既包含非链外的网络输出，也包含链内的下游 operator 的输出）
         List<OutputWithChainingCheck<StreamRecord<T>>> allOutputs = new ArrayList<>(4);
 
         // create collectors for the network outputs
+        // 处理网络（非链式）输出
+        // 取得该算子声明的所有非链式输出（也就是会走网络、写到下一个任务/中间数据集的输出）
         for (NonChainedOutput streamOutput :
                 operatorConfig.getOperatorNonChainedOutputs(userCodeClassloader)) {
             @SuppressWarnings("unchecked")
+            // 从外部提供的 recordWriterOutputs map 中找到对应的 RecordWriterOutput（实际负责序列化并写入网络的 Output）
             RecordWriterOutput<T> recordWriterOutput =
                     (RecordWriterOutput<T>) recordWriterOutputs.get(streamOutput.getDataSetId());
 
@@ -724,10 +762,12 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
         }
 
         // Create collectors for the chained outputs
+        // 处理链内（chained）输出
+        // 取得当前算子所有声明的链内下游 StreamEdge（即在同一个 task 内被 chaining 的下游算子/边）
         for (StreamEdge outputEdge : operatorConfig.getChainedOutputs(userCodeClassloader)) {
             int outputId = outputEdge.getTargetId();
             StreamConfig chainedOpConfig = chainedConfigs.get(outputId);
-
+            // 递归性地创建下游 chained operator 的链结构并返回一个 Output（该 output 是发送到这个下游 operator 的入口）
             WatermarkGaugeExposingOutput<StreamRecord<T>> output =
                     createOperatorChain(
                             containingTask,
@@ -749,7 +789,7 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
         }
 
         WatermarkGaugeExposingOutput<StreamRecord<T>> result;
-
+        // 如果只有一个输出：直接返回该 output，并在必要时复用计数器
         if (allOutputs.size() == 1) {
             result = allOutputs.get(0);
             // only if this is a single RecordWriterOutput, reuse its numRecordOut for task.
@@ -760,6 +800,7 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
         } else {
             // send to N outputs. Note that this includes the special case
             // of sending to zero outputs
+            // 多个输出或零输出的情况：创建广播/复制收集器
             @SuppressWarnings({"unchecked"})
             OutputWithChainingCheck<StreamRecord<T>>[] allOutputsArray =
                     new OutputWithChainingCheck[allOutputs.size()];

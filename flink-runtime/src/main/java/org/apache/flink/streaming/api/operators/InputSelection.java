@@ -22,29 +22,39 @@ import org.apache.flink.annotation.PublicEvolving;
 import java.io.Serializable;
 
 /** Describe the input selection that stream operators want to read records. */
+// InputSelection 类是 Flink 内部用于描述和管理一个流式算子（Stream Operator）希望从其输入流中读取哪些数据的机制
+// InputSelection 的核心作用是解决 Flink 多输入算子（如 TwoInputStreamOperator 或 N-ary Input Operator）在运行时需要决定接下来从哪条输入流中拉取数据的问题。
+// 在 Flink 运行时，特别是在流处理任务的主循环中，算子通常会循环检查其输入队列并拉取数据。对于多输入算子，如果所有输入流都有可用数据，就必须选择一个输入。InputSelection 通过使用**位掩码（Bitmask）**来高效地表示这种选择策略：
 @PublicEvolving
 public final class InputSelection implements Serializable {
-
+    // 常量，值为 -1。
+    // 表示在尝试选择下一个输入时，没有可供读取的输入流。
     public static final int NONE_AVAILABLE = -1;
 
     private static final long serialVersionUID = 1L;
 
     /** The {@code InputSelection} instance which indicates to select all inputs. */
+    // 预定义实例，表示选择所有输入。
+    // 内部 inputMask 为 -1L（long 类型所有位都为 1）
     public static final InputSelection ALL = new InputSelection(-1);
 
     /** The {@code InputSelection} instance which indicates to select the first input. */
+    // 预定义实例，表示只选择第一个输入。 内部 inputMask 为 1L（二进制 ...0001）
     public static final InputSelection FIRST = new Builder().select(1).build();
 
     /** The {@code InputSelection} instance which indicates to select the second input. */
+    // 预定义实例，表示只选择第二个输入。 内部 inputMask 为 2L（二进制 ...0010）
     public static final InputSelection SECOND = new Builder().select(2).build();
-
+    // 输入选择的位掩码。
+    // 核心属性。
+    // long 类型支持最多 64 个输入。其中，第 $i$ 位（从 0 开始）为 1 表示选择了第 $i+1$ 个输入。特殊值 -1L 表示选择了所有输入。
     private final long inputMask;
 
     /** @param inputMask -1 to mark if all inputs are selected. */
     private InputSelection(long inputMask) {
         this.inputMask = inputMask;
     }
-
+    // 返回内部存储的 inputMask 位掩码。
     public long getInputMask() {
         return inputMask;
     }
@@ -56,6 +66,7 @@ public final class InputSelection implements Serializable {
      *     Builder#select(int)}.
      * @return {@code true} if the input is selected, {@code false} otherwise.
      */
+    // 检查特定输入是否被选择
     public boolean isInputSelected(int inputId) {
         return (inputMask & (1L << (inputId - 1))) != 0;
     }
@@ -65,6 +76,8 @@ public final class InputSelection implements Serializable {
      *
      * @return {@code true} if the input mask equals -1, {@code false} otherwise.
      */
+    // 检查 inputMask 是否等于 -1L，
+    // 用于判断是否选择了所有可能的输入。
     public boolean areAllInputsSelected() {
         return inputMask == -1L;
     }
@@ -82,6 +95,7 @@ public final class InputSelection implements Serializable {
      * @return the index of the input for reading or {@link InputSelection#NONE_AVAILABLE} (if
      *     {@code inputMask} is empty or the inputs in {@code inputMask} are unavailable).
      */
+    // （双输入优化）公平选择下一个输入索引
     public int fairSelectNextIndexOutOf2(int availableInputsMask, int lastReadInputIndex) {
         return fairSelectNextIndexOutOf2((int) inputMask, availableInputsMask, lastReadInputIndex);
     }
@@ -123,6 +137,9 @@ public final class InputSelection implements Serializable {
      * @return the index of the input for reading or {@link InputSelection#NONE_AVAILABLE} (if
      *     {@code inputMask} is empty or the inputs in {@code inputMask} are unavailable).
      */
+    // （多输入通用）公平选择下一个输入索引。 适用于多于两个输入的情况。
+    // 它结合了选择掩码 (inputMask) 和可用掩码 (availableInputsMask)，从上一次读取的输入之后开始，
+    // 循环查找并返回下一个被选择且可用的输入索引。
     public int fairSelectNextIndex(long availableInputsMask, int lastReadInputIndex) {
         return fairSelectNextIndex(inputMask, availableInputsMask, lastReadInputIndex);
     }

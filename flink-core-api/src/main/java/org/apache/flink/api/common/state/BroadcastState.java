@@ -41,6 +41,9 @@ import java.util.Map;
  * @param <K> The key type of the elements in the {@link BroadcastState}.
  * @param <V> The value type of the elements in the {@link BroadcastState}.
  */
+// 定义了 Flink 中广播流（Broadcast Stream）算子用来存储和操作其状态的契约。它本质上是一个可以存储键值对的分布式 Map 状态。
+// 全局共享状态： BroadcastState 存储的状态数据会被复制到连接它的所有下游算子（非广播侧）的所有并行实例中，实现全局共享。
+// 它继承了 ReadOnlyBroadcastState 的所有读取能力，并在此基础上增加了修改（写入、更新、删除）状态的方法。
 @PublicEvolving
 public interface BroadcastState<K, V> extends ReadOnlyBroadcastState<K, V> {
 

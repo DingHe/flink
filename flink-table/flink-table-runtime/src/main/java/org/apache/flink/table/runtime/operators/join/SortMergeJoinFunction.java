@@ -53,9 +53,17 @@ import java.util.BitSet;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /** This function is used to process the main logic of sort merge join. */
+// SortMergeJoinFunction 是 Flink Table/SQL 运行时用于实现归并排序连接（Sort-Merge Join, SMJ） 算法的核心逻辑类。
+// 归并排序连接是一种高效的连接策略，尤其适用于处理大规模且已经或易于排序的数据集。
+// 数据排序： 接收来自两个输入（通常称为左表和右表）的行数据，并使用 外部排序器 (BinaryExternalSorter) 将它们分别按照连接键（Join Key）进行排序。
+// 内存管理： 管理用于排序和存储匹配行的内存和 I/O 资源（MemoryManager 和 IOManager），处理数据溢出到磁盘的情况。
+// 合并连接： 在两个输入都排序完成后，迭代地同步读取两个排序后的数据集，根据连接键相等性进行匹配，并结合非等值条件 (JoinCondition) 评估，输出连接后的结果行。
+// 支持所有连接类型： 实现所有主要连接类型（INNER、LEFT、RIGHT、FULL、SEMI、ANTI）的逻辑。
 public class SortMergeJoinFunction implements Serializable {
-
+    // 外部缓冲区内存分配比例。
+    // 用于计算分配给匹配缓冲区 (ResettableExternalBuffer) 的总管理内存的比例。
     private final double externalBufferMemRatio;
+    // 连接类型。 定义要执行的连接操作的类型（如 INNER, LEFT, FULL 等）
     private final FlinkJoinType type;
     private final boolean leftIsSmaller;
     private final boolean[] filterNulls;

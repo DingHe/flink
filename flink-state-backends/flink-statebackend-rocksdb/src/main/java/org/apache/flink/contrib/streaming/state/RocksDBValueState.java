@@ -38,6 +38,10 @@ import java.io.IOException;
  * @param <N> The type of the namespace.
  * @param <V> The type of value that the state state stores.
  */
+// RocksDBValueState 是 Flink 中 ValueState (值状态) 接口的一个具体实现，其底层存储机制基于 RocksDB 键值存储。
+// 管理单个状态值： 对于给定的 Key 和 Namespace，它在 RocksDB 中存储并管理一个单个、非聚合的值。
+// 桥接 Flink 状态与 RocksDB： 它继承自 AbstractRocksDBState，利用基类提供的工具，将 Flink 的 (Key, KeyGroup, Namespace) 组合序列化为 RocksDB 的字节键 (byte[])，然后使用 RocksDB 的 put 和 get 操作来实现状态的存取。
+// 它允许 Flink 用户通过标准的 ValueState 接口，将状态持久化到 RocksDB 状态后端 中。
 class RocksDBValueState<K, N, V> extends AbstractRocksDBState<K, N, V>
         implements InternalValueState<K, N, V> {
 

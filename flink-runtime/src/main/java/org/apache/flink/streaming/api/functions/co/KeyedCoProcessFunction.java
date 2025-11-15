@@ -44,6 +44,11 @@ import org.apache.flink.util.OutputTag;
  * @param <IN2> Type of the second input.
  * @param <OUT> Output type.
  */
+// KeyedCoProcessFunction<K, IN1, IN2, OUT> 是 Flink 中用于处理两条已根据键（Key）进行分区的连接数据流的最强大的函数接口
+// KeyedCoProcessFunction 是 CoProcessFunction 的键控版本。它将双流处理、状态管理、时间服务和定时器功能**绑定到特定的键（Key）**上。
+// 基于键的状态隔离： 允许用户在处理两条流中的数据时，访问和修改与当前数据元素关联的键控状态（Keyed State）。这意味着状态是按键隔离和维护的。
+// 控定时器： 用户可以为每个独立的键设置基于事件时间或处理时间的定时器。定时器触发时，onTimer() 方法也会在对应键的上下文中执行。
+// 连接流高级控制： 提供了处理两条异构流中数据，并根据状态和时间触发复杂逻辑的能力。例如，它能轻松实现复杂的会话关联、模式匹配或双流数据的同步/异步 JOIN 逻辑。
 @PublicEvolving
 public abstract class KeyedCoProcessFunction<K, IN1, IN2, OUT> extends AbstractRichFunction {
 
@@ -64,6 +69,8 @@ public abstract class KeyedCoProcessFunction<K, IN1, IN2, OUT> extends AbstractR
      * @throws Exception The function may throw exceptions which cause the streaming program to fail
      *     and go into recovery.
      */
+    // 处理第一条输入键控流的元素。
+    // 当第一条流 (IN1) 中有元素到达时调用。在调用时，Flink 运行时已自动将当前处理键设置为该元素所属的键，确保了状态访问和定时器操作都是键隔离的。
     public abstract void processElement1(IN1 value, Context ctx, Collector<OUT> out)
             throws Exception;
 
@@ -82,6 +89,8 @@ public abstract class KeyedCoProcessFunction<K, IN1, IN2, OUT> extends AbstractR
      * @throws Exception The function may throw exceptions which cause the streaming program to fail
      *     and go into recovery.
      */
+    // 处理第二条输入键控流的元素。
+    // 当第二条流 (IN2) 中有元素到达时调用。它与 processElement1 具有相同的键控上下文行为。
     public abstract void processElement2(IN2 value, Context ctx, Collector<OUT> out)
             throws Exception;
 
@@ -97,6 +106,7 @@ public abstract class KeyedCoProcessFunction<K, IN1, IN2, OUT> extends AbstractR
      * @throws Exception This method may throw exceptions. Throwing an exception will cause the
      *     operation to fail and may trigger recovery.
      */
+    // 定时器触发时的回调。 当用户之前设置的特定键的定时器触发时调用。默认实现为空
     public void onTimer(long timestamp, OnTimerContext ctx, Collector<OUT> out) throws Exception {}
 
     /**

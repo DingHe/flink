@@ -42,11 +42,18 @@ import java.util.List;
 import java.util.Map;
 
 /** Streaming unbounded Join base operator which support mini-batch join. */
+// MiniBatchStreamingJoinOperator 是 Flink Table API 中用于支持 Mini-Batch 流式 Join 的抽象基类。
+// 它继承自 StreamingJoinOperator，并在此基础上增加了 Mini-Batch 的缓冲、触发和处理机制，以实现性能优化。
+// 核心目标：
+// 批量处理 (Mini-Batching)： 在实际处理数据之前，将短时间内到达的输入数据（左右两侧）暂存到内部缓冲区 (BufferBundle) 中。
+// 触发机制： 使用一个协同批次触发器 (CoBundleTrigger) 来决定何时清空缓冲区并批量处理数据。
+// 消息优化 (Retraction Suppression)： 在 Mini-Batch 内部，对同一 Join Key 上的多条变更消息（如：一个 -U 紧跟一个 +U 或 -D 紧跟 +I）进行抑制或合并，从而减少对 Flink State 的访问次数，并减少发送给下游的中间撤回消息，显著提高 Outer Join 等操作的性能。
 public abstract class MiniBatchStreamingJoinOperator extends StreamingJoinOperator
         implements BundleTriggerCallback {
 
     private static final long serialVersionUID = -1106342589994963997L;
-
+    // 协同批次触发器。
+    // 负责监听左右两侧流的输入，并根据配置的策略（例如：达到一定行数、等待一定时间）决定何时触发 finishBundle() 方法，将暂存的数据进行批量处理。
     private final CoBundleTrigger<RowData, RowData> coBundleTrigger;
 
     private transient BufferBundle<?> leftBuffer;

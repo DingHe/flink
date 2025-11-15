@@ -23,6 +23,8 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 
 /** Describes a generated {@link JoinCondition}. */
+// GeneratedJoinCondition 继承自 GeneratedClass<JoinCondition>，因此它继承了管理、编译和实例化动态生成代码的所有功能。
+// 特定类型封装： 专门用于封装 Flink SQL 优化器针对 JOIN 操作中非等值过滤条件 (JoinCondition 接口) 动态生成的 Java 源代码。
 public class GeneratedJoinCondition extends GeneratedClass<JoinCondition> {
 
     private static final long serialVersionUID = 2L;

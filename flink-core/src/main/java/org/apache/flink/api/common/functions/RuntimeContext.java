@@ -191,7 +191,8 @@ public interface RuntimeContext {
      *     version FLINK-2.0. Users relying on this method should migrate to alternative getter
      *     methods, such as {@link #getGlobalJobParameters()} or {@link #isObjectReuseEnabled()}.
      */
-    //获取当前作业的执行配置。例如，检查是否启用了对象复用
+    // 获取当前作业的执行配置。
+    // 例如，检查是否启用了对象复用
     @Deprecated
     ExecutionConfig getExecutionConfig();
 

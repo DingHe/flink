@@ -30,6 +30,10 @@ import java.io.IOException;
  * @param <K> The key type of the elements in the {@link BroadcastState Broadcast State}.
  * @param <V> The value type of the elements in the {@link BroadcastState Broadcast State}.
  */
+// 定义一个可供状态后端写入的广播状态的契约。
+// 它充当了用户可见的 BroadcastState 与 底层状态后端 (OperatorStateBackend) 之间进行** Checkpoint 和状态恢复**时的桥梁。
+// Checkpointing 桥梁： 它为 OperatorStateBackend 提供了执行 Checkpoint 时所需的底层操作，例如将状态数据写入文件系统（FSDataOutputStream） 和执行深度复制。
+// 元信息管理： 它允许 Flink 运行时设置和获取关于该状态的后端元数据，如序列化器、分区信息等。
 public interface BackendWritableBroadcastState<K, V> extends BroadcastState<K, V> {
 
     BackendWritableBroadcastState<K, V> deepCopy();

@@ -67,6 +67,12 @@ import static org.apache.flink.runtime.state.heap.SkipListUtils.NIL_VALUE_POINTE
  * @param <N> type of namespace
  * @param <S> type of state
  */
+// CopyOnWriteSkipListStateMap 是 Flink 堆内存状态后端（Heap State Backend）中的一种状态存储实现。它继承自 StateMap，用于高效地存储和管理 Key/Namespace/State 三元组。
+// 基于跳表 (Skip List) 实现： 它使用跳表作为底层数据结构，这使得状态查询、插入和删除操作具有 $O(\log n)$ 的平均时间复杂度，同时支持有序遍历，这是哈希表不具备的优势。
+// 支持写时复制 (Copy-On-Write, COW)： 它是为 Flink 的异步快照（Asynchronous Checkpointing）设计的。在进行快照时，数据处理线程可以继续修改状态而不会被阻塞。只有当旧数据版本被正在进行的快照引用时，新写入的操作才会复制受影响的数据结构或状态值。
+// 堆外存储： 状态数据（Key、Namespace、State）会被序列化成字节，并存储在由 Allocator 管理的堆外或堆内空间（MemorySegment）中，而不是直接作为 Java 对象存储在 Map 结构中。
+// 版本控制： 通过版本号来判断数据是否被快照引用，从而决定是否需要进行 COW。
+// 物理 vs. 逻辑删除： 为了支持 COW，状态删除通常首先是逻辑删除（将值更新为 null 并标记节点），只有在没有快照引用时，才能进行物理删除和空间释放。
 public final class CopyOnWriteSkipListStateMap<K, N, S> extends StateMap<K, N, S>
         implements AutoCloseable {
 

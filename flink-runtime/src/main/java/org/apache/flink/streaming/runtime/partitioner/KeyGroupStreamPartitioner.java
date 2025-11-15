@@ -32,13 +32,21 @@ import java.util.Objects;
  *
  * @param <T> Type of the elements in the Stream being partitioned
  */
+// KeyGroupStreamPartitioner 类是 Flink 流处理中最重要且最常用的数据分区器。
+// 它实现了 Flink DataStream API 中的 .keyBy(...) 操作，
+// 确保具有相同键（Key）的数据记录总会被路由到相同的下游任务实例，这对于状态管理和数据正确性至关重要。
+// 核心作用是实现 Flink 的 **Keyed State（键控状态）**和 Key Group 机制 .
+// 提取 Key： 使用用户提供的 KeySelector 从数据记录中提取 Key。
+// 分配 Key Group： 根据 Key 的哈希值和作业的 maxParallelism（最大并行度），将该 Key 唯一地映射到一个 Key Group。
+// 分配通道： 再根据当前下游的实际并行度 (numberOfChannels)，将该 Key Group 映射到下游的某一个子任务通道。
 @Internal
 public class KeyGroupStreamPartitioner<T, K> extends StreamPartitioner<T>
         implements ConfigurableStreamPartitioner {
     private static final long serialVersionUID = 1L;
-
+    // 键提取器
     private final KeySelector<T, K> keySelector;
-
+    // 最大并行度。也称为 Key Group 总数。
+    // 这是作业启动时配置的最大并行度（默认为 $2^{7}$ 或 $2^{15}$）。Key Groups 的数量是固定的，它定义了 Key $\to$ Key Group 的映射范围。
     private int maxParallelism;
 
     public KeyGroupStreamPartitioner(KeySelector<T, K> keySelector, int maxParallelism) {

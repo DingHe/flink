@@ -29,6 +29,10 @@ import java.util.Random;
  *
  * @param <T> Type of the Tuple
  */
+// Flink 内部用于实现随机数据分发策略的核心组件。它决定了上游任务产生的每条数据记录应该被发送到下游任务的哪个并行子任务。
+// 随机分配（Shuffle）: 它通过均匀随机地选择一个下游通道来分发数据。
+// 负载均衡: 这种随机选择机制旨在实现近似的负载均衡。在大规模数据流中，由于随机性，每个下游子任务最终会接收到大致相同数量的记录。
+// 消除偏斜: ShufflePartitioner 是解决数据倾斜（Data Skew）问题的最直接、最通用的方法，因为它不依赖于数据内容（如 Key）来做决定。
 @Internal
 public class ShufflePartitioner<T> extends StreamPartitioner<T> {
     private static final long serialVersionUID = 1L;

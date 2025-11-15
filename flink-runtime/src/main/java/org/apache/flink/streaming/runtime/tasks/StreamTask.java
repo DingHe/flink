@@ -154,7 +154,7 @@ import static org.apache.flink.util.ExceptionUtils.firstOrSuppressed;
 import static org.apache.flink.util.Preconditions.checkState;
 import static org.apache.flink.util.concurrent.FutureUtils.assertNoException;
 
-/** task是taskmanager本地部署和执行的基本单元
+/**
  * Base class for all streaming tasks. A task is the unit of local processing that is deployed and
  * executed by the TaskManagers. Each task runs one or more {@link StreamOperator}s which form the
  * Task's operator chain. Operators that are chained together execute synchronously in the same
@@ -203,7 +203,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
                 AsyncExceptionHandler,
                 ContainingTaskDetails {
 
-    /** The thread group that holds all trigger timer threads. 用于将多个线程组织成组，以便统一管理和控制Thread thread = new Thread(group, () -> {})*/
+    /** The thread group that holds all trigger timer threads.Thread thread = new Thread(group, () -> {})*/
+    // 用于将多个线程组织成组，以便统一管理和控制
     public static final ThreadGroup TRIGGER_THREAD_GROUP = new ThreadGroup("Triggers");
 
     /** The logger used by the StreamTask and its subclasses. */
@@ -220,7 +221,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
      * <p>CheckpointLock is superseded by {@link MailboxExecutor}, with {@link
      * StreamTaskActionExecutor.SynchronizedStreamTaskActionExecutor
      * SynchronizedStreamTaskActionExecutor} to provide lock to {@link SourceStreamTask}.
-     */  //立即执行还是同步执行
+     */
+    //立即执行还是同步执行
     private final StreamTaskActionExecutor actionExecutor;
 
     /** The input processor. Initialized in {@link #init()} method. */
@@ -634,25 +636,39 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
      *     stream task.
      * @throws Exception on any problems in the action.
      */
+    // StreamTask 的 processInput 方法是 Flink 单线程邮箱模型中 MailboxDefaultAction 的核心实现之一，负责处理输入数据
     protected void processInput(MailboxDefaultAction.Controller controller) throws Exception {
-        DataInputStatus status = inputProcessor.processInput(); //核心逻辑是通过 inputProcessor.processInput() 来获取输入数据的状态
+        // 调用 inputProcessor.processInput() 执行实际的输入数据处理逻辑
+        // （例如，从网络缓冲区拉取记录，反序列化，然后将其发送给算子
+        DataInputStatus status = inputProcessor.processInput();
         switch (status) {
             case MORE_AVAILABLE:
+                // 表示任务可以继续运行，即没有反压或其它暂停因素
                 if (taskIsAvailable()) {
                     return;
                 }
                 break;
+            //暂时没有数据可用
             case NOTHING_AVAILABLE:
                 break;
+            // 恢复结束（异常）。
+            // 此状态通常在内部恢复过程中使用，不应在 processInput 的默认执行路径中接收到。
+            // 如果收到，表示状态异常，抛出异常。
             case END_OF_RECOVERY:
                 throw new IllegalStateException("We should not receive this event here.");
+            // 输入流被停止（非优雅停止）。
+            // 表示上游任务被停止，数据流被硬性截断，无需等待下游处理完（NO_DRAIN）。
+            // 调用 endData 处理流的结束，并 return 退出当前方法。
             case STOPPED:
                 endData(StopMode.NO_DRAIN);
                 return;
+            // 输入数据结束（优雅停止）。
+            // 表示当前输入的所有数据记录已处理完毕，需要等待所有记录被下游处理完（DRAIN）
             case END_OF_DATA:
                 endData(StopMode.DRAIN);
                 notifyEndOfData();
                 return;
+            // 输入流结束。表示所有输入通道都已耗尽，并且所有上游算子已完成。
             case END_OF_INPUT:
                 // Suspend the mailbox processor, it would be resumed in afterInvoke and finished
                 // after all records processed by the downstream tasks. We also suspend the default
@@ -666,12 +682,17 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
         TaskIOMetricGroup ioMetrics = getEnvironment().getMetricGroup().getIOMetricGroup();
         PeriodTimer timer;
         CompletableFuture<?> resumeFuture;
+        // 检查输出（通过 recordWriter）是否可用。
+        // 如果不可用，说明下游反压，任务不能将结果发送出去。
         if (!recordWriter.isAvailable()) {
             timer = new GaugePeriodTimer(ioMetrics.getSoftBackPressuredTimePerSecond());
             resumeFuture = recordWriter.getAvailableFuture();
+        // 如果输出可用，则检查输入（通过 inputProcessor）是否可用。
+        // 如果不可用，说明输入空闲，没有数据可以拉取。
         } else if (!inputProcessor.isAvailable()) {
             timer = new GaugePeriodTimer(ioMetrics.getIdleTimeMsPerSecond());
             resumeFuture = inputProcessor.getAvailableFuture();
+        // 检查状态变更日志写入器是否可用 (Changelog Busy)
         } else if (changelogWriterAvailabilityProvider != null
                 && !changelogWriterAvailabilityProvider.isAvailable()) {
             // waiting for changelog availability is reported as busy
@@ -1135,8 +1156,12 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
         return mailboxProcessor.hasMail();
     }
 
+    // 判断 Flink 任务是否可以继续处理数据，即任务是否因下游反压或状态变更日志写入拥塞而被阻塞。
+    //
     private boolean taskIsAvailable() {
+        // isAvailable()： 检查输出缓冲区是否有空间写入数据。
         return recordWriter.isAvailable()
+                // 任务必须同时满足下游输出可用 和 Changelog 写入器可用才能继续运行。
                 && (changelogWriterAvailabilityProvider == null
                         || changelogWriterAvailabilityProvider.isAvailable());
     }

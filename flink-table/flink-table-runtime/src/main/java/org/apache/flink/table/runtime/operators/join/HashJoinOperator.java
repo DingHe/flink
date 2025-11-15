@@ -64,29 +64,56 @@ import static org.apache.flink.util.Preconditions.checkState;
  * for example, in the process of building a hash table, if the size of data written to disk reaches
  * a certain threshold, fallback to sort merge join in advance.
  */
+// HashJoinOperator 是 Flink Table API 和 SQL 运行时中用于执行 哈希连接 (Hash Join) 逻辑的抽象基类。
+// 实现 Hybrid Hash Join 算法： 它内部使用 BinaryHashTable 来实现高效的混合哈希连接（Hybrid Hash Join）。该算法首先尝试将较小的输入（Build Side）构建到内存中的哈希表，然后使用较大的输入（Probe Side）来探测匹配。
+// 如果数据量超出内存，它会将溢出的分区写入磁盘进行递归处理。
+// 自适应降级 (Adaptive Fallback)： 为了处理数据倾斜或哈希表过大导致的频繁磁盘溢出问题，该算子内置了降级到 Sort Merge Join (SMJ) 的机制。如果某些分区溢出到磁盘的次数超过预设阈值，它会在处理完所有输入后，将这些有问题的分区交给 SMJ 逻辑进行处理，以提高稳定性。
+// 两输入流处理： 它实现了 TwoInputStreamOperator 接口，能够处理两个独立的输入流（一个 Build Side，一个 Probe Side），并利用 InputSelectable 接口控制输入的选择顺序，确保先完成 Build 阶段，再进入 Probe 阶段
+
+
 public abstract class HashJoinOperator extends TableStreamOperator<RowData>
         implements TwoInputStreamOperator<RowData, RowData, RowData>,
                 BoundedMultiInput,
                 InputSelectable {
 
     private static final Logger LOG = LoggerFactory.getLogger(HashJoinOperator.class);
-
+    // 连接参数。
+    // 包含了执行哈希连接所需的所有配置信息，如连接类型、Build/Probe 端的判断、压缩设置、投影代码、统计信息等
     private final HashJoinParameter parameter;
+    // 连接函数反转标记。
+    // 指示在调用非等值连接条件函数 (condition) 时，是否需要交换 Build 和 Probe 行的顺序。
     private final boolean reverseJoinFunction;
+    // 哈希连接类型。
+    // 定义了具体的连接逻辑（如 INNER, FULL_OUTER 等）。
     private final HashJoinType type;
+    // Build 端标记。
+    // 指示逻辑上的左输入是否为哈希表的构建端。用于在降级到 SMJ 时正确调用输入处理方法。
     private final boolean leftIsBuild;
+    // SMJ 备用函数。
+    // 封装了 Sort Merge Join 的逻辑，用于在 Hash Join 遇到严重数据倾斜时进行降级处理。
     private final SortMergeJoinFunction sortMergeJoinFunction;
-
+    // 核心哈希表。
+    // Flink 运行时提供的混合哈希表实现，用于存储 Build Side 数据，并提供高效的 Key 查找。
     private transient BinaryHashTable table;
+    // 结果收集器。 用于将连接结果（RowData）发送到下游算子。
     transient Collector<RowData> collector;
-
+    // Build 侧的 Null 行。
+    // 一个全为 Null 的行数据对象，用于在外连接（如 ProbeOuterJoin）中，当 Probe 侧行没有匹配的 Build 侧行时，作为填充使用。
     transient RowData buildSideNullRow;
+    // Probe 侧的 Null 行。
+    // 一个全为 Null 的行数据对象，用于在外连接（如 BuildOuterJoin）中，当 Build 侧行没有匹配的 Probe 侧行时，作为填充使用。
     private transient RowData probeSideNullRow;
+    // 连接结果行。 一个可重用的对象，用于将 Build Row 和 Probe Row 组合成一个输出行，以减少对象创建开销。
     private transient JoinedRowData joinedRow;
+    // Build 阶段结束标记。
+    // true 表示 Build 阶段已完成，当前算子正在处理 Probe 阶段的输入。
     private transient boolean buildEnd;
+    // 非等值连接条件。
+    // 由 Flink 代码生成器生成的运行时函数，用于评估非等值连接条件（例如 WHERE A.id = B.id AND A.val < B.val 中的 A.val < B.val）。
     private transient JoinCondition condition;
 
     // Flag indicates whether fallback to sort merge join in probe phase
+    // SMJ 降级标记。 true 表示算子已触发降级到 Sort Merge Join 来处理部分或全部溢出分区。
     private transient boolean fallbackSMJ;
 
     HashJoinOperator(HashJoinParameter parameter) {
@@ -121,7 +148,7 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
         this.condition = parameter.condFuncCode.newInstance(cl);
         condition.setRuntimeContext(getRuntimeContext());
         condition.open(DefaultOpenContext.INSTANCE);
-
+        // 实例化核心 BinaryHashTable，传入内存管理器、I/O 管理器、行序列化器、投影函数以及内存大小等参数。
         this.table =
                 new BinaryHashTable(
                         getContainingTask(),
@@ -159,13 +186,16 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
         parameter.buildProjectionCode = null;
         parameter.probeProjectionCode = null;
     }
-
+    // 处理第一个输入（Build Side）。
+    // 检查 buildEnd 标记，确保当前处于 Build 阶段。将接收到的行数据 (element.getValue()) 放入哈希表 (table.putBuildRow()) 进行构建。
     @Override
     public void processElement1(StreamRecord<RowData> element) throws Exception {
         checkState(!buildEnd, "Should not build ended.");
         this.table.putBuildRow(element.getValue());
     }
-
+    // 处理第二个输入（Probe Side）。
+    // 检查 buildEnd 标记，确保当前处于 Probe 阶段。
+    // 使用接收到的行数据 (element.getValue()) 尝试探测哈希表 (table.tryProbe())。如果找到匹配的 Key，则调用 joinWithNextKey() 进行结果输出。
     @Override
     public void processElement2(StreamRecord<RowData> element) throws Exception {
         checkState(buildEnd, "Should build ended.");
@@ -173,7 +203,10 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
             joinWithNextKey();
         }
     }
-
+    // 输入选择。
+    // 实现了 InputSelectable 接口。
+    // 如果 buildEnd 为 false，则选择输入 1 (InputSelection.FIRST) 进行 Build；
+    // 否则选择输入 2 (InputSelection.SECOND) 进行 Probe。
     @Override
     public InputSelection nextSelection() {
         return buildEnd ? InputSelection.SECOND : InputSelection.FIRST;
@@ -258,6 +291,12 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
      * means that the key in these partitions is very skewed, so fallback to sort merge join
      * algorithm to process it.
      */
+    // SMJ 降级处理
+    // 检查 table.getPartitionsPendingForSMJ()，如果存在溢出次数过多而需要降级处理的分区，则：
+    // 1. 释放哈希表内存。
+    // 2. 初始化 sortMergeJoinFunction。
+    // 3. 遍历这些分区，将其 Build 和 Probe 侧数据喂给 SMJ 逻辑。
+    // 4. 关闭哈希表和 SMJ 逻辑。
     private void fallbackSMJProcessPartition() throws Exception {
         if (!table.getPartitionsPendingForSMJ().isEmpty()) {
             // release memory to MemoryManager first that is used to sort merge join operator
@@ -292,7 +331,7 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
             LOG.info("Finish sort merge join for spilled partitions.");
         }
     }
-
+    // 初始化 sortMergeJoinFunction 实例，传入必要的运行时上下文、内存大小和收集器。
     private void initialSortMergeJoinFunction() throws Exception {
         sortMergeJoinFunction.open(
                 true,
@@ -303,7 +342,8 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
                 this.getRuntimeContext(),
                 this.getMetricGroup());
     }
-
+    // SMJ 输入 1 代理。
+    // 根据 leftIsBuild 属性，将 Build 侧的数据正确地转发给 sortMergeJoinFunction 的输入 1 或输入 2。
     private void processSortMergeJoinElement1(RowData rowData) throws Exception {
         if (leftIsBuild) {
             sortMergeJoinFunction.processElement1(rowData);
@@ -311,7 +351,8 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
             sortMergeJoinFunction.processElement2(rowData);
         }
     }
-
+    // SMJ 输入 2 代理。
+    // 根据 leftIsBuild 属性，将 Probe 侧的数据正确地转发给 sortMergeJoinFunction 的输入 1 或输入 2。
     private void processSortMergeJoinElement2(RowData rowData) throws Exception {
         if (leftIsBuild) {
             sortMergeJoinFunction.processElement2(rowData);
@@ -373,22 +414,50 @@ public abstract class HashJoinOperator extends TableStreamOperator<RowData>
                 throw new IllegalArgumentException("invalid: " + type);
         }
     }
-
+    // HashJoinParameter 类是 Flink 内部用于配置和传递哈希连接 (Hash Join) 算子所需的所有元数据和参数的静态内部类。
     static class HashJoinParameter implements Serializable {
+        // 哈希连接类型。 定义要执行的连接操作的类型，如 INNER, LEFT, RIGHT, FULL 等。
         HashJoinType type;
+        // 构建端标记。
+        // 表示左输入流是否作为 Hash 表的构建（Build） 端。如果为 true，则右输入是探测（Probe）端。
         boolean leftIsBuild;
+        // 启用压缩。
+        // 如果 Hash Join 溢出到磁盘，此标记决定是否对溢出数据启用压缩。
         boolean compressionEnabled;
+        // 压缩块大小。
+        // 如果启用压缩，定义溢出数据块的压缩大小。
         int compressionBlockSize;
+        // 连接条件函数代码。
+        // 封装了连接操作的非等值连接条件（WHERE 子句中除连接键等值外的其他条件）的动态代码。
         GeneratedJoinCondition condFuncCode;
+        // 函数反转标记。
+        // 当实际连接逻辑调用时，指示是否需要交换左右输入的顺序来调用连接条件函数 (condFuncCode)，以匹配逻辑上的 Build/Probe 关系。
         boolean reverseJoinFunction;
+        // 空键过滤标记。
+        // 长度为 2 的布尔数组，用于指示是否应过滤掉左右输入中连接键为 NULL 的行。这在 SEMI 或 ANTI Join 中很重要。
         boolean[] filterNullKeys;
+        // 构建端投影代码。
+        // 封装了将构建端行数据转换为仅包含连接键和可能包含有效载荷数据的投影逻辑。
         GeneratedProjection buildProjectionCode;
+        // 探测端投影代码。
+        // 封装了将探测端行数据转换为仅包含连接键的投影逻辑。
         GeneratedProjection probeProjectionCode;
+        // 如果为 true，Hash Join 算子将尝试在构建 Hash 表时对重复的构建端行进行去重，
+        // 这有助于优化内存使用，尤其是在执行 SEMI Join 时。
         boolean tryDistinctBuildRow;
+        // 构建端行大小。 构建端数据行的平均字节大小（用于内存/I/O 估算）
         int buildRowSize;
+        // 构建端行数。
+        // 构建端数据集的预期行数统计（用于内存/I/O 估算）。
         long buildRowCount;
+        // 探测端行数。
+        // 探测端数据集的预期行数统计（用于内存/I/O 估算）。
         long probeRowCount;
+        // 连接键类型。 描述连接键的 RowType 结构，用于实例化内部的 Key 序列化器和比较器。
         RowType keyType;
+        // 备用 Sort Merge Join 逻辑。
+        // 在 Flink 的自适应连接 (Adaptive Join) 策略中，如果 Hash Join 由于内存不足（溢出）等原因性能不佳，
+        // 可能会降级（Fallback）到 Sort Merge Join，此属性封装了降级所需的 SMJ 逻辑。
         SortMergeJoinFunction sortMergeJoinFunction;
 
         HashJoinParameter(

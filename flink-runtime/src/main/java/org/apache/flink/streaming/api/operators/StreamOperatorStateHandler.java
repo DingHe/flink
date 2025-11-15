@@ -78,21 +78,35 @@ import static org.apache.flink.util.Preconditions.checkState;
  * Class encapsulating various state backend handling logic for {@link StreamOperator}
  * implementations.
  */
+// Flink 中用于管理和操作流式算子（Stream Operator）状态的核心辅助类。它封装了所有与 状态后端（State Backend） 交互的逻辑
+// 状态后端封装： 集中管理和抽象了两种主要状态后端类型：算子状态（Operator State） 和 键控状态（Keyed State） 的底层访问接口 (OperatorStateBackend 和 KeyedStateBackend)
+// 状态生命周期管理： 负责算子状态的初始化（Initialization）、**快照（Snapshotting）和清理（Disposal）**的整个生命周期。
+// 提供状态访问接口： 为上层算子和 RuntimeContext 提供清晰的接口，用于访问和创建不同类型的状态（V1 和 V2 API），以及设置当前的键（Key）。
+// Checkpointing 协调： 在 Checkpoint/Savepoint 发生时，协调算子状态和键控状态的同步或异步快照过程，包括处理定时器状态的快照逻辑。
+// Flink 算子中状态管理和持久化逻辑的中央调度器
 @Internal
 public class StreamOperatorStateHandler {
 
     protected static final Logger LOG = LoggerFactory.getLogger(StreamOperatorStateHandler.class);
-
+    // 异步键控状态后端。
+    // 一个可选的（@Nullable）字段，用于支持 V2 状态 API，例如 RocksDBStateBackend 这种支持异步操作的状态后端实现。
     @Nullable private final AsyncKeyedStateBackend asyncKeyedStateBackend;
-
+    // 键控状态存储（V2 API）。
+    // 如果 asyncKeyedStateBackend 存在，则创建这个 V2 状态存储接口，供新的状态 API 使用。
     @Nullable private final KeyedStateStoreV2 keyedStateStoreV2;
 
     /** Backend for keyed state. This might be empty if we're not on a keyed stream. */
+    // 键控状态后端。一个可选的（@Nullable）字段，用于管理和持久化键控数据。仅在算子作用于 Keyed Stream 时存在。
     @Nullable private final CheckpointableKeyedStateBackend<?> keyedStateBackend;
-
+    // 可关闭资源注册中心。
+    // 用于在算子关闭或清理时，安全地跟踪和关闭所有状态相关的资源（如输入流、状态后端实例）
     private final CloseableRegistry closeableRegistry;
+    // 键控状态存储（V1 API）。
+    // 如果 keyedStateBackend 存在，则创建这个 V1 状态存储接口，供旧的 Flink 状态 API（如 RuntimeContext.getState()）使用。
     @Nullable private final DefaultKeyedStateStore keyedStateStore;
+    // 算子状态后端。负责管理和持久化算子状态（非键控、与并行度相关的状态）
     private final OperatorStateBackend operatorStateBackend;
+    // 算子状态上下文。一个提供所有状态初始化信息的对象，包括恢复的 Checkpoint ID、原始键控和算子状态输入流，以及实际的后端实例。
     private final StreamOperatorStateContext context;
 
     public StreamOperatorStateHandler(
@@ -126,7 +140,7 @@ public class StreamOperatorStateHandler {
                         ? new DefaultKeyedStateStoreV2(asyncKeyedStateBackend)
                         : null;
     }
-
+    // 初始化算子状态。这是恢复状态的关键步骤。
     public void initializeOperatorState(CheckpointedStreamOperator streamOperator)
             throws Exception {
         CloseableIterable<KeyGroupStatePartitionStreamProvider> keyedStateInputs =
@@ -447,6 +461,12 @@ public class StreamOperatorStateHandler {
     }
 
     /** Custom state handling hooks to be invoked by {@link StreamOperatorStateHandler}. */
+    // 为 Flink 的 StreamOperator 提供了自定义状态处理的钩子（hooks）
+    // 容错机制集成： 任何需要保存状态以实现容错的 Flink 算子（无论是使用托管状态还是原始状态），都需要通过实现或间接实现此接口，来定义其状态的初始化和快照逻辑。
+    // initializeState： 算子启动或从故障恢复时，如何从 Checkpoint 中恢复/初始化状态。
+    // napshotState： Flink 进行 Checkpoint 时，算子如何将当前状态写入快照
+    // 与 StreamOperatorStateHandler 协作： 如 Javadoc 所述，这些钩子是由 Flink 内部的 StreamOperatorStateHandler 调用的。
+    // StreamOperatorStateHandler 负责协调所有算子的状态操作，并与底层的状态后端（State Backend）进行交互。
     public interface CheckpointedStreamOperator {
         void initializeState(StateInitializationContext context) throws Exception;
 

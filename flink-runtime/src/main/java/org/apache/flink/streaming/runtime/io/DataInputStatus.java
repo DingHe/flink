@@ -33,22 +33,22 @@ public enum DataInputStatus {
      * Indicator that more data is available and the input can be called immediately again to
      * produce more data.
      */
-    MORE_AVAILABLE, //表示有更多数据可供立即获取
+    MORE_AVAILABLE, // 表示有更多数据可供立即获取
 
     /**
      * Indicator that no data is currently available, but more data will be available in the future
      * again.
      */
-    NOTHING_AVAILABLE, //表示当前没有可用数据，但未来可能会有
+    NOTHING_AVAILABLE, // 表示当前没有可用数据，但未来可能会有
 
     /** Indicator that all persisted data of the data exchange has been successfully restored. */
-    END_OF_RECOVERY, //表示数据源已经成功恢复了持久化的状态，在从保存点恢复作业时，数据源会经历这个状态
+    END_OF_RECOVERY, // 表示数据源已经成功恢复了持久化的状态，在从保存点恢复作业时，数据源会经历这个状态
 
     /** Indicator that the input was stopped because of stop-with-savepoint without drain. */
-    STOPPED, //表示数据源已经停止，可能是由于用户手动停止或者系统故障导致
+    STOPPED, // 表示数据源已经停止，可能是由于用户手动停止或者系统故障导致
 
     /** Indicator that the input has reached the end of data. */
-    END_OF_DATA, //表示数据源已经到达数据末尾，不会再有新的数据产生，适用于有界数据集
+    END_OF_DATA, // 表示数据源已经到达数据末尾，不会再有新的数据产生，适用于有界数据集
 
     /**
      * Indicator that the input has reached the end of data and control events. The input is about

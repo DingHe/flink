@@ -35,6 +35,11 @@ import org.apache.flink.util.OutputTag;
  *
  * @param <T> The type of the elements that can be emitted.
  */
+// Flink 流式运算符对外输出所有类型信息的抽象层。
+// 对于 Flink 的 StreamOperator 而言，它不是直接调用底层的网络 I/O 或 Checkpoint 机制，而是通过一个 Output 实例来：
+// 发送主输出数据： 将处理后的用户记录（StreamRecord）发送给下游运算符（继承自 Collector<T> 的功能）。
+// 发送控制事件： 广播 Watermark、LatencyMarker、WatermarkStatus 等重要的流控制和元数据事件。
+// 发送侧输出数据： 支持通过 OutputTag 将数据发送到侧输出流（Side Output）。
 @PublicEvolving
 public interface Output<T> extends Collector<T> {
 

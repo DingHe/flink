@@ -52,6 +52,14 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 
 /** This state factory wraps state objects, produced by backends, with TTL logic. */
 public class TtlStateFactory<K, N, SV, TTLSV, S extends State, IS extends S> {
+
+    // 负责根据状态描述符中的配置来决定是创建普通的 Flink 状态，还是创建用 TTL 包装后的状态。
+    // <K>: Keyed State 的 键（Key） 的类型。
+    // <N>: 命名空间（Namespace）的类型。
+    // <SV>: 原始状态值（State Value） 的类型（例如，如果是 ValueState，就是值本身的类型）。
+    // <TTLSV>: TTL 包装后的状态值 的类型（通常是包含原始值和时间戳的结构体）。
+    // <S extends State>: 状态接口的类型（例如 ValueState, ListState 等）。
+    // <IS extends S>: 内部状态（Internal State） 具体的实现类类型（子类必须是 S）。
     public static <K, N, SV, TTLSV, S extends State, IS extends S>
             IS createStateAndWrapWithTtlIfEnabled(
                     TypeSerializer<N> namespaceSerializer,

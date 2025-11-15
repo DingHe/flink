@@ -68,6 +68,10 @@ import static org.apache.flink.util.Preconditions.checkState;
  * Internal configuration for a {@link StreamOperator}. This is created and populated by the {@link
  * StreamingJobGraphGenerator}.
  */
+// flink 运行时中的一个高度集成化、核心配置容器。它在 Flink 作业从逻辑图（StreamGraph）转换为物理图（JobGraph）的过程中产生，并与特定的 JobVertex 或 StreamOperator 关联。
+// 包含了操作符在 TaskManager 上正确运行所需的所有运行时元数据和配置信息。
+// Operator 运行时配置容器: 它将操作符的配置（例如 UDF、序列化器、输入/输出拓扑、状态后端、时间特性等）从 JobManager 序列化传输到 TaskManager。
+// 链式配置传播: 当多个操作符被链式连接（Operator Chaining）在一起时，StreamConfig 不仅包含链头操作符的配置，还包含链上所有其他操作符的传递性配置，从而允许 Task 运行时在 Task 内部正确地实例化和配置整个操作符链。
 @Internal
 public class StreamConfig implements Serializable {
 
@@ -138,15 +142,23 @@ public class StreamConfig implements Serializable {
     // ------------------------------------------------------------------------
     //  Config
     // ------------------------------------------------------------------------
-
+    // 底层配置对象。
+    // StreamConfig 是一个包装器，它将所有的配置项（包括基本类型和序列化后的对象）存储在这个 Flink 核心的 Configuration 实例中。
     private final Configuration config;
 
     // To make the parallelization of the StreamConfig serialization easier, we use this map
     // to collect all the need-to-be-serialized objects. These objects will be serialized all at
     // once then.
+    // 待序列化对象集合。
+    // 这是一个临时（transient）的 Map，用于在 JobGraph 生成阶段收集需要序列化并嵌入到 config 中的 Java 对象（如序列化器、算子工厂）。
+    // 在最终发送给 TaskManager 之前，这些对象会被异步序列化。
     private final transient Map<String, Object> toBeSerializedConfigObjects = new HashMap<>();
+    // 存储链上所有下游操作符配置的序列化完成 Future。
+    // 用于确保在主 StreamConfig 序列化时，所有链式配置都已完成序列化。
     private final transient Map<Integer, CompletableFuture<StreamConfig>> chainedTaskFutures =
             new HashMap<>();
+    // 自身的序列化完成 Future。
+    // 用于表示当前 StreamConfig 及其所有内部对象（包括链式配置）已成功序列化到 config 中的信号。
     private final transient CompletableFuture<StreamConfig> serializationFuture =
             new CompletableFuture<>();
 
@@ -155,6 +167,8 @@ public class StreamConfig implements Serializable {
      * #clearInitialConfigs()}. Recording these keys here to prevent they are accessed after
      * removing.
      */
+    // 用于追踪在内存优化阶段（clearInitialConfigs()，
+    // 虽然代码中未展示，但这是 Flink 内部清理配置的方法）被移除的配置键，以防止在移除后被错误地访问。
     private final Set<String> removedKeys = new HashSet<>();
 
     public StreamConfig(Configuration config) {
@@ -170,6 +184,9 @@ public class StreamConfig implements Serializable {
     }
 
     /** Trigger the object config serialization and return the completable future. */
+    // 触发异步序列化
+    // 异步地将 toBeSerializedConfigObjects 和所有链上的 StreamConfig 对象序列化到 config 中。
+    // 它等待所有链式配置的 Future 完成后，才执行自身的序列化，并完成 serializationFuture
     public CompletableFuture<StreamConfig> triggerSerializationAndReturnFuture(
             Executor ioExecutor) {
         FutureUtils.combineAll(chainedTaskFutures.values())
@@ -226,7 +243,7 @@ public class StreamConfig implements Serializable {
     // ------------------------------------------------------------------------
     //  Configured Properties
     // ------------------------------------------------------------------------
-
+    // 设置/获取作业顶点 ID
     public void setVertexID(Integer vertexID) {
         config.setInteger(VERTEX_NAME, vertexID);
     }
@@ -286,7 +303,7 @@ public class StreamConfig implements Serializable {
                                         key.replaceFirst(MANAGED_MEMORY_FRACTION_PREFIX, "")))
                 .collect(Collectors.toSet());
     }
-
+    // 设置和获取作业使用的时间语义（Processing Time/Event Time/Ingestion Time）
     public void setTimeCharacteristic(TimeCharacteristic characteristic) {
         config.setInteger(TIME_CHARACTERISTIC, characteristic.ordinal());
     }
@@ -299,7 +316,7 @@ public class StreamConfig implements Serializable {
             throw new CorruptConfigurationException("time characteristic is not set");
         }
     }
-
+    // 设置和获取主输出数据流的 TypeSerializer。
     public void setTypeSerializerOut(TypeSerializer<?> serializer) {
         setTypeSerializer(TYPE_SERIALIZER_OUT_1, serializer);
     }
@@ -311,7 +328,7 @@ public class StreamConfig implements Serializable {
             throw new StreamTaskException("Could not instantiate serializer.", e);
         }
     }
-
+    // 设置和获取特定 OutputTag 侧输出流的 TypeSerializer。
     public void setTypeSerializerSideOut(OutputTag<?> outputTag, TypeSerializer<?> serializer) {
         setTypeSerializer(TYPE_SERIALIZER_SIDEOUT_PREFIX + outputTag.getId(), serializer);
     }
@@ -319,7 +336,7 @@ public class StreamConfig implements Serializable {
     private void setTypeSerializer(String key, TypeSerializer<?> typeWrapper) {
         toBeSerializedConfigObjects.put(key, typeWrapper);
     }
-
+    // 设置和获取特定 OutputTag 侧输出流的 TypeSerializer。
     public <T> TypeSerializer<T> getTypeSerializerSideOut(OutputTag<?> outputTag, ClassLoader cl) {
         checkNotNull(outputTag, "Side output id must not be null.");
         try {
@@ -378,7 +395,7 @@ public class StreamConfig implements Serializable {
     public void setStreamOperator(StreamOperator<?> operator) {
         setStreamOperatorFactory(SimpleOperatorFactory.of(operator));
     }
-
+    // 将 StreamOperatorFactory 序列化到配置中，StreamTask 在运行时将使用它来实例化操作符。
     public void setStreamOperatorFactory(StreamOperatorFactory<?> factory) {
         if (factory != null) {
             toBeSerializedConfigObjects.put(SERIALIZED_UDF, factory);
@@ -391,7 +408,7 @@ public class StreamConfig implements Serializable {
         SimpleOperatorFactory<?> factory = getStreamOperatorFactory(cl);
         return (T) factory.getOperator();
     }
-
+    // 反序列化并返回 StreamOperatorFactory 实例。这是 Task 启动操作符的核心。
     public <T extends StreamOperatorFactory<?>> T getStreamOperatorFactory(ClassLoader cl) {
         try {
             checkState(
@@ -511,10 +528,11 @@ public class StreamConfig implements Serializable {
         return config.getBoolean(CHECKPOINTING_ENABLED, false);
     }
 
+    // 设置和获取检查点的语义模式（如 EXACTLY_ONCE）。
     public void setCheckpointMode(CheckpointingMode mode) {
         config.setInteger(CHECKPOINT_MODE, mode.ordinal());
     }
-
+    // 设置和获取检查点的语义模式（如 EXACTLY_ONCE）。
     public CheckpointingMode getCheckpointMode() {
         int ordinal = config.getInteger(CHECKPOINT_MODE, -1);
         if (ordinal >= 0) {
@@ -590,7 +608,7 @@ public class StreamConfig implements Serializable {
             throw new StreamTaskException("Could not instantiate outputs in order.", e);
         }
     }
-
+    // 设置和获取链上所有操作符（包括自身）的 StreamConfig Map。
     public void setTransitiveChainedTaskConfigs(Map<Integer, StreamConfig> chainedTaskConfigs) {
         if (chainedTaskConfigs != null) {
             chainedTaskConfigs.forEach(
@@ -617,7 +635,7 @@ public class StreamConfig implements Serializable {
         chainedTaskConfigs.put(getVertexID(), this);
         return chainedTaskConfigs;
     }
-
+    // 操作符的唯一标识符，用于状态管理和调试。
     public void setOperatorID(OperatorID operatorID) {
         this.config.setBytes(OPERATOR_ID, operatorID.getBytes());
     }
@@ -626,7 +644,7 @@ public class StreamConfig implements Serializable {
         byte[] operatorIDBytes = config.getBytes(OPERATOR_ID, null);
         return new OperatorID(checkNotNull(operatorIDBytes));
     }
-
+    // 设置/获取操作符名称
     public void setOperatorName(String name) {
         this.config.setString(OPERATOR_NAME, name);
     }
@@ -646,7 +664,7 @@ public class StreamConfig implements Serializable {
     // ------------------------------------------------------------------------
     //  State backend
     // ------------------------------------------------------------------------
-
+    // 设置和获取用于管理键控状态的 StateBackend 实例。
     public void setStateBackend(StateBackend backend) {
         if (backend != null) {
             toBeSerializedConfigObjects.put(STATE_BACKEND, backend);
@@ -662,7 +680,7 @@ public class StreamConfig implements Serializable {
     public void setStateBackendUsesManagedMemory(boolean usesManagedMemory) {
         this.config.set(STATE_BACKEND_USE_MANAGED_MEMORY, usesManagedMemory);
     }
-
+    // 设置和获取用于管理键控状态的 StateBackend 实例。
     public StateBackend getStateBackend(ClassLoader cl) {
         try {
             return InstantiationUtil.readObjectFromConfig(this.config, STATE_BACKEND, cl);
@@ -722,7 +740,7 @@ public class StreamConfig implements Serializable {
             throw new StreamTaskException("Could not instantiate state partitioner.", e);
         }
     }
-
+    // 设置和获取用于序列化键控状态的 Key 的 TypeSerializer
     public void setStateKeySerializer(TypeSerializer<?> serializer) {
         toBeSerializedConfigObjects.put(STATE_KEY_SERIALIZER, serializer);
     }
@@ -739,7 +757,7 @@ public class StreamConfig implements Serializable {
     // ------------------------------------------------------------------------
     //  Miscellaneous
     // ------------------------------------------------------------------------
-
+    // 标志当前操作符是链的第一个操作符 (ChainStart) 还是链的最后一个操作符 (ChainEnd)。
     public void setChainStart() {
         config.setBoolean(IS_CHAINED_VERTEX, true);
     }

@@ -40,17 +40,23 @@ import static org.apache.flink.util.Preconditions.checkState;
  * A {@link org.apache.flink.streaming.api.operators.StreamOperator} for executing keyed {@link
  * KeyedCoProcessFunction KeyedCoProcessFunction}.
  */
+// KeyedCoProcessOperator 是 KeyedCoProcessFunction 与 Flink 运行时环境之间的关键桥梁，它提供了实现复杂双流状态处理和时间控制所需的全部运行时功能。
+// 键控上下文管理： 确保在处理来自两条输入流的元素时，以及在定时器触发时，算子都能正确地设置当前正在处理的键（Key）。这是访问键控状态和注册/删除键控定时器的前提。
+
 @Internal
 public class KeyedCoProcessOperator<K, IN1, IN2, OUT>
         extends AbstractUdfStreamOperator<OUT, KeyedCoProcessFunction<K, IN1, IN2, OUT>>
         implements TwoInputStreamOperator<IN1, IN2, OUT>, Triggerable<K, VoidNamespace> {
 
     private static final long serialVersionUID = 1L;
-
+    // 带时间戳的输出收集器。
+    // 一个可重用的收集器，用于将用户函数发射的 OUT 类型元素封装成 StreamRecord，并自动带上当前元素或定时器的时间戳。
     private transient TimestampedCollector<OUT> collector;
-
+    // 元素处理上下文。
+    // 用于在执行 processElement1/2 时，提供给用户函数访问时间、侧输出和当前键等信息。
     private transient ContextImpl<K, IN1, IN2, OUT> context;
-
+    // 定时器上下文。
+    // 用于在执行 onTimer 回调时，提供给用户函数访问触发时间、时间域和触发键等信息。
     private transient OnTimerContextImpl<K, IN1, IN2, OUT> onTimerContext;
 
     public KeyedCoProcessOperator(KeyedCoProcessFunction<K, IN1, IN2, OUT> keyedCoProcessFunction) {

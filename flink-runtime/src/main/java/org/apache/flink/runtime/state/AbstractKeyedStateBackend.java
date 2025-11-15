@@ -49,6 +49,10 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @param <K> Type of the key by which state is keyed.
  */
+// 所有实现键控状态（Keyed State） 存储和管理能力的 Flink 状态后端（如 HeapKeyedStateBackend 和 RocksDBKeyedStateBackend）的抽象基类。
+// 提供通用框架： 它实现了 KeyedStateBackend 接口中所有不依赖于底层存储细节的通用逻辑和基础设施，包括 Key 上下文管理、状态缓存、监听器注册、配置解析以及资源清理等。
+// 它是一个可 Checkpoint 的 Keyed State Backend 的通用骨架，负责大部分的协调、配置和管理逻辑，将状态的实际存储和快照工作留给具体的子类实现。
+
 public abstract class AbstractKeyedStateBackend<K>
         implements CheckpointableKeyedStateBackend<K>,
                 InternalCheckpointListener,
@@ -56,47 +60,69 @@ public abstract class AbstractKeyedStateBackend<K>
                 InternalKeyContext<K> {
 
     /** The key serializer. */
+    // Key 序列化器。 用于序列化和反序列化 Key 的 TypeSerializer 实例。
     protected final TypeSerializer<K> keySerializer;
 
     /** Listeners to changes of ({@link #keyContext}). */
+    // Key 选择监听器列表。 存储所有注册的监听器，用于在 Key 上下文切换时接收回调通知。
     private final ArrayList<KeySelectionListener<K>> keySelectionListeners;
 
     /** So that we can give out state when the user uses the same key. */
+    // 键值状态映射。
+    // 存储所有已创建/注册的内部键值状态实例（InternalKvState），键是状态名称（StateDescriptor 的名称）
     private final HashMap<String, InternalKvState<K, ?, ?>> keyValueStatesByName;
 
     /** For caching the last accessed partitioned state. */
+    // 上次访问的状态名称。 用于状态缓存优化，避免重复查找状态实例。
     private String lastName;
-
+    // 上次访问的状态实例。
+    // 配合 lastName，用于状态缓存优化。
     @SuppressWarnings("rawtypes")
     private InternalKvState lastState;
 
     /** The number of key-groups aka max parallelism. */
+    // Key Group 总数。
+    // 即 Flink 作业的最大并行度，决定了 Key 空间的划分粒度。
     protected final int numberOfKeyGroups;
 
     /** Range of key-groups for which this backend is responsible. */
+    // Key Group 范围。
+    // 当前 TaskManager 实例负责处理的 Key Group 编号范围。
     protected final KeyGroupRange keyGroupRange;
 
     /** KvStateRegistry helper for this task. */
+    // KvState 注册中心。
+    // 用于将 Keyed State 注册到 Queryable State 服务，支持外部查询。
     protected final TaskKvStateRegistry kvStateRegistry;
 
     /**
      * Registry for all opened streams, so they can be closed if the task using this backend is
      * closed.
      */
+    // 可关闭流注册器。
+    // 用于注册 Checkpoint 过程中打开的流（Stream），以便在任务取消或关闭时能够安全地清理和关闭这些资源。
     protected CloseableRegistry cancelStreamRegistry;
-
+    // 用户代码类加载器。
+    // 用于加载用户定义的类，如自定义序列化器。
     protected final ClassLoader userCodeClassLoader;
-
+    // 执行配置。
+    // 包含了运行时配置信息，如是否启用快照压缩等。
     private final ExecutionConfig executionConfig;
-
+    // TTL 时间提供者。
+    // 用于获取当前时间戳，支持 状态 Time-To-Live (TTL) 机制。
     protected final TtlTimeProvider ttlTimeProvider;
-
+    // 延迟追踪配置。
+    // 包含了状态访问延迟追踪（Metrics）的配置信息。
     protected final LatencyTrackingStateConfig latencyTrackingStateConfig;
 
     /** Decorates the input and output streams to write key-groups compressed. */
+    // 流压缩装饰器。
+    // 用于在 Checkpoint 期间对 Key Group 数据流进行压缩/解压缩，通常默认为 Snappy 或不压缩。
     protected final StreamCompressionDecorator keyGroupCompressionDecorator;
 
     /** The key context for this backend. */
+    // Key 上下文。
+    // 封装了当前 Key 和 Key Group 索引的实际存储和管理。
     protected final InternalKeyContext<K> keyContext;
 
     public AbstractKeyedStateBackend(
@@ -312,6 +338,10 @@ public abstract class AbstractKeyedStateBackend<K>
                 this::getPartitionedState);
     }
 
+
+    // 对所有 Key 应用函数。
+    // 提供了对所有 Key Group 中所有活跃 Key 执行自定义函数的能力。
+    // 它首先获取 Key 流，然后迭代地调用 setCurrentKey 和 function.process。
     public <N, S extends State, T> void applyToAllKeys(
             final N namespace,
             final TypeSerializer<N> namespaceSerializer,
@@ -338,7 +368,8 @@ public abstract class AbstractKeyedStateBackend<K>
                     });
         }
     }
-
+    // 负责实例化或检索一个状态实例。
+    //
     /** @see KeyedStateBackend */
     @Override
     @SuppressWarnings("unchecked")
@@ -363,6 +394,8 @@ public abstract class AbstractKeyedStateBackend<K>
                             stateDescriptor,
                             latencyTrackingStateConfig);
             keyValueStatesByName.put(stateDescriptor.getName(), kvState);
+            // 发布可查询状态。
+            // 如果 StateDescriptor 标记为可查询（Queryable），则将状态注册到 kvStateRegistry，使其可供外部查询。
             publishQueryableStateIfEnabled(stateDescriptor, kvState);
         }
         return (S) kvState;

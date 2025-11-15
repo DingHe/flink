@@ -36,23 +36,35 @@ import javax.annotation.Nullable;
  * that is not null, because the Job Manager always owns the ground truth about the checkpointed
  * state.
  */
+// SnapshotResult 类用于封装 Flink 状态后端（State Backend）执行快照操作后返回的组合结果。
+// 它的主要目的是将同一个 Checkpoint 的远程（JobManager 所有） 和本地（TaskLocalStateStore 所有） 两种状态句柄（StateObject）打包在一起。
+// 组合状态句柄： Checkpoint 结果通常包含两部分：一份是需要报告给 JobManager 的状态句柄（JobManager 负责容错和协调），另一份是可以存储在 TaskManager 本地以供快速恢复的状态句柄。
+// 强制一致性： 它强制执行一个规则：如果存在本地状态快照，则必须存在对应的 JobManager 所有状态快照，因为 JobManager 始终拥有关于 Checkpoint 状态的“事实真相”（Ground Truth）。
 public class SnapshotResult<T extends StateObject> implements StateObject {
 
     private static final long serialVersionUID = 1L;
 
     /** An singleton instance to represent an empty snapshot result. */
+    // 空结果单例。
+    // 一个静态的单例对象，用于表示 Checkpoint 操作返回了一个空快照（即没有状态需要保存）
     private static final SnapshotResult<?> EMPTY = new SnapshotResult<>(null, null);
 
     /**
      * This is the state snapshot that will be reported to the Job Manager to acknowledge a
      * checkpoint.
      */
+    // JobManager 所有快照。
+    // 存储将报告给 JobManager 的状态句柄（Handle）。
+    // JobManager 将此句柄用于全局容错、协调和状态恢复。
+    // 通常指向： 远程存储（如 HDFS 或 S3）中的状态数据。
     private final T jobManagerOwnedSnapshot;
 
     /**
      * This is the state snapshot that will be reported to the Job Manager to acknowledge a
      * checkpoint.
      */
+    // 任务本地快照。
+    // 作用： 存储将报告给 TaskLocalStateStore 的状态句柄。此句柄用于快速本地恢复，避免从远程存储下载数据。
     private final T taskLocalSnapshot;
 
     /**

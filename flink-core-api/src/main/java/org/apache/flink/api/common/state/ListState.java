@@ -40,6 +40,11 @@ import java.util.List;
  *
  * @param <T> Type of values that this list state keeps.
  */
+// ListState<T> 是 Flink 状态接口体系中用于存储元素列表的核心接口，它支持分区列表状态（Partitioned List State）
+// 存储集合： 允许用户将多个元素（类型为 $T$）顺序地添加到状态中，并以列表或可迭代对象（Iterable<T>）的形式获取所有元素。
+// 支持两种状态类型：
+//Keyed List State（分区列表状态）： 状态的存取依赖于当前处理数据流的 Key。每个 Key 都有自己独立的列表。
+// Operator List State（算子列表状态）： 状态独立于 Key，属于算子实例本身。在算子的并行度发生变化时，这些状态项可以被 Flink 重新分配给新的算子实例，以实现弹性伸缩。
 @PublicEvolving
 public interface ListState<T> extends MergingState<T, Iterable<T>> {
 
@@ -56,6 +61,8 @@ public interface ListState<T> extends MergingState<T, Iterable<T>> {
      * @throws Exception The method may forward exception thrown internally (by I/O or functions, or
      *     sanity check for null value).
      */
+    // 用给定的整个 List 替换当前 Key 和 Namespace 下的所有现有状态。
+    // 如果传入空列表，状态将被清空 (null)。
     void update(List<T> values) throws Exception;
 
     /**
@@ -71,5 +78,6 @@ public interface ListState<T> extends MergingState<T, Iterable<T>> {
      * @throws Exception The method may forward exception thrown internally (by I/O or functions, or
      *     sanity check for null value).
      */
+    // 追加列表：将给定的 List 中的所有元素追加到现有状态的末尾。如果传入空列表，状态保持不变。
     void addAll(List<T> values) throws Exception;
 }

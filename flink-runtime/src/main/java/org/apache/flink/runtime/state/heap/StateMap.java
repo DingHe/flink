@@ -34,6 +34,10 @@ import java.util.stream.Stream;
  * @param <N> type of namespace
  * @param <S> type of state
  */
+// StateMap 抽象类是 Flink 堆状态后端（HeapKeyedStateBackend） 中用于管理单个 Key Group 内部状态数据的核心抽象
+// 存储结构抽象： 它抽象了在给定 Key Group 内，Key 和 Namespace 到实际状态值 (State Value) 的映射关系。一个状态条目总是由 (Key, Namespace) 组成的复合键唯一确定。
+// Key Group 粒度操作： 它定义了所有基本的 CRUD（创建、读取、更新、删除）操作，但这些操作的作用域被限定在它所代表的单个 Key Group 内。
+// 支持快照机制： 它提供了创建和释放快照 (stateSnapshot/releaseSnapshot) 的方法，是实现堆状态后端 写时复制（Copy-on-Write, COW） 快照机制的关键抽象。
 public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>> {
 
     // Main interface methods of StateMap -------------------------------------------------------
@@ -44,6 +48,8 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      * @return {@code true} if this {@link StateMap} has no elements, {@code false} otherwise.
      * @see #size()
      */
+    // 判断是否为空。
+    // 基于 size() == 0 的默认实现。
     public boolean isEmpty() {
         return size() == 0;
     }
@@ -53,6 +59,8 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      *
      * @return the number of entries in this {@link StateMap}.
      */
+    // 获取大小。
+    // 返回当前 StateMap（即当前 Key Group）中存储的状态条目总数。
     public abstract int size();
 
     /**
@@ -63,6 +71,8 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      * @return the state of the mapping with the specified key/namespace composite key, or {@code
      *     null} if no mapping for the specified key is found.
      */
+    // 读取状态值。
+    // 根据给定的 Key 和 Namespace 组成的复合键，查找并返回对应的状态值。
     public abstract S get(K key, N namespace);
 
     /**
@@ -73,6 +83,8 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      * @return {@code true} if this map contains the specified key/namespace composite key, {@code
      *     false} otherwise.
      */
+    // 检查键是否存在。
+    // 检查当前 StateMap 中是否存在由给定 Key 和 Namespace 组成的复合键。
     public abstract boolean containsKey(K key, N namespace);
 
     /**
@@ -84,6 +96,8 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      * @param namespace the namespace. Not null.
      * @param state the state. Can be null.
      */
+    // 写入/更新状态值。
+    // 将给定的状态值 state 写入由 Key 和 Namespace 确定的位置。如果 Key 存在则更新，不存在则新增。
     public abstract void put(K key, N namespace, S state);
 
     /**
@@ -96,6 +110,9 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      * @return the state of any previous mapping with the specified key or {@code null} if there was
      *     no such mapping.
      */
+
+    // 写入并返回旧值。
+    // 将新状态值写入，并返回被覆盖的旧状态值。如果之前没有旧值，则返回 null。
     public abstract S putAndGetOld(K key, N namespace, S state);
 
     /**
@@ -106,6 +123,8 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      * @param key the key of the mapping to remove. Not null.
      * @param namespace the namespace of the mapping to remove. Not null.
      */
+    // 移除状态。
+    // 移除由 Key 和 Namespace 确定的状态条目。不返回旧值，性能优于 removeAndGetOld。
     public abstract void remove(K key, N namespace);
 
     /**
@@ -117,6 +136,8 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      * @return the state of the removed mapping or {@code null} if no mapping for the specified key
      *     was found.
      */
+    // 移除并返回旧值。
+    // 移除状态条目，并返回被移除的旧状态值。
     public abstract S removeAndGetOld(K key, N namespace);
 
     /**
@@ -131,14 +152,19 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      * @param transformation the transformation function.
      * @throws Exception if some exception happens in the transformation function.
      */
+    // 状态转换。
+    // 获取当前状态，应用 StateTransformationFunction 进行转换，并将结果作为新状态存回。这是 原子性 的“获取-修改-写入”操作的优化。
     public abstract <T> void transform(
             K key, N namespace, T value, StateTransformationFunction<S, T> transformation)
             throws Exception;
 
     // For queryable state ------------------------------------------------------------------------
-
+    // 获取 Key 流。
+    // 返回一个 Stream，包含当前 Key Group 中，属于指定 namespace 的所有 Key。
+    // 主要用于 Queryable State 或遍历 Key 的操作。
     public abstract Stream<K> getKeys(N namespace);
-
+    // 获取增量状态访问器。
+    // 返回一个增量访问器，用于在进行增量 Checkpoint 时，批量、高效地获取和遍历状态条目。
     public abstract InternalKvState.StateIncrementalVisitor<K, N, S> getStateIncrementalVisitor(
             int recommendedMaxNumberOfReturnedRecords);
 
@@ -148,6 +174,9 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      *
      * @return a snapshot from this {@link StateMap}, for checkpointing.
      */
+    // 创建状态快照。
+    // 在 Checkpoint 的同步阶段调用，创建一个该 StateMap 实例的逻辑快照，用于实现写时复制。
+    // 返回的 StateMapSnapshot 包含了快照的元数据和数据副本。
     @Nonnull
     public abstract StateMapSnapshot<K, N, S, ? extends StateMap<K, N, S>> stateSnapshot();
 
@@ -158,11 +187,15 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      * @param snapshotToRelease the snapshot to release, which was previously created by this state
      *     map.
      */
+    // 释放状态快照。
+    // 在快照数据被异步写入 Checkpoint 存储后调用。
+    // 它释放与该快照相关联的临时资源，特别是内存中的写时复制（COW）副本。
     public void releaseSnapshot(
             StateMapSnapshot<K, N, S, ? extends StateMap<K, N, S>> snapshotToRelease) {}
 
     // For testing --------------------------------------------------------------------------------
-
+    // 获取命名空间大小（测试用）。
+    // 返回给定 namespace 在当前 StateMap（Key Group）中拥有的状态条目数量。主要用于单元测试和调试。
     @VisibleForTesting
     public abstract int sizeOfNamespace(Object namespace);
 }

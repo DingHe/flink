@@ -54,6 +54,7 @@ import static java.util.stream.Collectors.toMap;
  * given lock object. This ensures that we don't call methods on a {@link StreamInputProcessor}
  * concurrently with the timer callback or other things.
  */
+// Flink 任务中用于处理网络输入（即来自上游任务的数据）的最终实现类。它是连接 Flink 网络 I/O 子系统和 Stream Task 逻辑处理器的关键桥梁
 @Internal
 public final class StreamTaskNetworkInput<T>
         extends AbstractStreamTaskNetworkInput<

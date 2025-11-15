@@ -33,6 +33,9 @@ import java.util.Map;
  * @param <K> The key type of the elements in the {@link ReadOnlyBroadcastState}.
  * @param <V> The value type of the elements in the {@link ReadOnlyBroadcastState}.
  */
+// 提供了一个只读视图来访问 Flink 广播流（Broadcast Stream） 中的状态
+// 实现广播模式： 在 Flink 的 Broadcast State Pattern 中，一个数据流（通常是主数据流）与一个广播流进行连接（Connect）。
+// 只读访问： 该接口被用于非广播流所连接的算子（通常是 BroadcastProcessFunction 或 KeyedBroadcastProcessFunction）中。这些算子只能读取广播状态的数据，而不能修改它，以确保状态在所有并行的算子实例中保持一致。
 @PublicEvolving
 public interface ReadOnlyBroadcastState<K, V> extends State {
 
@@ -45,6 +48,7 @@ public interface ReadOnlyBroadcastState<K, V> extends State {
      * @return The value of the mapping with the given key
      * @throws Exception Thrown if the system cannot access the state.
      */
+    // 获取指定 Key 对应的当前值。
     V get(K key) throws Exception;
 
     /**
@@ -54,6 +58,8 @@ public interface ReadOnlyBroadcastState<K, V> extends State {
      * @return True if there exists a mapping whose key equals to the given key
      * @throws Exception Thrown if the system cannot access the state.
      */
+    // 检查指定 Key 是否存在。
+    // 用于快速判断广播状态中是否包含给定键的映射关系，避免不必要的 get() 调用。
     boolean contains(K key) throws Exception;
 
     /**
@@ -62,5 +68,6 @@ public interface ReadOnlyBroadcastState<K, V> extends State {
      * <p>The user code must not modify the entries of the returned immutable iterator, as this can
      * lead to inconsistent states.
      */
+    // 获取所有状态条目的只读迭代器。
     Iterable<Map.Entry<K, V>> immutableEntries() throws Exception;
 }

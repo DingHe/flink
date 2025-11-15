@@ -25,7 +25,11 @@ import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.RocksDBException;
 
 import java.io.IOException;
-
+// 为所有基于 RocksDB 存储的、支持增量添加元素或累加值的 Keyed State 提供了通用的基础设施和基本操作。具体的状态类型，如 ListState (列表状态), ReducingState (归约状态),
+// 和 AggregatingState (聚合状态) 的 RocksDB 实现，都会继承这个抽象类。
+// <IN>	可以增量添加到状态中的元素的类型（例如 ListState 中的单个元素）。
+// <SV>	状态的序列化值 (Serialized Value) 类型，即存储在 RocksDB 中的最终类型（例如 ListState 对应 List<V>）。
+// <OUT>	可以从状态中检索出来的当前累计结果的类型（通常与 SV 相同，或通过转换得到）。
 abstract class AbstractRocksDBAppendingState<K, N, IN, SV, OUT>
         extends AbstractRocksDBState<K, N, SV>
         implements InternalAppendingState<K, N, IN, SV, OUT> {
@@ -47,12 +51,14 @@ abstract class AbstractRocksDBAppendingState<K, N, IN, SV, OUT>
             RocksDBKeyedStateBackend<K> backend) {
         super(columnFamily, namespaceSerializer, valueSerializer, defaultValue, backend);
     }
-
+    // 获取内部状态（当前 Key/Namespace）。
+    // 从 RocksDB 中读取当前 Key 和 Namespace 对应的状态值。
     @Override
     public SV getInternal() throws IOException, RocksDBException {
         return getInternal(getKeyBytes());
     }
-
+    // 获取内部状态（指定键）。
+    // 给定 RocksDB 完整键字节，获取对应的状态值。
     SV getInternal(byte[] key) throws IOException, RocksDBException {
         byte[] valueBytes = backend.db.get(columnFamily, key);
         if (valueBytes == null) {

@@ -33,15 +33,28 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * A wrapper for generated class, defines a {@link #newInstance(ClassLoader)} method to get an
  * instance by reference objects easily.
  */
+// GeneratedClass<T> 是 Flink Table/SQL 模块中用于封装动态生成的 Java 源代码及其运行时依赖的抽象基类。
+// Flink Table/SQL 优化器为了提高执行效率，会将许多操作（如表达式计算、连接条件、聚合逻辑等）动态生成为 Java 源代码。
+// GeneratedClass 充当了这些生成的代码和实际可执行类之间的桥梁和容器。
+// 代码和依赖的封装： 存储生成的类的名称、源代码、代码分割后的源代码，以及运行时需要传入的引用对象 (references)。
+// 动态编译与缓存： 负责在运行时（通常是算子启动时）将存储的源代码动态编译成 Java Class，并将编译后的类缓存起来，避免重复编译。
+// 实例创建： 提供方便的方法 (newInstance)，使用缓存的 Class 和封装的引用对象来创建该生成的类的新实例，供 Flink 算子使用。
 public abstract class GeneratedClass<T> implements Serializable {
 
     private static final Logger LOG = LoggerFactory.getLogger(GeneratedClass.class);
-
+    // 生成的类的完整名称（包含包名）。用于编译和实例化。
     private final String className;
+    // 生成的 Java 源代码。这是原始、未分割的代码字符串。
     private final String code;
+    // 分割后的 Java 源代码。
+    // 当原始代码过长时，JavaCodeSplitter 会将其分割成多个部分，以适应 JVM 的方法/成员长度限制。
     private final String splitCode;
+    // 引用的对象数组。
+    // 存储生成的代码在运行时需要依赖的外部对象实例（如序列化器、配置、用户函数等）。
+    // 这些对象在实例化时会传递给生成的类的构造函数。
     private final Object[] references;
-
+    // 已编译的类对象缓存。
+    // 这是一个 transient 字段，意味着它在序列化时不被传输。它用于存储动态编译后的 Class 对象，避免在运行时重复编译。
     private transient Class<T> compiledClass;
 
     protected GeneratedClass(

@@ -31,6 +31,10 @@ import java.io.IOException;
  *
  * @param <T> The type to be represented as an IOReadableWritable.
  */
+// SerializationDelegate<T> 的核心作用是将任意类型的 Flink 数据对象 <T> 包装起来，使其能够被视为一个实现了 IOReadableWritable 接口的对象。
+// 在 Flink 的 I/O 子系统（例如网络传输、磁盘溢写）中，数据通常需要以字节流的形式读写，并且许多底层组件（如 RecordWriter、RecordDeserializer）需要处理的对象都要求实现 IOReadableWritable 接口。
+// SerializationDelegate 的作用就是作为 T 类型对象和底层 I/O 系统的“中介”：
+// 适配器（Adapter）: 它实现了 IOReadableWritable 接口，但将实际的序列化/反序列化工作委托给专门的 TypeSerializer<T>。
 public class SerializationDelegate<T> implements IOReadableWritable {
 
     private T instance;

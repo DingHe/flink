@@ -23,11 +23,17 @@ import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.util.FlinkException;
 import org.apache.flink.util.SerializedValue;
 
-/**它负责协调多个任务的执行，确保它们在正确的时间执行正确的操作。这种协调机制对于一些复杂的流处理场景，如窗口操作、事件时间处理、精确一次语义等，是非常重要的
+/**
  * An task that is coordinated, i.e. contains operators coordinated by {@link OperatorCoordinator}.
  */
+// CoordinatedTask（协调任务）接口定义了任务（Task）如何与驻留在 JobManager 上的算子协调器 (OperatorCoordinator) 进行通信
+// 事件分发通道： 它提供了一个统一的机制，允许 JobManager 上的 OperatorCoordinator 向其管理的、运行在 TaskManager 上的具体算子实例发送事件（OperatorEvent）
+// 异步通信： 算子协调器是 Flink 1.11+ 引入的一种新的机制，旨在将复杂的状态管理、资源分配、数据源切分等逻辑从 JobManager 的主线程中解耦出来。
+// CoordinatedTask 就是这个解耦通信模型的接收端。
+// 它是一个任务级别上的事件收件箱，用于接收来自 JobManager 协调器的指令。
 @Internal
 public interface CoordinatedTask {
+    // 分发算子事件
     void dispatchOperatorEvent(OperatorID operator, SerializedValue<OperatorEvent> event)
             throws FlinkException;
 }

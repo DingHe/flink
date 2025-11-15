@@ -80,7 +80,8 @@ import java.util.Objects;
  * @param <T2> The type of the elements in the right stream.
  * @param <OUT> The output type created by the user-defined function.
  */
-//实现基于时间区间联结（Interval Join） 的核心算子。它处理两个已经按照相同键进行分区的流，并根据每个流中元素的事件时间戳和用户定义的时间边界来将元素进行匹配
+// 实现基于时间区间联结（Interval Join） 的核心算子。
+// 它处理两个已经按照相同键进行分区的流，并根据每个流中元素的事件时间戳和用户定义的时间边界来将元素进行匹配
 @Internal
 public class IntervalJoinOperator<K, T1, T2, OUT>
         extends AbstractUdfStreamOperator<OUT, ProcessJoinFunction<T1, T2, OUT>>
@@ -106,11 +107,14 @@ public class IntervalJoinOperator<K, T1, T2, OUT>
     //类型序列化器。用于正确地序列化和反序列化左右流的元素，这是状态管理和网络传输所必需的
     private final TypeSerializer<T1> leftTypeSerializer;
     private final TypeSerializer<T2> rightTypeSerializer;
-    //左右流的缓冲状态。这是该算子存储所有未处理元素的键控状态。
+
+    // 左右流的缓冲状态。
+    // 这是该算子存储所有未处理元素的键控状态。
     // MapState 的键是元素的事件时间戳，值是一个 BufferEntry 列表，因为可能存在多个元素具有相同的时间戳
     private transient MapState<Long, List<BufferEntry<T1>>> leftBuffer;
     private transient MapState<Long, List<BufferEntry<T2>>> rightBuffer;
-    //带时间戳的收集器。用于将处理后的输出结果发送到下游，并为其分配一个正确的时间戳（
+    //带时间戳的收集器。
+    // 用于将处理后的输出结果发送到下游，并为其分配一个正确的时间戳（
     private transient TimestampedCollector<OUT> collector;
     //用户自定义 ProcessJoinFunction 的上下文实现。它包装了 ProcessJoinFunction.Context，提供了访问联结元素时间戳和侧输出流的方法
     private transient ContextImpl context;
@@ -165,7 +169,8 @@ public class IntervalJoinOperator<K, T1, T2, OUT>
         internalTimerService =
                 getInternalTimerService(CLEANUP_TIMER_NAME, StringSerializer.INSTANCE, this);
     }
-    //状态初始化和恢复。除了调用父类的逻辑，它会注册 leftBuffer 和 rightBuffer 这两个 MapState，从而在算子启动时（或从检查点恢复时）初始化状态
+    //状态初始化和恢复。
+    // 除了调用父类的逻辑，它会注册 leftBuffer 和 rightBuffer 这两个 MapState，从而在算子启动时（或从检查点恢复时）初始化状态
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
@@ -198,7 +203,9 @@ public class IntervalJoinOperator<K, T1, T2, OUT>
      * @param record An incoming record to be joined
      * @throws Exception Can throw an Exception during state access
      */
-    //处理输入元素。这是处理来自左流或右流的元素的主要方法。它们是 TwoInputStreamOperator 接口的实现，内部调用私有方法 processElement 来执行核心逻辑
+    //处理输入元素。
+    // 这是处理来自左流或右流的元素的主要方法。
+    // 它们是 TwoInputStreamOperator 接口的实现，内部调用私有方法 processElement 来执行核心逻辑
     //Interval Join 的核心联结条件是：左流元素时间戳 + lowerBound <= 右流元素时间戳 <= 左流元素时间戳 + upperBound
     @Override
     public void processElement1(StreamRecord<T1> record) throws Exception {
@@ -223,7 +230,8 @@ public class IntervalJoinOperator<K, T1, T2, OUT>
     public void processElement2(StreamRecord<T2> record) throws Exception {
         processElement(record, rightBuffer, leftBuffer, -upperBound, -lowerBound, false);
     }
-    //核心处理逻辑。这个私有方法是联结算法的核心。它会检查元素是否迟到，如果是则发送到侧输出。
+    // 核心处理逻辑。
+    // 这个私有方法是联结算法的核心。它会检查元素是否迟到，如果是则发送到侧输出。
     // 否则，它会将元素添加到相应缓冲状态，然后遍历另一个缓冲状态寻找匹配的元素，并调用 collect 方法进行联结
     @SuppressWarnings("unchecked")
     private <THIS, OTHER> void processElement(

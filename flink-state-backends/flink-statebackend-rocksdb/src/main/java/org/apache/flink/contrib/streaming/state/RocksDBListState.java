@@ -58,15 +58,25 @@ import static org.apache.flink.runtime.state.StateSnapshotTransformer.Collection
  * @param <N> The type of the namespace.
  * @param <V> The type of the values in the list state.
  */
+// RocksDBListState<K, N, V> 是 Flink ListState (列表状态) 的一个实现，
+// 它将状态数据存储在 RocksDB 键值存储中。它是 Flink EmbeddedRocksDBStateBackend 的核心组件之一。
+// 持久化 Keyed State： 它是 Keyed State 的一种，状态的访问与 Flink 的 Key (K) 和 Namespace (N) 相关联。数据存储在磁盘上的 RocksDB 中，保证了状态的持久性和容错性。
+// 利用 RocksDB 的 Merge 操作： 区别于其他状态类型在 RocksDB 中直接使用 put()，RocksDBListState 利用 RocksDB 的 merge() 操作和 StringAppendOperator（字符串追加操作符）来实现高效的列表元素追加。每次调用 add() 或 addAll() 并非重新写入整个列表，而是追加序列化的新元素，这对于大型列表状态非常高效。
+// 列表序列化： 状态值在 RocksDB 中是作为一串用特殊分隔符（DELIMITER = ','）连接起来的序列化字节存储的。
+// 它提供了基于磁盘的 Keyed List State 功能，适用于需要处理巨大状态而不能完全放入内存的 Flink 应用。
 class RocksDBListState<K, N, V> extends AbstractRocksDBState<K, N, List<V>>
         implements InternalListState<K, N, V> {
 
     /** Serializer for the values. */
+    // 元素序列化器。用于序列化和反序列化列表中的单个元素 $V$。
     private TypeSerializer<V> elementSerializer;
-
+    // 列表分隔序列化器。
+    // 专门负责将列表中的单个序列化元素用分隔符连接起来，以便存储在 RocksDB 的一个值中，并在读取时正确地反序列化回列表。
     private final ListDelimitedSerializer listSerializer;
 
     /** Separator of StringAppendTestOperator in RocksDB. */
+    // 分隔符。
+    // 用于在 RocksDB 中分隔列表中各个元素序列化字节的特殊字节（此处为 , 字节）。这是 RocksDB StringAppendOperator 工作的基础。
     private static final byte DELIMITER = ',';
 
     /**
@@ -106,19 +116,24 @@ class RocksDBListState<K, N, V> extends AbstractRocksDBState<K, N, List<V>>
     public TypeSerializer<List<V>> getValueSerializer() {
         return valueSerializer;
     }
-
+    // 获取状态（用户 API）。
+    // 获取当前 Key 和 Namespace 下的整个列表。
     @Override
     public Iterable<V> get() throws IOException, RocksDBException {
         return getInternal();
     }
-
+    // 1. 序列化当前 Key/Namespace 得到 RocksDB 键。
+    // 2. 调用 backend.db.get() 获取 RocksDB 值（即序列化后的列表字节）。
+    // 3. 使用 listSerializer.deserializeList() 将字节反序列化为 List<V> 并返回。
     @Override
     public List<V> getInternal() throws IOException, RocksDBException {
         byte[] key = serializeCurrentKeyWithGroupAndNamespace();
         byte[] valueBytes = backend.db.get(columnFamily, key);
         return listSerializer.deserializeList(valueBytes, elementSerializer);
     }
-
+    // 1. 序列化当前 Key/Namespace。
+    // 2. 序列化要添加的 $V$ 元素。
+    // 3. 调用 backend.db.merge() 将新元素的序列化字节追加到 RocksDB 中现有值的末尾。
     @Override
     public void add(V value) throws IOException, RocksDBException {
         Preconditions.checkNotNull(value, "You cannot add null to a ListState.");
@@ -129,7 +144,9 @@ class RocksDBListState<K, N, V> extends AbstractRocksDBState<K, N, List<V>>
                 serializeCurrentKeyWithGroupAndNamespace(),
                 serializeValue(value, elementSerializer));
     }
-
+    // 合并命名空间。
+    // 将多个源 Namespace 的状态合并到目标 Namespace。
+    // 主要用于窗口状态合并。
     @Override
     public void mergeNamespaces(N target, Collection<N> sources) {
         if (sources == null || sources.isEmpty()) {
@@ -159,12 +176,14 @@ class RocksDBListState<K, N, V> extends AbstractRocksDBState<K, N, List<V>>
             throw new FlinkRuntimeException("Error while merging state in RocksDB", e);
         }
     }
-
+    // 覆盖状态。
+    // 用新的列表完全替换旧的列表状态。
     @Override
     public void update(List<V> valueToStore) throws IOException, RocksDBException {
         updateInternal(valueToStore);
     }
-
+    // 内部覆盖状态。
+    // 用新的列表完全替换旧的列表状态。
     @Override
     public void updateInternal(List<V> values) throws IOException, RocksDBException {
         Preconditions.checkNotNull(values, "List of values to add cannot be null.");
@@ -179,7 +198,8 @@ class RocksDBListState<K, N, V> extends AbstractRocksDBState<K, N, List<V>>
             clear();
         }
     }
-
+    // 添加多个元素。
+    // 将多个元素追加到列表状态中。
     @Override
     public void addAll(List<V> values) throws IOException, RocksDBException {
         Preconditions.checkNotNull(values, "List of values to add cannot be null.");

@@ -73,10 +73,15 @@ import java.util.stream.Stream;
  *
  * @param <K> The key by which state is keyed.
  */
+// HeapKeyedStateBackend 是 Apache Flink 中最基础且最常用的键控状态后端实现之一
+// HeapKeyedStateBackend 的核心作用是作为 Flink **Keyed State（键控状态）**的存储和管理机制
+// 内存存储 (In-Memory Storage): 它将所有的键控状态数据（如 ValueState, ListState, MapState 等）保存在 **Java 堆内存（Java Heap）**中。
+// 键组（Key-Group）管理: 它负责将状态数据根据 Key Group 进行逻辑分组，这是 Flink 实现扩缩容和状态分区的基础。
+// Checkpointing 和 Savepointing: 它提供了一套机制，在执行 Checkpoint 或 Savepoint 时，将内存中的状态数据序列化（通常是增量或全量）到外部存储（如 HDFS、S3）中，实现容错。
 public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
 
     private static final Logger LOG = LoggerFactory.getLogger(HeapKeyedStateBackend.class);
-
+    // 储了所有支持的状态类型（VALUE, LIST, MAP, AGGREGATING, REDUCING）及其对应的**创建（Create）工厂方法（如 HeapValueState::create）
     private static final Map<StateDescriptor.Type, StateCreateFactory> STATE_CREATE_FACTORIES =
             Stream.of(
                             Tuple2.of(
@@ -96,6 +101,8 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                                     (StateCreateFactory) HeapReducingState::create))
                     .collect(Collectors.toMap(t -> t.f0, t -> t.f1));
 
+    // 存储了所有支持的状态类型及其对应的更新（Update）工厂方法（如 HeapValueState::update）。
+    // 用于在状态描述符发生变化时更新已存在的状态实例。
     private static final Map<StateDescriptor.Type, StateUpdateFactory> STATE_UPDATE_FACTORIES =
             Stream.of(
                             Tuple2.of(
@@ -116,22 +123,37 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                     .collect(Collectors.toMap(t -> t.f0, t -> t.f1));
 
     /** Map of created Key/Value states. */
+    // 已创建的 Key/Value 状态实例映射。
+    // 存储了 Flink 任务中实际创建的、可供用户访问的状态对象（如 ValueState<Integer>），键是状态名称。
     private final Map<String, State> createdKVStates;
 
     /** Map of registered Key/Value states. */
+    // 已注册的 Key/Value 状态表映射。
+    // 存储了所有已注册的 StateTable 实例，每个 StateTable 负责存储一个状态（如 MyCountState）的所有键和命名空间下的数据。
+    // 这是 Heap 后端实际存储数据的核心结构。
     private final Map<String, StateTable<K, ?, ?>> registeredKVStates;
 
     /** The configuration for local recovery. */
+    // 本地恢复配置。
+    // 定义了在 Task 失败时，如何尝试从 TaskManager 节点的本地文件系统恢复状态的策略和路径配置。
     private final LocalRecoveryConfig localRecoveryConfig;
 
     /** The snapshot strategy for this backend. */
+    // Checkpoint 策略。
+    // 定义了执行 Checkpoint 或 Savepoint 的具体逻辑（例如，如何遍历状态表并将其写入流中）。
+    // 对于 Heap 后端，这通常是 HeapSnapshotStrategy 的实例。
     private final SnapshotStrategy<KeyedStateHandle, ?> checkpointStrategy;
 
+    // 快照执行类型。
+    // 定义了快照执行是在同步还是异步**模式下进行（通常是异步）
     private final SnapshotExecutionType snapshotExecutionType;
-
+    // 状态表工厂。
+    // 用于创建新的 StateTable 实例。
     private final StateTableFactory<K> stateTableFactory;
 
     /** Factory for state that is organized as priority queue. */
+    // 优先级队列管理器。
+    // 负责管理和创建基于堆实现的内部优先级队列（如用于定时器服务）。
     private final HeapPriorityQueuesManager priorityQueuesManager;
 
     public HeapKeyedStateBackend(

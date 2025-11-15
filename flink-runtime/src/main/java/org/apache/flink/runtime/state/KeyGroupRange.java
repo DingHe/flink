@@ -91,6 +91,7 @@ public class KeyGroupRange implements KeyGroupsList, Serializable {
     }
 
     /** @return The first key-group in the range. */
+    // 返回key group的起始范围id
     public int getStartKeyGroup() {
         return startKeyGroup;
     }

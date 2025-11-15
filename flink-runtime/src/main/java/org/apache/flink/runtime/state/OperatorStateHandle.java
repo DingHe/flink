@@ -53,7 +53,8 @@ public interface OperatorStateHandle extends StreamStateHandle {
      * The modes that determine how an {@link OperatorStreamStateHandle} is assigned to tasks during
      * restore.
      */
-    // 定义了在恢复检查点时，算子状态分区如何从 State Handle 分配给新的并行任务。这对于支持 Flink 的运行时弹性伸缩（Rescaling）至关重要
+    // 定义了在恢复检查点时，算子状态分区如何从 State Handle 分配给新的并行任务。
+    // 这对于支持 Flink 的运行时弹性伸缩（Rescaling）至关重要
     enum Mode {
         // 拆分分配模式。
         // 状态句柄中的状态分区是独立的。在恢复时，Flink 会将这些分区拆分（Split）开，并尝试将每个分区分配给一个并行任务。这是最常见和默认的模式，支持并行度增减。

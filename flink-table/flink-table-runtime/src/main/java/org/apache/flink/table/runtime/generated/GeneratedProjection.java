@@ -23,6 +23,9 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 
 /** Describes a generated {@link Projection}. */
+// GeneratedProjection 继承自 GeneratedClass<Projection>，它的主要职责是作为一个容器，
+// 将 Flink SQL 优化器为数据行转换（即 SELECT、列裁剪等）动态生成的 Java 源代码，
+// 封装成一个可序列化、可动态编译、且能在运行时创建实例的对象。
 public class GeneratedProjection extends GeneratedClass<Projection> {
 
     private static final long serialVersionUID = 2L;

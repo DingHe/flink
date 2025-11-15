@@ -38,15 +38,24 @@ import java.util.Map;
  * @param <K> The key type of the elements in the {@link BroadcastState Broadcast State}.
  * @param <V> The value type of the elements in the {@link BroadcastState Broadcast State}.
  */
+// 基于内存（堆）存储： 它使用一个标准的 Java HashMap (backingMap) 来在任务管理器（TaskManager）的堆内存中存储广播状态数据。
+// 实现所有广播状态功能： 它实现了 BackendWritableBroadcastState 接口（该接口又继承自 BroadcastState），因此它支持所有的读写操作 (put, get, remove 等)。
+// 支持 Checkpointing： 它提供了将内存中的 Map 数据序列化并写入 Checkpoint/Savepoint 的机制 (write 方法)，以确保容错能力。
 public class HeapBroadcastState<K, V> implements BackendWritableBroadcastState<K, V> {
 
     /** Meta information of the state, including state name, assignment mode, and serializer. */
+    // 状态元信息。
+    // 存储关于此状态的元数据，包括状态的名称、键和值类型对应的序列化器（Serializer） 等信息
     private RegisteredBroadcastStateBackendMetaInfo<K, V> stateMetaInfo;
 
     /** The internal map the holds the elements of the state. */
+    // 底层存储 Map。
+    // 这是 HeapBroadcastState 的核心数据结构。
+    // 它是一个 Java HashMap，负责在 TaskManager 的堆内存中存储实际的广播状态键值对。
     private final Map<K, V> backingMap;
 
     /** A serializer that allows to perform deep copies of internal map state. */
+    // backingMap的序列化器
     private MapSerializer<K, V> internalMapCopySerializer;
 
     HeapBroadcastState(RegisteredBroadcastStateBackendMetaInfo<K, V> stateMetaInfo) {
@@ -104,7 +113,8 @@ public class HeapBroadcastState<K, V> implements BackendWritableBroadcastState<K
                 + internalMapCopySerializer
                 + '}';
     }
-
+    // 将状态写入 Checkpoint/Savepoint
+    // 遍历 backingMap 中的所有键值对，使用状态元信息中的序列化器，将数据以 Map 格式写入到提供的文件系统输出流 out 中。
     @Override
     public long write(FSDataOutputStream out) throws IOException {
         long partitionOffset = out.getPos();

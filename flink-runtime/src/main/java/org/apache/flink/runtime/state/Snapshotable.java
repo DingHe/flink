@@ -35,6 +35,9 @@ import java.util.concurrent.RunnableFuture;
  * @see SnapshotStrategy
  * @see SnapshotStrategyRunner
  */
+// 快照能力的标记： 实现了此接口的对象，即具备将自己的内部状态写入持久化存储的能力。
+// 异步快照机制： 接口的核心方法 snapshot() 返回一个 RunnableFuture，
+// 这明确地支持 Flink 的异步 Checkpointing 机制，允许状态写入在不阻塞主处理线程的后台进行。
 @Internal
 public interface Snapshotable<S extends StateObject> {
 
@@ -51,6 +54,7 @@ public interface Snapshotable<S extends StateObject> {
      * @param checkpointOptions Options for how to perform this checkpoint.
      * @return A runnable future that will yield a {@link StateObject}.
      */
+    // 执行状态快照操作。
     @Nonnull
     RunnableFuture<S> snapshot(
             long checkpointId,

@@ -48,28 +48,36 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
-//RecordWriterOutput 是 Flink 流处理框架中的一个核心类，用于将流数据从一个算子（Operator）的输出端传递到下游算子的输入端。它使用 RecordWriter 实现数据的序列化和传输
+// RecordWriterOutput 是 Flink 流处理框架中的一个核心类，用于将流数据从一个算子（Operator）的输出端传递到下游算子的输入端。
+// 它使用 RecordWriter 实现数据的序列化和传输
 /** Implementation of {@link Output} that sends data using a {@link RecordWriter}. */
 @Internal
 public class RecordWriterOutput<OUT>
         implements WatermarkGaugeExposingOutput<StreamRecord<OUT>>,
                 OutputWithChainingCheck<StreamRecord<OUT>> {
     private static final Logger LOG = LoggerFactory.getLogger(RecordWriterOutput.class);
-    //核心的底层数据传输组件，负责将序列化后的数据发送到网络缓冲区。支持数据的分区（Partitioning）、广播（Broadcasting）等模式
+    // 核心的底层数据传输组件
+    // 负责将序列化后的数据发送到网络缓冲区。
+    // 支持数据的分区（Partitioning）、广播（Broadcasting）等模式
     private RecordWriter<SerializationDelegate<StreamElement>> recordWriter;
-    //一个封装器，用于将流元素 (StreamElement) 进行序列化。它将实际的记录数据包装起来，方便通过 RecordWriter 传输
+    // 一个封装器，用于将流元素 (StreamElement) 进行序列化。
+    // 它将实际的记录数据包装起来，方便通过 RecordWriter 传输
     private SerializationDelegate<StreamElement> serializationDelegate;
-    //是否支持非对齐检查点（Unaligned Checkpoints）。用于优化检查点处理时的吞吐量
+    // 是否支持非对齐检查点（Unaligned Checkpoints）。
+    // 用于优化检查点处理时的吞吐量
     private final boolean supportsUnalignedCheckpoints;
-    //用于标识是否是特定的侧输出（Side Output）。主输出通常不需要此标签
+    // 用于标识是否是特定的侧输出（Side Output）。
+    // 主输出通常不需要此标签
     private final OutputTag outputTag;
-    //用于监控和记录当前的水位线（Watermark），方便度量和调试
+    // 用于监控和记录当前的水位线（Watermark），方便度量和调试
     private final WatermarkGauge watermarkGauge = new WatermarkGauge();
-    //当前的水位状态，可能是 ACTIVE 或 IDLE。控制是否可以发射 Watermark
+    // 当前的水位状态，可能是 ACTIVE 或 IDLE。
+    // 控制是否可以发射 Watermark
     private WatermarkStatus announcedStatus = WatermarkStatus.ACTIVE;
 
     // Uses a dummy counter here to avoid checking the existence of numRecordsOut on the
-    // per-record path. 记录输出记录数量的计数器。默认使用 SimpleCounter，可以自定义
+    // per-record path.
+    // 记录输出记录数量的计数器。默认使用 SimpleCounter，可以自定义
     private Counter numRecordsOut = new SimpleCounter();
 
     @SuppressWarnings("unchecked")
@@ -132,7 +140,7 @@ public class RecordWriterOutput<OUT>
         pushToRecordWriter(record);
         return true;
     }
-    //使用RecordWriter把序列化的StreamRecord发送出去
+    // 使用RecordWriter把序列化的StreamRecord发送出去
     private <X> void pushToRecordWriter(StreamRecord<X> record) {
         serializationDelegate.setInstance(record);
 
@@ -150,7 +158,7 @@ public class RecordWriterOutput<OUT>
         }
 
         watermarkGauge.setCurrentWatermark(mark.getTimestamp());
-        //检查 recordWriter 是否支持子分区推导
+        // 检查 recordWriter 是否支持子分区推导
         if (recordWriter.isSubpartitionDerivable()) {
             serializationDelegate.setInstance(mark);
 

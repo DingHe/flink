@@ -24,6 +24,7 @@ package org.apache.flink.util;
  * point, the interface fulfills a similar purpose as the {@link java.io.Closeable} interface, but
  * sometimes both should be represented as isolated, independent lifecycle steps.
  */
+// 为 Flink 需要显式执行销毁操作的类定义一个标准的生命周期步骤
 public interface Disposable {
 
     /**
@@ -32,5 +33,6 @@ public interface Disposable {
      *
      * @throws Exception if something goes wrong during disposal.
      */
+    // 销毁对象并释放所有资源。
     void dispose() throws Exception;
 }
