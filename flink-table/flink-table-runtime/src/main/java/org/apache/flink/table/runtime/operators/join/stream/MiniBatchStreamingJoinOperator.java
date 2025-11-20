@@ -55,8 +55,12 @@ public abstract class MiniBatchStreamingJoinOperator extends StreamingJoinOperat
     // 协同批次触发器。
     // 负责监听左右两侧流的输入，并根据配置的策略（例如：达到一定行数、等待一定时间）决定何时触发 finishBundle() 方法，将暂存的数据进行批量处理。
     private final CoBundleTrigger<RowData, RowData> coBundleTrigger;
-
+    // 左侧输入缓冲区。
+    // 用于暂存左输入流到达的记录。
+    // 具体的实现类型（如 InputSideHasUniqueKeyBundle）取决于左侧数据的键结构。
     private transient BufferBundle<?> leftBuffer;
+    // 右侧输入缓冲区。
+    // 用于暂存右输入流到达的记录。
     private transient BufferBundle<?> rightBuffer;
     private transient SimpleGauge<Integer> leftBundleReducedSizeGauge;
     private transient SimpleGauge<Integer> rightBundleReducedSizeGauge;
@@ -104,7 +108,12 @@ public abstract class MiniBatchStreamingJoinOperator extends StreamingJoinOperat
                 .getMetricGroup()
                 .gauge("rightBundleReducedSize", rightBundleReducedSizeGauge);
     }
-
+    // 处理左侧输入元素
+    // 1. 使用 leftSerializer 对输入记录进行深拷贝。
+    // 2. 获取当前 Keyed State 的 Join Key。
+    // 3. 如果配置了 Unique Key，则计算出 Unique Key。
+    // 4. 将记录添加到 leftBuffer 中。
+    // 5. 通知 coBundleTrigger 左侧流接收到新元素。
     @Override
     public void processElement1(StreamRecord<RowData> element) throws Exception {
         RowData record = leftSerializer.copy(element.getValue());
@@ -116,7 +125,7 @@ public abstract class MiniBatchStreamingJoinOperator extends StreamingJoinOperat
         leftBuffer.addRecord(joinKey, uniqueKey, record);
         coBundleTrigger.onElement1(record);
     }
-
+    // 处理右侧输入元素
     @Override
     public void processElement2(StreamRecord<RowData> element) throws Exception {
         RowData record = rightSerializer.copy(element.getValue());
@@ -128,7 +137,8 @@ public abstract class MiniBatchStreamingJoinOperator extends StreamingJoinOperat
         rightBuffer.addRecord(joinKey, uniqueKey, record);
         coBundleTrigger.onElement2(record);
     }
-
+    // 处理水位线。
+    // 在处理水位线之前，强制调用 finishBundle() 立即处理当前缓冲区中的所有数据，确保 Mini-Batch 延迟不会影响 Watermark 的传递。
     @Override
     public void processWatermark1(Watermark mark) throws Exception {
         finishBundle();
@@ -140,7 +150,8 @@ public abstract class MiniBatchStreamingJoinOperator extends StreamingJoinOperat
         finishBundle();
         super.processWatermark2(mark);
     }
-
+    // 检查点前准备。
+    // 在进行检查点之前，强制调用 finishBundle()，确保所有缓冲的数据都被处理，保证状态的一致性。
     @Override
     public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
         finishBundle();

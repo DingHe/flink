@@ -65,12 +65,12 @@ public class StreamNode {
     private ResourceSpec minResources = ResourceSpec.DEFAULT;
     private ResourceSpec preferredResources = ResourceSpec.DEFAULT;
     private final Map<ManagedMemoryUseCase, Integer> managedMemoryOperatorScopeUseCaseWeights =
-            new HashMap<>(); //管理内存分配
+            new HashMap<>(); // 管理内存分配
     private final Set<ManagedMemoryUseCase> managedMemorySlotScopeUseCases = new HashSet<>(); //管理内存类型
     private long bufferTimeout;
-    private final String operatorName;  //操作名称
-    private String operatorDescription;  //操作描述
-    private @Nullable String slotSharingGroup;  //slot共享组
+    private final String operatorName;  // 操作名称
+    private String operatorDescription;  // 操作描述
+    private @Nullable String slotSharingGroup;  // slot共享组
     private @Nullable String coLocationGroup;
     private KeySelector<?, ?>[] statePartitioners = new KeySelector[0]; //key函数
     private TypeSerializer<?> stateKeySerializer;
@@ -79,7 +79,7 @@ public class StreamNode {
     private TypeSerializer<?>[] typeSerializersIn = new TypeSerializer[0];
     private TypeSerializer<?> typeSerializerOut;
 
-    private List<StreamEdge> inEdges = new ArrayList<StreamEdge>();//入边
+    private List<StreamEdge> inEdges = new ArrayList<StreamEdge>();// 入边
     private List<StreamEdge> outEdges = new ArrayList<StreamEdge>();//出边
 
     private final Class<? extends TaskInvokable> jobVertexClass;//指定了该节点在TaskManager上运行时的具体任务类，这个类在TaskManager上被实例化，负责执行具体的算子逻辑

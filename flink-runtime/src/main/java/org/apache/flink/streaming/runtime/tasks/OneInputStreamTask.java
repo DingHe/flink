@@ -62,11 +62,19 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /** A {@link StreamTask} for executing a {@link OneInputStreamOperator}. */
+// Flink 流处理中最基础且最常见的任务类型之一。它的作用是执行只接收一个输入流的流操作符 (OneInputStreamOperator)
+// 管理单输入： 负责从网络中接收数据，并处理所有与单个输入流相关的逻辑（例如反序列化、事件时间水位线对齐、检查点屏障处理）
+// 封装操作符： 作为 OneInputStreamOperator 的容器，它将接收到的数据和控制事件（如 Watermark、Checkpoint 屏障）转发给底层的操作符实例进行业务逻辑处理。
+// 支持 Checkpointing： 负责设置和集成检查点屏障处理器 (CheckpointBarrierHandler)，以保证数据流和状态快照的一致性。
+// 支持排序输入： 在配置需要时，可以为输入数据添加排序功能（Shuffle后排序）
 @Internal
 public class OneInputStreamTask<IN, OUT> extends StreamTask<OUT, OneInputStreamOperator<IN, OUT>> {
-
+    // 检查点屏障处理器。
+    // 负责处理输入流中接收到的检查点屏障（Checkpoint Barrier）。
+    // 它用于实现 Flink 的分布式快照机制，确保状态的一致性。如果 Job 未启用 Checkpointing，则可能为 null
     @Nullable private CheckpointBarrierHandler checkpointBarrierHandler;
-
+    // 输入水位线指标。
+    // 一个 Flink 指标（Metric），用于记录和暴露当前任务接收到的聚合输入水位线（即输入 Watermark 的最小值）
     private final WatermarkGauge inputWatermarkGauge = new WatermarkGauge();
 
     /**
@@ -93,13 +101,17 @@ public class OneInputStreamTask<IN, OUT> extends StreamTask<OUT, OneInputStreamO
             throws Exception {
         super(env, timeProvider);
     }
-
+    // 任务初始化。
+    // 这是任务启动后执行的核心初始化逻辑，主要负责设置输入处理器和指标。
     @Override
     public void init() throws Exception {
         StreamConfig configuration = getConfiguration();
+        // 获取配置： 获取任务配置 (StreamConfig) 并检查输入数量 (numberOfInputs)
         int numberOfInputs = configuration.getNumberOfNetworkInputs();
 
         if (numberOfInputs > 0) {
+            // 创建输入组件： 如果有输入 (numberOfInputs > 0)，
+            // 则依次创建和配置 CheckpointedInputGate、记录计数器 (numRecordsIn)、数据输出适配器 (output) 和 StreamTaskInput (input)
             CheckpointedInputGate inputGate = createCheckpointedInputGate();
             Counter numRecordsIn = setupNumRecordsInCounter(mainOperator);
             DataOutput<IN> output = createDataOutput(numRecordsIn);
@@ -109,6 +121,8 @@ public class OneInputStreamTask<IN, OUT> extends StreamTask<OUT, OneInputStreamO
                     configuration.getInputs(getUserCodeClassLoader());
             StreamConfig.InputConfig inputConfig = inputConfigs[0];
             if (requiresSorting(inputConfig)) {
+                // 处理排序输入： 检查配置是否需要排序 (requiresSorting)。如果需要，则使用 wrapWithSorted(input) 将输入封装在一个 SortingDataInput 中，
+                // 并断言 Checkpointing 未启用（排序输入和 Checkpointing 不兼容）
                 checkState(
                         !configuration.isCheckpointingEnabled(),
                         "Checkpointing is not allowed with sorted inputs.");

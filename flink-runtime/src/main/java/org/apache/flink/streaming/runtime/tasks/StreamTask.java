@@ -226,6 +226,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     private final StreamTaskActionExecutor actionExecutor;
 
     /** The input processor. Initialized in {@link #init()} method. */
+    // 负责拉取输入数据
     @Nullable protected StreamInputProcessor inputProcessor;
 
     /** the main operator that consumes the input streams of this task. */
@@ -241,7 +242,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     protected final StateBackend stateBackend; //状态后端
 
     /** Our checkpoint storage. We use this to create checkpoint streams. */
-    protected final CheckpointStorage checkpointStorage; //检查点存储
+    protected final CheckpointStorage checkpointStorage; // 检查点存储
 
     private final SubtaskCheckpointCoordinator subtaskCheckpointCoordinator; //子任务检查点协调器
 
@@ -284,14 +285,15 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     private volatile boolean failing;
 
     /** Flags indicating the finished method of all the operators are called. */
+    // 是否所有的operators的finished方法被调用
     private boolean finishedOperators;
 
     private boolean closedOperators;
 
     /** Thread pool for async snapshot workers. */
-    private final ExecutorService asyncOperationsThreadPool;//异步检查点线程池
+    private final ExecutorService asyncOperationsThreadPool;// 异步检查点线程池
 
-    protected final RecordWriterDelegate<SerializationDelegate<StreamRecord<OUT>>> recordWriter; //记录输出
+    protected final RecordWriterDelegate<SerializationDelegate<StreamRecord<OUT>>> recordWriter; // 记录输出
 
     protected final MailboxProcessor mailboxProcessor; //消息处理器
 
@@ -310,7 +312,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     private long latestReportCheckpointId = -1;
 
     private long latestAsyncCheckpointStartDelayNanos;
-
+    //标志已经完成数据的接收
     private volatile boolean endOfDataReceived = false;
 
     private final long bufferDebloatPeriod;
@@ -557,7 +559,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             throw ex;
         }
     }
-   //检查点完成时： 当一个检查点成功完成时，Flink会触发这个方法，开始合并状态文件  当任务从故障中恢复时，Flink会调用这个方法，将合并后的状态文件应用到任务中。
+   //检查点完成时： 当一个检查点成功完成时，Flink会触发这个方法，开始合并状态文件
+   // 当任务从故障中恢复时，Flink会调用这个方法，将合并后的状态文件应用到任务中。
     private CheckpointStorageAccess tryApplyFileMergingCheckpoint(
             CheckpointStorageAccess checkpointStorageAccess,
             @Nullable FileMergingSnapshotManager fileMergingSnapshotManager) {
@@ -666,9 +669,10 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             // 表示当前输入的所有数据记录已处理完毕，需要等待所有记录被下游处理完（DRAIN）
             case END_OF_DATA:
                 endData(StopMode.DRAIN);
-                notifyEndOfData();
+                notifyEndOfData(); //通知TaskManager没有更多的数据到达了
                 return;
-            // 输入流结束。表示所有输入通道都已耗尽，并且所有上游算子已完成。
+            // 输入流结束。
+            // 表示所有输入通道都已耗尽，并且所有上游算子已完成。
             case END_OF_INPUT:
                 // Suspend the mailbox processor, it would be resumed in afterInvoke and finished
                 // after all records processed by the downstream tasks. We also suspend the default
@@ -706,23 +710,31 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
                 resumeFuture.thenRun(
                         new ResumeWrapper(controller.suspendDefaultAction(timer), timer)));
     }
-
+    // 用于处理流任务数据结束的信号，并在任务结束时执行必要的清理和收尾工作。
+    // 它通常在任务完成处理所有输入数据（或在停止操作期间）被调用。
     protected void endData(StopMode mode) throws Exception {
-
+        // 检查任务停止的模式是否为 DRAIN（数据耗尽模式）。
+        // 在 DRAIN 模式下，任务目标是处理完所有剩余数据和状态，不丢弃任何内容
         if (mode == StopMode.DRAIN) {
+            // 如果处于 DRAIN 模式，该方法会将事件时间的水位线（Watermark）推进到最大值（$Long.MAX\_VALUE$）
+            // 强制触发所有基于事件时间的窗口和定时器，确保所有未计算的窗口（包括那些等待 Watermark 到来的）都能立即完成计算并输出结果，从而达到彻底清空所有待处理事件和状态的目的。
             advanceToEndOfEventTime();
         }
         // finish all operators in a chain effect way
+        // 调用操作符链上的 finishOperators 方法
+        // 这会依次调用操作符链中所有 StreamOperator 实例的 finish() 方法
         operatorChain.finishOperators(actionExecutor, mode);
         this.finishedOperators = true;
-
+        // 获取当前 Task 中所有输出结果分区的写入器
         for (ResultPartitionWriter partitionWriter : getEnvironment().getAllWriters()) {
+            // 这将导致输出通道向下游发送一个 EndOfPartitionEvent（或类似的结束信号）。
+            // 下游 Task 接收到这个信号后就知道这个上游分区已经没有更多数据会到达了。
             partitionWriter.notifyEndOfData(mode);
         }
 
         this.endOfDataReceived = true;
     }
-
+    // 作用是通知 Flink 任务管理器（TaskManager），当前任务（StreamTask）已经完成了数据的处理，并且没有更多数据会从上游到达。
     protected void notifyEndOfData() {
         environment.getTaskManagerActions().notifyEndOfData(environment.getExecutionId());
     }
@@ -919,28 +931,39 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             throw new CancelTaskException();
         }
     }
-
+    // Flink 任务执行的核心入口点，负责任务的启动、状态恢复、主循环运行以及清理等关键步骤。
     @Override
     public final void invoke() throws Exception {
         // Allow invoking method 'invoke' without having to call 'restore' before it.
+        // 检查当前任务是否已经处于运行状态。通常在任务启动时，isRunning 应为 false。
         if (!isRunning) {
             LOG.debug("Restoring during invoke will be called.");
+            // 调用内部方法执行状态恢复。这个步骤对于有状态（Stateful）的 Flink 任务至关重要，
+            // 它会加载上一个检查点（Checkpoint）或保存点（Savepoint）的状态数据，以便任务从中断的地方继续执行。
             restoreInternal();
         }
 
         // final check to exit early before starting to run
+        // 在正式进入主处理循环之前，进行最后一次检查。
+        // 如果任务在启动过程中被取消，此方法会抛出异常，提前终止 invoke() 的执行，避免资源浪费。
         ensureNotCanceled();
-
+        // 调度 Flink 的缓冲区去臃肿器（Buffer Debloater）。
+        // 这是一个性能优化机制，特别是在网络栈中。它根据运行时反馈动态调整网络传输缓冲区的大小，以优化吞吐量和延迟，确保高效利用内存资源。
         scheduleBufferDebloater();
 
         // let the task do its work
+        // 标记任务的实际计算（I/O）开始时间。
+        // 这用于 Flink 的运行时指标系统，精确计算任务的运行时间和 I/O 吞吐量。
         getEnvironment().getMetricGroup().getIOMetricGroup().markTaskStart();
+        // Flink 任务处理逻辑的核心。
+        // StreamTask 使用 Mailbox 模型 进行并发控制和事件处理。
         runMailboxLoop();
 
         // if this left the run() method cleanly despite the fact that this was canceled,
         // make sure the "clean shutdown" is not attempted
+        // 这个检查非常重要，它确保只有在任务正常完成（非取消状态）的情况下，才能执行后续的清理步骤
         ensureNotCanceled();
-
+        // 内部方法执行任务运行结束后的清理逻辑
         afterInvoke();
     }
 
@@ -1157,7 +1180,6 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     }
 
     // 判断 Flink 任务是否可以继续处理数据，即任务是否因下游反压或状态变更日志写入拥塞而被阻塞。
-    //
     private boolean taskIsAvailable() {
         // isAvailable()： 检查输出缓冲区是否有空间写入数据。
         return recordWriter.isAvailable()
@@ -1181,7 +1203,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     public final boolean isFailing() {
         return failing;
     }
-
+    // 关闭异步线程池
     private void shutdownAsyncThreads() throws Exception {
         if (!asyncOperationsThreadPool.isShutdown()) {
             asyncOperationsThreadPool.shutdownNow();
@@ -1641,11 +1663,13 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     // ------------------------------------------------------------------------
     //  State backend
     // ------------------------------------------------------------------------
-
+    // 负责初始化当前任务将使用的 状态后端（State Backend），这是 Flink 状态管理和持久化的核心组件。
+    // 目的是确定并加载任务应使用的实际 StateBackend 实例，它遵循 Flink 的状态后端优先级规则（应用配置 > Job 配置 > 集群/默认配置）
     private StateBackend createStateBackend() throws Exception {
+        // 尝试从当前任务的配置中获取用户在应用代码中明确设置的 StateBackend 实例
         final StateBackend fromApplication =
                 configuration.getStateBackend(getUserCodeClassLoader());
-
+        // 实现了 Flink 状态后端配置的优先级和回退机制
         return StateBackendLoader.fromApplicationOrConfigOrDefault(
                 fromApplication,
                 getJobConfiguration(),
@@ -1653,7 +1677,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
                 getUserCodeClassLoader(),
                 LOG);
     }
-
+    // 作用是为当前任务初始化和创建 检查点存储（Checkpoint Storage） 实例。检查点存储负责将检查点元数据和状态数据写入持久化存储介质（如 HDFS、S3 等）
+    // 根据 Flink 的配置优先级规则，确定任务应该使用哪个 CheckpointStorage 实例
     private CheckpointStorage createCheckpointStorage(StateBackend backend) throws Exception {
         final CheckpointStorage fromApplication =
                 configuration.getCheckpointStorage(getUserCodeClassLoader());
@@ -1742,7 +1767,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     }
 
     // ------------------------------------------------------------------------
-
+    // 方法的作用是根据任务的非链式输出数量，创建一个合适的 RecordWriterDelegate 代理对象。
+    // 这个代理对象封装了一个或多个 RecordWriter，为任务提供统一的输出接口。
     @VisibleForTesting
     public static <OUT>
             RecordWriterDelegate<SerializationDelegate<StreamRecord<OUT>>>
@@ -1758,12 +1784,17 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             return new MultipleRecordWriters<>(recordWrites);
         }
     }
-
+    // 于批量创建一个任务（Task）所有**非链式（Non-Chained）**输出所需的 RecordWriter 列表。
+    // 目的是根据任务配置，为每个连接到下游非链式任务的输出边创建一个专门负责数据发送的 RecordWriter
     private static <OUT>
             List<RecordWriter<SerializationDelegate<StreamRecord<OUT>>>> createRecordWriters(
                     StreamConfig configuration, Environment environment) {
         List<RecordWriter<SerializationDelegate<StreamRecord<OUT>>>> recordWriters =
                 new ArrayList<>();
+        // 获取所有非链式输出配置
+        // 从任务配置中获取当前任务节点所有非链式输出的配置列表 (NonChainedOutput)
+        // 非链式输出指的是那些连接到另一个独立运行的 Task 的输出边（而不是连接到同一 Task 内部的操作符链上的）。
+        // 这些输出需要通过网络或本地 ResultPartition 发送数据，因此需要 RecordWriter
         List<NonChainedOutput> outputsInOrder =
                 configuration.getVertexNonChainedOutputs(
                         environment.getUserCodeClassLoader().asClassLoader());
@@ -1782,7 +1813,12 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
         }
         return recordWriters;
     }
-
+    // 该方法用于在特定条件下替换数据分区器（Partitioner），以避免数据传输错误或不均匀。
+    // 目的是确保当上游任务使用 ForwardPartitioner（直接转发）时，
+    // 如果下游任务的并行度不匹配，则将分区器自动替换为 RebalancePartitioner（重平衡）
+    // environment: 当前 StreamTask 的运行时环境，用于获取任务信息（如并行度）和输出写入器信息。
+    // streamOutput: 非链式（Non-Chained）输出对象，它封装了数据流的分区器和序列化器等信息。
+    // outputIndex: 当前输出的索引（当一个 Task 有多个输出时）
     private static void replaceForwardPartitionerIfConsumerParallelismDoesNotMatch(
             Environment environment, NonChainedOutput streamOutput, int outputIndex) {
         if (streamOutput.getPartitioner() instanceof ForwardPartitioner
@@ -1795,6 +1831,12 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
         }
     }
 
+    // 方法的作用是为 非链式（Non-Chained） 的下游任务创建一个 RecordWriter，
+    // 它是 Task 将数据发送到网络输出缓冲区和下游任务的核心组件。
+    // streamOutput	NonChainedOutput	封装了当前输出流的配置，包括原始分区器 (Partitioner)。
+    // outputIndex	int	当前输出流在 Task 中的索引（当一个 Task 有多个输出时）。
+    // taskNameWithSubtask	String	当前 Task 及其子任务（Subtask）的名称，用于日志和指标报告。
+    // bufferTimeout	long	缓冲区超时时间（以毫秒为单位），用于控制数据刷新到网络的时间，平衡延迟和吞吐量。
     @SuppressWarnings("unchecked")
     private static <OUT> RecordWriter<SerializationDelegate<StreamRecord<OUT>>> createRecordWriter(
             NonChainedOutput streamOutput,
@@ -1807,6 +1849,9 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
         // Clones the partition to avoid multiple stream edges sharing the same stream partitioner,
         // like the case of https://issues.apache.org/jira/browse/FLINK-14087.
+        // 对 streamOutput 中配置的原始分区器进行深拷贝（Clone）
+        // 确保每个输出边（Stream Edge）都拥有一个独立的分区器实例。这解决了 [FLINK-14087] 描述的问题：
+        // 如果多个输出边共享同一个分区器对象，当其中一个输出边在使用或修改分区器状态时，可能会影响到其他输出边的正确性
         try {
             outputPartitioner =
                     InstantiationUtil.clone(
@@ -1821,11 +1866,14 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
                 outputPartitioner,
                 outputIndex,
                 taskNameWithSubtask);
-
+        // ResultPartitionWriter 是一个低级的 I/O 组件，负责管理当前 Task 的输出缓冲区和网络传输，
+        // 并将数据写入到正确的结果分区（Result Partition）中，以便下游 Task 可以消费。
         ResultPartitionWriter bufferWriter = environment.getWriter(outputIndex);
 
         // we initialize the partitioner here with the number of key groups (aka max. parallelism)
         if (outputPartitioner instanceof ConfigurableStreamPartitioner) {
+            // 获取目标 Key Groups 数量（即 Flink 集群的最大并行度）
+            // 对于像 KeyGroupStreamPartitioner 这样的基于 Key Group 的分区器，它需要知道 Key Group 的总数才能正确地将 Key 映射到输出子分区（Subpartitions）
             int numKeyGroups = bufferWriter.getNumTargetKeyGroups();
             if (0 < numKeyGroups) {
                 ((ConfigurableStreamPartitioner) outputPartitioner).configure(numKeyGroups);
@@ -1834,6 +1882,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
         RecordWriter<SerializationDelegate<StreamRecord<OUT>>> output =
                 new RecordWriterBuilder<SerializationDelegate<StreamRecord<OUT>>>()
+                        // 设置数据写入器的通道选择器为前面准备好的 outputPartitioner。
+                        // 这意味着 RecordWriter 将使用这个分区器来决定将每条记录发送到下游的哪个子任务/通道
                         .setChannelSelector(outputPartitioner)
                         .setTimeout(bufferTimeout)
                         .setTaskName(taskNameWithSubtask)

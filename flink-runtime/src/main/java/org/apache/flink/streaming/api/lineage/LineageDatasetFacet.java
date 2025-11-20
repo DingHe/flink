@@ -22,8 +22,11 @@ package org.apache.flink.streaming.api.lineage;
 import org.apache.flink.annotation.PublicEvolving;
 
 /** Facet interface for dataset. */
+// LineageDatasetFacet 是 Flink 数据血缘（Lineage）系统中的一个接口，它代表了外部数据集（LineageDataset）的额外元数据片段或特性（Facet）
+// 元数据封装： 它提供了一种标准化的方式，将关于外部数据集（如 Kafka Topic、数据库表、文件）的特定、非核心的附加信息封装起来。
 @PublicEvolving
 public interface LineageDatasetFacet {
     /** Name for the facet which will be used as key in facets of LineageDataset. */
+    // 获取 Facet 名称。 返回此元数据片段的唯一标识符（名称）。
     String name();
 }

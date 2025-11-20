@@ -715,7 +715,7 @@ public abstract class AbstractStreamOperator<OUT>
             processWatermark(new Watermark(combinedWatermark.getCombinedWatermark()));
         }
     }
-   //watermark 通过 processWatermark() 来处理
+    // watermark 通过 processWatermark() 来处理
     public void processWatermark1(Watermark mark) throws Exception {
         processWatermark(mark, 0);
     }

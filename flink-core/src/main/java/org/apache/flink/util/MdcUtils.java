@@ -92,6 +92,7 @@ public class MdcUtils {
      * Wrap the given {@link ExecutorService} so that the given {@link JobID} is added before it
      * executes any submitted commands and removed afterward.
      */
+    // 目的是确保在特定的 **JobID 作用域（Scope）**内执行所有异步任务。这对于 Flink 内部的日志记录（Logging）和诊断非常重要，因为它可以确保异步线程中产生的日志消息包含任务所属的 JobID。
     public static ExecutorService scopeToJob(JobID jobID, ExecutorService delegate) {
         checkArgument(!(delegate instanceof MdcAwareExecutorService));
         return new MdcAwareExecutorService<>(delegate, asContextData(jobID));

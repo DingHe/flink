@@ -29,8 +29,14 @@ import org.apache.flink.streaming.api.lineage.LineageVertex;
  * @param <T> The type of the elements that result from this {@code Transformation}
  * @see Transformation
  */
+// 的核心作用是为 Flink 的逻辑/物理操作（Transformation）附加血缘信息（Lineage Information）
+// 血缘数据携带： 引入了 lineageVertex 属性，用于存储与数据血缘跟踪相关联的元数据。
+// 支持血缘追踪： 在 Flink 的某些高级或内部特性中，需要知道数据的来源、转换路径和去向，即数据血缘。这个类确保了图中的每个关键操作符都能携带这些血缘信息。
 @Internal
 public abstract class TransformationWithLineage<T> extends PhysicalTransformation<T> {
+    // 血缘顶点。
+    // 存储了与此 Transformation 对应的血缘跟踪元数据。
+    // LineageVertex 是一个专门用于描述数据血缘图中节点的类，包含了识别此操作符在血缘关系中的唯一信息。
     private LineageVertex lineageVertex;
 
     /**

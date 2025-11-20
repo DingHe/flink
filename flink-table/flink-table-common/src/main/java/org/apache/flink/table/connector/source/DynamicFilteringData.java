@@ -44,23 +44,40 @@ import java.util.stream.IntStream;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /** Data for dynamic filtering. */
+// DynamicFilteringData 类是 Flink Table/SQL 模块中用于支持**动态过滤（Dynamic Filtering）**优化的核心数据结构。
+// 动态过滤数据载体： 它封装了从一个流（通常是小表）中收集到的、用于**过滤另一个流（通常是大表或分区）**的关键数据集合。
+// 实现 Join 优化： 在 Flink Table/SQL 中，动态过滤常用于优化 Join 操作。它将 Join 小表的结果（例如，作为分区键的值）发送给大表的 Source，大表的 Source 在读取数据时利用这些值来跳过不必要的分区或文件块。
+// 延迟反序列化： 为了在网络传输和检查点中保持高效，它以字节数组 (byte[]) 的形式存储过滤数据。只有当 Source 真正需要使用这些数据进行过滤时，才会执行反序列化
+// 它携带了需要在运行时从一个数据流传递给另一个数据流的过滤条件集合，以实现运行时的数据裁剪优化，提升查询性能。
 @PublicEvolving
 public class DynamicFilteringData implements Serializable {
-
+    // 行数据类型信息。
+    // 描述了内部存储的 RowData 的 Flink 类型信息，用于反序列化。
     private final TypeInformation<RowData> typeInfo;
+    // 行数据的逻辑类型。
+    // 描述了内部存储的 RowData 的逻辑结构和字段类型。
     private final RowType rowType;
 
     /**
      * Serialized rows for filtering. The types of the row values must be Flink internal data type,
      * i.e. type returned by the FieldGetter. The list should be sorted and distinct.
      */
+    // 序列化后的过滤数据。
+    // 存储的是用于过滤的 RowData 对象的字节数组列表。这些数据在发送到 Source 端之前已完成序列化。
     private final List<byte[]> serializedData;
 
     /** Whether the data actually does filter. If false, everything is considered contained. */
+    // 是否执行过滤的标志。
+    // 如果为 false，则表示无需执行过滤，所有数据都被认为匹配（通常在 Join 小表为空时设置）。
     private final boolean isFiltering;
-
+    // 准备状态标志。
+    // 标志数据是否已从字节数组反序列化并准备好用于查询。使用 volatile 确保多线程可见性。
     private transient volatile boolean prepared = false;
+    // 反序列化后的过滤数据（哈希映射）。
+    // 存储反序列化后的 RowData，使用哈希值作为键，用于加速查找。
     private transient Map<Integer, List<RowData>> dataMap;
+    // 字段获取器数组。
+    // 用于从 RowData 中快速、高效地提取字段值，用于哈希和比较操作
     private transient RowData.FieldGetter[] fieldGetters;
 
     public DynamicFilteringData(
@@ -89,6 +106,9 @@ public class DynamicFilteringData implements Serializable {
      *     i.e. type returned by the FieldGetter.
      * @return true if the dynamic filtering data contains the specific row
      */
+    // 检查是否包含特定行。
+    // 首先检查 isFiltering。如果为 true，则调用 prepare() 进行反序列化，
+    // 然后使用哈希查找和逐字段比较 (matchRow) 来确定给定的 RowData 是否存在于过滤数据集合中。
     public boolean contains(RowData row) {
         if (!isFiltering) {
             return true;

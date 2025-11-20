@@ -30,9 +30,16 @@ import org.apache.flink.streaming.api.operators.ChainingStrategy;
  * @param <T> The type of the elements that result from this {@code Transformation}
  * @see Transformation
  */
+// PhysicalTransformation 是 Flink Transformation 体系中的一个抽象子类，它处于逻辑操作和物理执行之间的桥梁位置
+// 核心作用是：表示一个在运行时图（StreamGraph 或 JobGraph）中将形成一个独立物理操作符（Operator）的逻辑节点。
+// 相比于其父类 Transformation（只关注逻辑结构和配置），PhysicalTransformation 增加了与 物理运行时特性 相关的配置，最重要的是：
+// 设置链接策略 (Chaining Strategy)： 决定此操作符是否可以与上游或下游的操作符**链接（Chain）**在一起，从而在同一个 Task 线程中运行，以优化性能。
+// 支持并发执行尝试 (Concurrent Execution Attempts)： 允许在任务失败恢复时，Flink 能够尝试并发执行该任务的多个尝试。
 @Internal
 public abstract class PhysicalTransformation<T> extends Transformation<T> {
-    //true：该操作符支持并发执行尝试。也就是说，在任务失败时，Flink 可以尝试多次执行这个操作符的任务，可能会有多个执行尝试并发进行，直到某个执行尝试成功
+    //支持并发执行尝试标志。 默认值为 true。
+    // 它决定了 Flink 在任务失败恢复时，是否可以同时启动多个执行尝试（例如，在启用 TaskExecutor 容错时）。
+    // 对于某些具有副作用或外部交互的操作符，可能需要将其设置为 false。
     private boolean supportsConcurrentExecutionAttempts = true;
 
     /**

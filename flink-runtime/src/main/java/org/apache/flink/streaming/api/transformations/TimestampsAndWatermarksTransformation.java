@@ -38,10 +38,20 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @param <IN> The input and output type of the transformation.
  */
+// TimestampsAndWatermarksTransformation 类是 Flink 流处理 API 内部的一个核心组件，
+// 它代表了用户在 DataStream 上调用 .assignTimestampsAndWatermarks(WatermarkStrategy) 操作后在逻辑执行图（DAG）中生成的 Transformation 节点。
+// 逻辑图表示： 它在 Flink 编译 Job 图时，用于表示“提取事件时间戳并生成水位线”这个特定的操作节点。
+// 封装水位线策略： 它封装了用户定义的 WatermarkStrategy 对象，该对象包含时间戳提取器（Timestamp Extractor）和水位线生成器（Watermark Generator）
+// 连接和配置： 作为图中的一个物理节点，它存储了输入 Transformation、并行度以及操作链策略，供 Flink 的优化器和运行时使用。
+// 它是一个元数据容器，将用户在代码中配置的水位线和时间戳分配逻辑转化成 Flink DAG 中的一个可执行、可配置的节点。
+// IN>	输入/输出类型	流中元素的类型。 时间戳和水位线操作不会改变元素的类型。
 @Internal
 public class TimestampsAndWatermarksTransformation<IN> extends PhysicalTransformation<IN> {
-
+    // 上游输入。
+    // 指向当前这个水位线操作所连接的上一个 Transformation 节点。
     private final Transformation<IN> input;
+    // 水位线策略。
+    // 存储用户配置的用于提取时间戳和生成水位线的具体策略实现。
     private final WatermarkStrategy<IN> watermarkStrategy;
 
     private ChainingStrategy chainingStrategy = ChainingStrategy.DEFAULT_CHAINING_STRATEGY;

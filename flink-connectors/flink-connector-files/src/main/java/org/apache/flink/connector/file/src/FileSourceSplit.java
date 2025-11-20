@@ -49,6 +49,11 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>This class is {@link Serializable} for convenience. For Flink's internal serialization (both
  * for RPC and for checkpoints), the {@link FileSourceSplitSerializer} is used.
  */
+// FileSourceSplit 类是 Flink 文件数据源 (FileSource) 专用的 数据分片 (SourceSplit) 实现。它封装了读取一个文件或文件区域所需的所有元数据。
+// 定义文件区域： 它不仅仅指向一个文件，更重要的是定义了文件中的一个特定字节范围（offset 和 length）。这使得 Flink 可以将单个大文件分割成多个 Split，实现并行读取。
+// 记录读取进度： 它包含一个可选的 readerPosition，用于在 Flink 进行检查点时，保存 SourceReader 在该 Split 中的精确读取位置，从而实现容错和精确一次语义。
+// 支持数据本地性： 它包含 hostnames 信息，允许 Flink 调度器将 Split 分配给存储该数据副本的 TaskManager，以优化数据传输效率（例如在 HDFS 等分布式文件系统中）。
+// FileSourceSplit 是 Flink 文件 Source 的核心工作单元，它包含了要读取的文件路径、读取的起始位置、长度，以及恢复读取所需的检查点位置。
 @PublicEvolving
 public class FileSourceSplit implements SourceSplit, Serializable {
 
@@ -57,36 +62,53 @@ public class FileSourceSplit implements SourceSplit, Serializable {
     private static final String[] NO_HOSTS = StringUtils.EMPTY_STRING_ARRAY;
 
     /** The unique ID of the split. Unique within the scope of this source. */
+    // 分片唯一 ID。
+    // 在整个 Source 范围内必须唯一，用于 Flink 运行时跟踪该分片。
     private final String id;
 
     /** The path of the file referenced by this split. */
+    // 文件路径。
+    // 此分片指向的文件的完整路径。
     private final Path filePath;
 
     /** The position of the first byte in the file to process. */
+    // 起始偏移量。
+    // 文件中该分片开始读取的第一个字节的位置（包含）。
     private final long offset;
 
     /** The number of bytes in the file to process. */
+    // 分片长度。
+    // 该分片需要处理的字节数，从 offset 开始计算。
     private final long length;
 
     /** The modification time of the file, from {@link FileStatus#getModificationTime()}. */
+    // 文件修改时间。
+    // 文件的上次修改时间戳，用于文件一致性检查。
     private final long fileModificationTime;
 
     /** The file size in bytes, from {@link FileStatus#getLen()}. */
+    // 文件总大小。 整个文件的大小（以字节为单位）。
     private final long fileSize;
 
     /**
      * The names of the hosts storing this range of the file. Empty, if no host information is
      * available.
      */
+    // 存储节点主机名。
+    // 存储此文件区域数据副本的主机名列表，用于数据本地性优化。
     private final String[] hostnames;
 
     /** The precise reader position in the split, to resume from. */
+    // 检查点位置。
+    // Reader 在该 Split 中的精确读取和解析位置。通常在 检查点恢复 时非空。
     @Nullable private final CheckpointedPosition readerPosition;
 
     /**
      * The splits are frequently serialized into checkpoints. Caching the byte representation makes
      * repeated serialization cheap. This field is used by {@link FileSourceSplitSerializer}.
      */
+    // 序列化缓存。
+    // 用于缓存 Split 的字节表示，以加快在检查点和 RPC 中的序列化速度。使用 transient 关键字使其不在 Java 默认序列化中包含。
     @Nullable transient byte[] serializedFormCache;
 
     // --------------------------------------------------------------------------------------------

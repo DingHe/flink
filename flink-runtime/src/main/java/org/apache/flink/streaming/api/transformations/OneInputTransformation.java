@@ -41,15 +41,29 @@ import java.util.List;
  * @param <IN> The type of the elements in the input {@code Transformation}
  * @param <OUT> The type of the elements that result from this {@code OneInputTransformation}
  */
+// OneInputTransformation 是 Flink DataStream API 中最重要的 Transformation 子类之一。
+// 它代表了只有一个输入流的物理操作，例如 map()、filter()、keyBy().window().aggregate() 等大多数单流操作。
+// 定义单输入操作： 它将一个上游的 Transformation（即 input）与一个具体的 OneInputStreamOperator（通过其 operatorFactory）关联起来，从而在逻辑图上定义了一个具有单一输入的操作。
+// 存储操作符和工厂： 它持有创建实际运行时操作符实例（StreamOperator）所需的工厂类，并将操作符的配置（如链接策略）向下传递。
+// 管理 Keyed State 配置： 它负责保存与有状态操作相关的配置，特别是用于对 Keyed State 进行分区和访问的 KeySelector 及其 KeyType。
+
+
 @Internal
 public class OneInputTransformation<IN, OUT> extends PhysicalTransformation<OUT> {
-
+    // 上游输入。
+    // 指向此操作符的唯一直接上游 Transformation 实例。
+    // 这个上游的输出数据就是本操作符的输入数据。
     private final Transformation<IN> input;
-
+    // 操作符工厂。
+    // 负责创建实际的运行时操作符 (OneInputStreamOperator) 实例。
+    // 使用工厂模式支持操作符的包装和运行时配置注入。
     private final StreamOperatorFactory<OUT> operatorFactory;
-
+    // 状态 Key 选择器。
+    // 如果此操作符是有状态的（如 keyBy() 后的聚合），这个选择器定义了如何从输入元素 IN 中提取状态键 (State Key)。
+    // 用于分区 Keyed State。
     private KeySelector<IN, ?> stateKeySelector;
-
+    // 状态 Key 类型。
+    // 状态键的数据类型信息，用于序列化和比较状态键。
     private TypeInformation<?> stateKeyType;
 
     /**
@@ -184,11 +198,13 @@ public class OneInputTransformation<IN, OUT> extends PhysicalTransformation<OUT>
     public final void setChainingStrategy(ChainingStrategy strategy) {
         operatorFactory.setChainingStrategy(strategy);
     }
-
+    // 检查是否只在流结束时输出。
+    // 查询操作符工厂的属性，检查此操作符是否只在输入流处理完毕（收到 End-of-Stream 标记）后才产生输出（例如某些特殊的 Bounded 聚合操作）
     public boolean isOutputOnlyAfterEndOfStream() {
         return operatorFactory.getOperatorAttributes().isOutputOnlyAfterEndOfStream();
     }
-
+    // 检查是否支持内部排序。
+    // 查询操作符工厂的属性，检查此操作符是否能够支持 Flink 的内部数据排序功能（例如用于批处理优化）。
     public boolean isInternalSorterSupported() {
         return operatorFactory.getOperatorAttributes().isInternalSorterSupported();
     }

@@ -30,6 +30,14 @@ import java.util.List;
  * The interface for a split enumerator responsible for discovering the source splits, and assigning
  * them to the {@link SourceReader}.
  */
+// SplitEnumerator 接口是 Flink 统一 Source API 的核心组件，它负责 发现、管理 和 分配 数据分片（Splits）给 Flink 的并行 SourceReader。
+// 它运行在 Flink 的 JobManager 上（或一个特殊的协调者任务中），充当整个数据源的协调者。
+// 分片发现和分配： 持续监控外部数据源（如新增的文件、Kafka 分区），并将新发现的 SourceSplit 分配给空闲的 SourceReader。
+// 容错和状态管理： 参与 Flink 的检查点机制，通过 snapshotState 保存其分配进度，并在 addSplitsBack 中处理读取器失败后返回的分片。
+// Reader 生命周期管理： 追踪当前运行的 SourceReader 实例，处理它们的注册 (addReader) 和分片请求 (handleSplitRequest)。
+// SplitEnumerator 是 Source 的大脑，负责动态管理数据源的拓扑结构和分片工作负载的均衡分配。
+// <SplitT>	分片类型	SourceSplit 的具体类型，表示数据源中的一个可分配数据单元（例如 FileSourceSplit）。
+// <CheckpointT>	检查点类型	枚举器状态的类型。 用于在检查点中保存和恢复 SplitEnumerator 的内部状态（如已分配分片、待分配分片）。
 @Public
 public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
         extends AutoCloseable, CheckpointListener {
@@ -39,6 +47,9 @@ public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
      *
      * <p>The default behavior does nothing.
      */
+    // 启动枚举器。
+    // 当 Flink 任务启动时调用，用于初始化枚举器的内部资源，例如启动线程或连接外部系统以发现分片。
+    // 默认实现为空。
     void start();
 
     /**
@@ -47,8 +58,12 @@ public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
      *
      * @param subtaskId the subtask id of the source reader who sent the source event.
      * @param requesterHostname Optional, the hostname where the requesting task is running. This
-     *     can be used to make split assignments locality-aware.当一个源读取器通过 SourceReaderContext#sendSplitRequest() 请求分片时，这个方法会被调用。subtaskId 表示请求分片的读取器的子任务 ID，requesterHostname 是请求的源读取器所在的主机名（可选），可以根据主机名做本地化分配
+     *     can be used to make split assignments locality-aware.
      */
+    // 处理分片请求。
+    // 当一个 SourceReader 缺乏工作（需要新的分片）时，它会向 SplitEnumerator 发送请求，此方法被调用。
+    // subtaskId 标识请求的读取器。
+    // requesterHostname（可选）允许枚举器进行本地化感知的分配（将 Split 分配给存储该 Split 数据的 TaskManager），以优化网络传输。
     void handleSplitRequest(int subtaskId, @Nullable String requesterHostname);
 
     /**
@@ -58,6 +73,8 @@ public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
      * @param splits The splits to add back to the enumerator for reassignment.
      * @param subtaskId The id of the subtask to which the returned splits belong.将失败的源切分重新添加回分片枚举器
      */
+    // 重新添加分片。
+    // 当一个 SourceReader 失败或发生迁移时，它在上次成功检查点之后被分配但尚未完成的分片会被返回给枚举器。
     void addSplitsBack(List<SplitT> splits, int subtaskId);
 
     /**
@@ -65,6 +82,8 @@ public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
      *
      * @param subtaskId the subtask ID of the new source reader. 添加新的源读取器
      */
+    // 添加新的读取器。
+    // 当一个新的 SourceReader 实例启动或重新启动时，此方法被调用以通知枚举器。
     void addReader(int subtaskId);
 
     /**
@@ -85,23 +104,31 @@ public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
      *
      * @param checkpointId The ID of the checkpoint for which the snapshot is created.
      * @return an object containing the state of the split enumerator.
-     * @throws Exception when the snapshot cannot be taken.  该方法是 Flink 的容错机制的一部分，当作业触发检查点时，它会调用该方法来持久化分片枚举器的状态，以便恢复操作能够从失败或重启中恢复
+     * @throws Exception when the snapshot cannot be taken.
      */
+    // 创建状态快照。
+    // 在 Flink 检查点触发时被调用。
+    // 枚举器必须返回一个包含其最新状态的对象 (CheckpointT)。
+    // 该状态应假设所有在快照触发前已完成的操作（如分片分配）均已成功，并仅包含需要恢复的关键信息（如尚未分配的分片）
     CheckpointT snapshotState(long checkpointId) throws Exception;
 
     /**
      * Called to close the enumerator, in case it holds on to any resources, like threads or network
      * connections.
      */
+    // 关闭枚举器。
+    // 在 Flink Job 停止时调用，用于释放枚举器持有的所有资源（如线程、网络连接）。
     @Override
     void close() throws IOException;
 
     /**
      * We have an empty default implementation here because most source readers do not have to
      * implement the method.
-     * 这是 CheckpointListener 接口的一部分，默认实现为空。大多数分片枚举器不需要处理此方法，但如果分片枚举器依赖于外部系统或资源进行检查点的通知（例如外部存储或数据库），则可以覆盖此方法来实现自定义逻辑
      * @see CheckpointListener#notifyCheckpointComplete(long)
      */
+    // 通知检查点完成。
+    // 默认实现为空。
+    // 如果枚举器需要通知外部系统某个 Flink 检查点已经成功完成（例如，用于清理外部资源），则可以重写此方法。
     @Override
     default void notifyCheckpointComplete(long checkpointId) throws Exception {}
 
@@ -117,5 +144,9 @@ public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
      * @param subtaskId the subtask id of the source reader who sent the source event.
      * @param sourceEvent the source event from the source reader.
      */
+    // 处理自定义 Source 事件。
+    // 这是一个钩子（Hook），允许 SourceReader 和 SplitEnumerator 之间发送自定义通信事件。
+    // 默认实现为空。
+    // subtaskId 标识发送事件的读取器。
     default void handleSourceEvent(int subtaskId, SourceEvent sourceEvent) {}
 }

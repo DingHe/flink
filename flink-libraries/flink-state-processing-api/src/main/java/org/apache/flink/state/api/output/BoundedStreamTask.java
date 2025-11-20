@@ -55,6 +55,11 @@ import java.util.Optional;
  * @param <OUT> Type of the output.
  * @param <OP> Type of the operator this task runs.
  */
+// BoundedStreamTask 是 Flink State Processor API 中使用的特殊流任务（StreamTask）。
+// 它的主要作用是作为一个桥接层 (Shim)，用于在 Flink 运行时环境中模拟一个**有界输入（Bounded Input）**的任务执行，而不是从网络接收数据。
+// 模拟有界输入： 它不通过网络读取数据，而是直接从一个提供的 Iterable 集合中逐个拉取元素作为输入。
+// State Processor API 集成： 该任务在处理完所有输入数据后，会触发一次状态快照（通过其父类的 Checkpoint 机制），从而允许用户将内存中的计算结果（如聚合状态）持久化到 Flink 的状态后端，供后续 Job 读取。
+// 单操作符限制： 为了简化和专注于状态处理，该任务被限制只能运行一个操作符 (OneInputStreamOperator)
 @Deprecated
 class BoundedStreamTask<IN, OUT, OP extends OneInputStreamOperator<IN, OUT> & BoundedOneInput>
         extends StreamTask<OUT, OP> {

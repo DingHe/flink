@@ -41,18 +41,27 @@ import java.util.stream.Stream;
  * @param <IN2> The type of the elements in the second input {@code Transformation}
  * @param <OUT> The type of the elements that result from this {@code TwoInputTransformation}
  */
+// TwoInputTransformation 是 Flink DataStream API 中用于表示接收两个输入流的物理操作的基类。
+// 核心作用是将两个独立的上游数据流合并，并在它们之上应用一个双流操作符（TwoInputStreamOperator）。
+// 这是实现流的 Join (连接)、CoMap (协同映射)、Connect (连接) 等二元操作的关键逻辑组件。
+// 定义双输入操作： 关联两个上游 Transformation (input1 和 input2) 与一个 TwoInputStreamOperator。
+// 双键控状态配置： 管理与 Keyed State 相关的配置，特别是为两个输入流分别设置 KeySelector，确保在进行 Keyed 二元操作时，来自两个流的元素能够基于相同的键值到达同一个并行子任务。
 @Internal
 public class TwoInputTransformation<IN1, IN2, OUT> extends PhysicalTransformation<OUT> {
-
+    // 第一个输入。 指向第一个上游 Transformation 实例。
     private final Transformation<IN1> input1;
+    // 第二个输入。 指向第二个上游 Transformation 实例。
     private final Transformation<IN2> input2;
-
+    // 操作符工厂。 负责创建实际的运行时双流操作符 (TwoInputStreamOperator) 实例。
     private final StreamOperatorFactory<OUT> operatorFactory;
-
+    // 第一个输入的状态 Key 选择器。
+    // 用于从第一个输入流 (IN1) 的元素中提取 Key，以便进行 Keyed 状态分区。
     private KeySelector<IN1, ?> stateKeySelector1;
-
+    // 第二个输入的状态 Key 选择器。
+    // 用于从第二个输入流 (IN2) 的元素中提取 Key，以便进行 Keyed 状态分区。
     private KeySelector<IN2, ?> stateKeySelector2;
-
+    // 状态 Key 类型。
+    // 两个输入流经过 KeySelector 提取后，共享的状态键的数据类型信息。
     private TypeInformation<?> stateKeyType;
 
     /**

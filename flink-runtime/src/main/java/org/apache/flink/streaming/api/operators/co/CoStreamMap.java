@@ -27,6 +27,8 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
  * {@link org.apache.flink.streaming.api.operators.StreamOperator} for processing {@link
  * CoMapFunction CoMapFunctions}.
  */
+// CoStreamMap 是 Apache Flink Streaming API 中的一个内部操作符（Operator），它用于封装和执行用户定义的 CoMapFunction。
+// 这个操作符是专门设计来处理两个独立的输入流，并对它们分别应用不同的转换逻辑，然后将结果合并到一个输出流中。
 @Internal
 public class CoStreamMap<IN1, IN2, OUT>
         extends AbstractUdfStreamOperator<OUT, CoMapFunction<IN1, IN2, OUT>>

@@ -105,87 +105,128 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @param <T> The type of the elements that result from this {@code Transformation}
  */
+// Transformation 是 Flink DataStream API 中用于表示逻辑数据流操作的基类
+// 在用户编写 Flink 程序时，如 stream.map(...).keyBy(...).window(...)，每一个操作（map、keyBy、window 等）在 Flink 内部都对应一个或多个具体的 Transformation 实例。
+// 构建逻辑图： Transformation 实例通过 getInputs() 方法相互连接，共同构成了 Flink 逻辑执行图（Transformation Graph）。
+// 这个图是 Flink 运行时优化和生成物理执行图（JobGraph/StreamGraph）的基础。
+// 配置元数据： 存储了 Flink 运行时所需的所有关键配置信息，例如并行度、名称、输出数据类型、资源规格、UID 和内存管理设置等。
+// 抽象操作： 作为一个抽象基类，它将具体的业务逻辑实现（如 MapTransformation、KeyedTransformation）与通用的配置和图结构管理逻辑分离。
+// Transformation 是 Flink 描述用户程序的最小逻辑单元，是 Flink 将高级 API 代码转换为可执行 Job 的关键中间步骤。
 @Internal
 public abstract class Transformation<T> {
 
     // Has to be equal to StreamGraphGenerator.UPPER_BOUND_MAX_PARALLELISM
+    // 最大并行度上限。
+    // 定义了 Flink 中最大并行度（也是 Key Group 数量）的硬性上限值，即 $2^{15} = 32768$。
     public static final int UPPER_BOUND_MAX_PARALLELISM = 1 << 15;
 
     // This is used to assign a unique ID to every Transformation
+    // ID 计数器。
+    // 一个原子整数，用于为每个新创建的 Transformation 分配一个唯一的 ID。
     private static final AtomicInteger ID_COUNTER = new AtomicInteger(0);
 
     // If true, the parallelism of the transformation is explicitly set and should be respected.
     // Otherwise the parallelism can be changed at runtime.
+    // 并行度是否已配置。
+    // 如果为 true，表示并行度是用户显式设置的，运行时应尊重此值，不应随意更改。
     private boolean parallelismConfigured;
-
+    // 获取新节点 ID。
+    // 调用 ID_COUNTER.incrementAndGet()，返回一个递增的、全局唯一的 id。
     public static int getNewNodeId() {
         return ID_COUNTER.incrementAndGet();
     }
-
+    // 唯一 ID。
+    // 由 getNewNodeId() 分配的、在整个 Flink Job 内唯一的 ID，用于标识这个逻辑操作。
     protected final int id;
-
+    // 用户可读名称。
+    // 显示在 Flink Web UI、可视化工具和日志中的名称（例如：Source, Map）。
     protected String name;
-
+    // 操作描述。
+    // 提供对操作的更详细描述。
     protected String description;
-
+    // 输出类型信息。
+    // 描述此 Transformation 产生的元素的数据类型，对于序列化和类型检查至关重要。
     protected TypeInformation<T> outputType;
     // This is used to handle MissingTypeInfo. As long as the outputType has not been queried
     // it can still be changed using setOutputType(). Afterwards an exception is thrown when
     // trying to change the output type.
+    // 类型是否已使用。
+    // 标记 outputType 是否已经被查询过。
+    // 一旦为 true，outputType 就不能再被修改，以保证类型安全。
     protected boolean typeUsed;
-
+    // 当前并行度。
+    // 此操作符实例在运行时将拥有的并行子任务数量。
     private int parallelism;
 
     /**
      * The maximum parallelism for this stream transformation. It defines the upper limit for
      * dynamic scaling and the number of key groups used for partitioned state.
      */
+    // 最大并行度。
+    // 定义了动态伸缩的上限和 Keyed State 分区（Key Groups）的数量。默认为 -1。
     private int maxParallelism = -1;
 
     /**
      * The minimum resources for this stream transformation. It defines the lower limit for dynamic
      * resources resize in future plan.
      */
+    // 最小资源规格。
+    // 定义了此操作符子任务所需的最小资源（如 CPU、内存）。
     private ResourceSpec minResources = ResourceSpec.DEFAULT;
 
     /**
      * The preferred resources for this stream transformation. It defines the upper limit for
      * dynamic resource resize in future plan.
      */
+    // 首选资源规格。
+    // 定义了此操作符子任务所需的理想资源。
     private ResourceSpec preferredResources = ResourceSpec.DEFAULT;
-     //权重值高的场景会获得更多的内存资源，而权重值低的场景则会在内存分配时受到限制。这种机制有助于优化 Flink 作业的内存管理，避免内存过度分配或不足
-    /**它用于存储每个操作符在不同场景下使用 Managed Memory（受管理内存）的权重值，Managed Memory（受管理内存）是 Flink 提供的一种内存模型，允许作业在不同操作符之间共享内存池，而不必为每个操作符分配独立的内存
+    /**
      * Each entry in this map represents a operator scope use case that this transformation needs
      * managed memory for. The keys indicate the use cases, while the values are the
      * use-case-specific weights for this transformation. Managed memory reserved for a use case
      * will be shared by all the declaring transformations within a slot according to this weight.
      */
+    // 操作符范围托管内存权重。
+    // 存储了此操作符在不同用途（如排序、哈希）中对托管内存的需求权重。
+    // 用于在同一个 Slot 内多个操作符竞争内存时进行公平分配。
     private final Map<ManagedMemoryUseCase, Integer> managedMemoryOperatorScopeUseCaseWeights =
             new EnumMap<>(ManagedMemoryUseCase.class);
 
     /**
      * This map is a cache that stores transitive predecessors and used in {@code
-     * getTransitivePredecessors()}. 存储了当前Transformation的上游Transformation的引用
+     * getTransitivePredecessors()}.
      */
+    // 祖先缓存。
+    // 缓存了当前 Transformation 的所有传递性祖先（即上游的所有操作符），用于加速复杂的图遍历和检查（如迭代中的反馈边）。
     private final Map<Transformation<T>, List<Transformation<?>>> predecessorsCache =
             new HashMap<>();
      //这两个属性是相辅相成的。managedMemorySlotScopeUseCases定义了每个Transformation的内存用途，而managedMemoryOperatorScopeUseCaseWeights则决定了当多个Transformation竞争内存时，如何分配
-    /** Slot scope use cases that this transformation needs managed memory for.它用于定义一个Transformation所使用的托管内存（managed memory）的具体用途 */
+    /** Slot scope use cases that this transformation needs managed memory for.*/
+
+    // 槽位范围托管内存用途。
+    // 存储了此操作符使用的托管内存用途（如 STATE_BACKEND）。
+    // Slot 范围的内存用于整个 Slot 内共享。
     private final Set<ManagedMemoryUseCase> managedMemorySlotScopeUseCases = new HashSet<>();
-   //managedMemorySlotScopeUseCases 就像给每个任务分配了一个房间，房间的用途是固定的，managedMemoryOperatorScopeUseCaseWeights 就像给每个房间分配了一个优先级，当多个任务争抢房间时，优先级高的任务更有可能获得房间
     /**
      * User-specified ID for this transformation. This is used to assign the same operator ID across
      * job restarts. There is also the automatically generated {@link #id}, which is assigned from a
      * static counter. That field is independent from this.
      */
+    // 用户提供的唯一 ID。
+    // 用户为确保 Job 重启/升级时状态能正确匹配而指定的 ID（用于生成 JobVertexID）
     private String uid;
-
+    // 用户提供的哈希值。
+    // 用于 JobVertexID 的备用哈希，主要用于 Flink 版本迁移和故障排除。
     private String userProvidedNodeHash;
-
+    // 网络缓冲区超时时间。
+    // 定义数据在发送到网络前可以停留在部分满的缓冲区中的最长时间，影响延迟和吞吐量。
     protected long bufferTimeout = -1;
-
+    // 槽位共享组。
+    // 定义了哪些操作符实例可以共享同一个 TaskManager Slot。
     private Optional<SlotSharingGroup> slotSharingGroup;
-
+    // 共置组 Key。
+    // 调度器将具有相同 Key 的子任务放置在同一 Slot 中，以确保数据局部性（内部特性）。
     @Nullable private String coLocationGroupKey;
 
     /**
@@ -339,6 +380,7 @@ public abstract class Transformation<T> {
      *     ManagedMemoryUseCase} for the specific weight definition.
      * @return The previous weight, if exist.
      */
+    // 声明此操作符需要操作符范围的托管内存，并指定竞争内存时的权重。
     public Optional<Integer> declareManagedMemoryUseCaseAtOperatorScope(
             ManagedMemoryUseCase managedMemoryUseCase, int weight) {
         checkNotNull(managedMemoryUseCase);
@@ -357,13 +399,14 @@ public abstract class Transformation<T> {
      * @param managedMemoryUseCase The use case that this transformation declares needing managed
      *     memory for.
      */
+    // 声明此操作符需要槽位范围的托管内存。
     public void declareManagedMemoryUseCaseAtSlotScope(ManagedMemoryUseCase managedMemoryUseCase) {
         checkNotNull(managedMemoryUseCase);
         checkArgument(managedMemoryUseCase.scope == ManagedMemoryUseCase.Scope.SLOT);
 
         managedMemorySlotScopeUseCases.add(managedMemoryUseCase);
     }
-
+    // 根据任务是否有状态后端，动态添加或移除 STATE_BACKEND 这一 Slot 范围的托管内存用途。
     protected void updateManagedMemoryStateBackendUseCase(boolean hasStateBackend) {
         if (hasStateBackend) {
             managedMemorySlotScopeUseCases.add(ManagedMemoryUseCase.STATE_BACKEND);
@@ -378,11 +421,13 @@ public abstract class Transformation<T> {
      * memory across transformations for the use cases. Check the individual {@link
      * ManagedMemoryUseCase} for the specific weight definition.
      */
+    // 返回操作符范围内存用途及其权重的不可修改 Map。
     public Map<ManagedMemoryUseCase, Integer> getManagedMemoryOperatorScopeUseCaseWeights() {
         return Collections.unmodifiableMap(managedMemoryOperatorScopeUseCaseWeights);
     }
 
     /** Get slot scope use cases that this transformation needs managed memory for. */
+    // 返回槽位范围内存用途的不可修改 Set。
     public Set<ManagedMemoryUseCase> getManagedMemorySlotScopeUseCases() {
         return Collections.unmodifiableSet(managedMemorySlotScopeUseCases);
     }
@@ -592,6 +637,8 @@ public abstract class Transformation<T> {
      *
      * @return The list of transitive predecessors.
      */
+    // 抽象方法。
+    // 由子类实现，用于递归地计算并返回此 Transformation 的所有传递性祖先（包括上游的上游）。
     protected abstract List<Transformation<?>> getTransitivePredecessorsInternal();
 
     /**
@@ -602,6 +649,8 @@ public abstract class Transformation<T> {
      *
      * @return The list of transitive predecessors.
      */
+    //获取传递性祖先。
+    // 对 getTransitivePredecessorsInternal() 的封装，使用 predecessorsCache 缓存结果，避免重复计算。
     public final List<Transformation<?>> getTransitivePredecessors() {
         return predecessorsCache.computeIfAbsent(this, key -> getTransitivePredecessorsInternal());
     }
@@ -610,6 +659,8 @@ public abstract class Transformation<T> {
      * Returns the {@link Transformation transformations} that are the immediate predecessors of the
      * current transformation in the transformation graph.
      */
+    // 抽象方法。
+    // 由子类实现，返回当前 Transformation 的直接上游 Transformation 列表。这是构建逻辑图的基础。
     public abstract List<Transformation<?>> getInputs();
 
     @Override

@@ -104,7 +104,8 @@ public interface ResultPartitionWriter extends AutoCloseable, AvailabilityProvid
      * @param mode tells if we should flush all records or not (it is false in case of
      *     stop-with-savepoint (--no-drain))
      */
-    // 通知数据流结束。通知下游任务当前分区已发射完所有用户记录
+    // 通知数据流结束。
+    // 通知下游任务当前分区已发射完所有用户记录
     void notifyEndOfData(StopMode mode) throws IOException;
 
     /**

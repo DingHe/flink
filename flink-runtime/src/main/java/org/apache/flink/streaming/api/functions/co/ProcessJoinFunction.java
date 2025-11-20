@@ -34,7 +34,8 @@ import org.apache.flink.util.OutputTag;
  * @param <IN2> Type of the second input
  * @param <OUT> Type of the output
  */
-//用于实现基于时间区间联结 (Interval Join) 的核心抽象类。它的主要作用是为用户提供一个接口，以定义如何处理两个流中满足特定时间窗口联结条件的元素对
+// 用于实现基于时间区间联结 (Interval Join) 的核心抽象类。
+// 它的主要作用是为用户提供一个接口，以定义如何处理两个流中满足特定时间窗口联结条件的元素对
 @PublicEvolving
 public abstract class ProcessJoinFunction<IN1, IN2, OUT> extends AbstractRichFunction {
 

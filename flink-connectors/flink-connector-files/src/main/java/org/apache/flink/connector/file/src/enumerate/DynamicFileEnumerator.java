@@ -26,6 +26,11 @@ import org.apache.flink.table.connector.source.DynamicFilteringData;
  * that exist in the given {@link DynamicFilteringData}, while enumerates all splits if no
  * DynamicFilteringData is provided when #enumerateSplits is called.
  */
+// DynamicFileEnumerator 接口是 Flink 文件 Source (FileSource) 中用于支持**动态过滤（Dynamic Filtering）**功能的 FileEnumerator 扩展。
+// 它允许文件枚举器在发现和切割文件分片（Splits）的过程中，利用从 Flink Table/SQL 优化器获得的运行时信息来**裁剪（Prune）**不需要读取的文件或分区。
+// 动态过滤裁剪： 它增加了一个机制，允许外部（通常是 Flink Job Coordinator）将 DynamicFilteringData 注入其中。在执行 enumerateSplits 时，枚举器将利用这些数据只生成包含在过滤数据中的文件或分区所对应的 Splits。
+// 兼容性： 如果没有提供 DynamicFilteringData，它会退化到标准行为，即枚举所有相关文件。
+// 它是一个智能文件扫描器，能够根据动态接收到的过滤条件（例如，Join 小表的分区键值）来有选择地生成需要处理的文件分片，以避免读取不必要的数据，实现 I/O 优化。
 @PublicEvolving
 public interface DynamicFileEnumerator extends FileEnumerator {
 
@@ -37,9 +42,11 @@ public interface DynamicFileEnumerator extends FileEnumerator {
      * transferred here by a coordinating event. The method should never be called directly by
      * users.
      */
+    // 设置动态过滤数据。
     void setDynamicFilteringData(DynamicFilteringData data);
 
     /** Factory for the {@link DynamicFileEnumerator}. */
+    // DynamicFileEnumerator 的创建工厂。
     @FunctionalInterface
     interface Provider extends FileEnumerator.Provider {
 

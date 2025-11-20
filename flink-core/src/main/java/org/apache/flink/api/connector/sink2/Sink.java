@@ -48,6 +48,11 @@ import java.util.function.Consumer;
  *
  * @param <InputT> The type of the sink's input
  */
+// Sink 接口是 Flink 新的连接器 API（SinkV2） 中的基础组件，用于定义数据如何从 Flink 流写入到外部系统的逻辑配置。
+// 配置封装： Sink 实例是 可序列化的，它在 Flink 客户端（JobManager）上被创建和配置，然后被序列化并发送到 TaskManager 上的各个并行子任务。它存储了连接外部系统所需的所有静态配置（例如，目标地址、认证信息等）
+// Writer 创建者： 它的主要职责是提供一个工厂方法 (createWriter)，用于在 TaskManager 运行时环境中创建实际执行数据写入操作的 SinkWriter 实例。
+// 一致性基础： 最基本的 Sink 接口是一个无状态的 Sink，它能够依赖 Flink 的检查点机制实现**至少一次（At-Least-Once）**的一致性。
+// 如果需要更高级的一致性（如精确一次），则需要实现其扩展接口，如 SupportsWriterState 或 SupportsCommitter。
 @Public
 public interface Sink<InputT> extends Serializable {
 
@@ -64,6 +69,8 @@ public interface Sink<InputT> extends Serializable {
      *     {@link Override} annotation when implementing this method, to prevent compilation errors
      *     when migrating to 1.20.x release.
      */
+    // 创建 SinkWriter (已废弃)。
+    // 这是旧版本的创建方法。它在 TaskManager 上被调用，负责创建一个新的 SinkWriter 实例，并将过时的 InitContext 传递给它
     @Deprecated
     SinkWriter<InputT> createWriter(InitContext context) throws IOException;
 
@@ -74,6 +81,9 @@ public interface Sink<InputT> extends Serializable {
      * @return A sink writer.
      * @throws IOException for any failure during creation.
      */
+    // 创建 SinkWriter (推荐)。
+    // 默认实现调用了旧的废弃方法，同时将新的 WriterInitContext 包装成旧的 InitContext 以保持向后兼容。
+    // 实际的 Sink 实现通常会重写此方法，以使用新的、更清晰的上下文接口来创建 SinkWriter。
     default SinkWriter<InputT> createWriter(WriterInitContext context) throws IOException {
         return createWriter(new InitContextWrapper(context));
     }

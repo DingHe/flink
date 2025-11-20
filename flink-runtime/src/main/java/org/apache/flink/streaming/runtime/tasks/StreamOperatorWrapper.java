@@ -54,14 +54,17 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 // 状态通知转发： 它转发 Checkpoint 完成和 Checkpoint 被取代的通知给被包装的操作符及其状态后端。
 @Internal
 public class StreamOperatorWrapper<OUT, OP extends StreamOperator<OUT>> {
-    // 被包装的 StreamOperator 实例。 这是该 Wrapper 实际控制的 Flink 操作符。
+    // 被包装的 StreamOperator 实例。
+    // 这是该 Wrapper 实际控制的 Flink 操作符。
     private final OP wrapped;
     // 处理时间服务。
     // 用于管理操作符的定时器（Timers）。
     // 在 Task 关闭时，需要对其进行静默处理（quiesce），以防止在关闭过程中触发新的定时器。
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
     private final Optional<ProcessingTimeService> processingTimeService;
-    // 邮箱执行器。 Flink Task 的核心调度组件。用于将操作（如 finish()）作为一个 Mail 发送到 Task 线程中安全执行。
+    // 邮箱执行器。
+    // Flink Task 的核心调度组件。
+    // 用于将操作（如 finish()）作为一个 Mail 发送到 Task 线程中安全执行。
     private final MailboxExecutor mailboxExecutor;
     // 是否为链头。
     // true 表示这是操作符链中的第一个操作符。

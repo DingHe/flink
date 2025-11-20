@@ -34,12 +34,19 @@ import java.util.Set;
  * specified pattern to reduce state access. The bundle is used in MiniBatchStreamingJoinOperator.
  * The structure of the bundle varies depending on the {@link JoinInputSideSpec}.
  */
+// BufferBundle 是 Flink Table API/SQL 中用于流式 Join 算子（MiniBatchStreamingJoinOperator）的内存数据捆绑（Mini-Batch）抽象类
+// 核心作用在于实现 "Mini-Batching" 策略，即在内存中缓冲（Buffer）并对输入记录进行折叠/聚合（Fold）处理，从而减少对 Flink 状态后端的访问次数，显著提高流式 Join 的吞吐量和性能。
 public abstract class BufferBundle<T> {
-
+    // 核心缓冲 Map。
+    // 用于在内存中存储缓冲的记录。
+    // Map 的 Key 通常是 Join Key 或 Unique Key (RowData)。
+    // Value (T) 是一个泛型类型，表示折叠后的记录集合或计数（具体取决于子类实现）。
     protected final Map<RowData, T> bundle;
-
+    // 当前捆绑中处理的总记录数。
+    // 每次调用 addRecord 都会递增，表示进入缓冲的原始记录总量。
     protected int count;
-
+    // 当前捆绑中不重复的（或折叠后的）键的数量。
+    // 通常是 bundle Map 中条目的数量，表示实际需要处理的不同记录/键的数量。
     protected int actualSize;
 
     public BufferBundle() {

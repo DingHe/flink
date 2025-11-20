@@ -36,14 +36,26 @@ import java.util.List;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /** A {@link PhysicalTransformation} for {@link Source}. */
+// SourceTransformation 是 Flink 中用于描述数据源 (Source) 操作的专用 Transformation。它表示数据流图的起始节点，即数据是如何进入 Flink 运行时环境的。
+// 定义数据入口： 它是 Flink Job Graph 中的第一个操作符，封装了用户提供的 Source 接口实例，该实例定义了如何从外部系统（如 Kafka、文件、Socket）读取数据。
+// 配置时间语义： 它持有并应用用户配置的 WatermarkStrategy（水位线策略），负责为进入 Flink 的数据流分配时间戳并生成水位线，这是处理时间语义的关键。
+// 边界性声明： 它实现了 WithBoundedness 接口，可以声明数据源是有界 (Bounded) 还是无界 (Unbounded)。
+// SplitT	分片类型	Source 使用的数据分片类型（如 Kafka 分区、文件路径）。它继承自 SourceSplit。
+// EnumChkT	枚举检查点类型	Source Coordinator 用于枚举和检查分片时的检查点类型。
 @Internal
 public class SourceTransformation<OUT, SplitT extends SourceSplit, EnumChkT>
         extends TransformationWithLineage<OUT> implements WithBoundedness {
-
+    // 数据源实例。
+    // 核心对象，包含了读取外部数据的具体逻辑和配置。
     private final Source<OUT, SplitT, EnumChkT> source;
+    // 水位线策略。
+    // 定义了如何从 OUT 类型的元素中提取事件时间，以及如何生成 Watermark。
     private final WatermarkStrategy<OUT> watermarkStrategy;
-
+    // 链接策略。
+    // 定义此 Source Operator 是否可以与其下游操作符链接在一起
     private ChainingStrategy chainingStrategy = ChainingStrategy.DEFAULT_CHAINING_STRATEGY;
+    // Coordinator 监听 ID。
+    // Flink 内部用于 Source Coordinator 组件在 JobManager 端监听消息的标识符。
     private @Nullable String coordinatorListeningID;
 
     /**

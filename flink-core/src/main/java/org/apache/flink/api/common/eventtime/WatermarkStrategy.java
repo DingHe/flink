@@ -52,7 +52,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>This interface is {@link Serializable} because watermark strategies may be shipped to workers
  * during distributed execution.
  */
-//用于定义水印生成和时间戳分配策略的核心接口。它是一个“构建器”或“工厂”，旨在将时间戳分配器（TimestampAssigner）和水印生成器（WatermarkGenerator）的创建逻辑封装在一起
+//用于定义水印生成和时间戳分配策略的核心接口。
+// 它是一个“构建器”或“工厂”，旨在将时间戳分配器（TimestampAssigner）和水印生成器（WatermarkGenerator）的创建逻辑封装在一起
 @Public
 public interface WatermarkStrategy<T>
         extends TimestampAssignerSupplier<T>, WatermarkGeneratorSupplier<T> {

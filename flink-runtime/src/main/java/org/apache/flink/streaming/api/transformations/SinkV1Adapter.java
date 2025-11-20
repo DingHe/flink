@@ -120,7 +120,9 @@ public class SinkV1Adapter<InputT, CommT, WriterStateT, GlobalCommT> implements 
         }
         return this;
     }
-
+    // SinkWriterV1Adapter 是 Flink Sink API V2（新版）中用于兼容和适配 Sink API V1（旧版）SinkWriter 的一个**适配器（Adapter）**类。
+    // 接口统一： 它实现了 Sink V2 中的两个核心接口：StatefulSinkWriter 和 CommittingSinkWriter。
+    // 兼容旧实现： 它内部封装了一个旧版（V1）的 org.apache.flink.api.connector.sink.SinkWriter 实例，并将 V2 接口的调用**转发（Delegate）**给这个旧版 V1 实例。
     private static class SinkWriterV1Adapter<InputT, CommT, WriterStateT>
             implements StatefulSinkWriter<InputT, WriterStateT>,
                     CommittingSinkWriter<InputT, CommT> {

@@ -139,10 +139,10 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
     // 包装主算子的包装器，通常是链中的第一个算子。
     // 它是整个操作链的入口，用于管理主算子的生命周期
     @Nullable protected final StreamOperatorWrapper<OUT, OP> mainOperatorWrapper;
-    //链中第一个算子的包装器。
+    // 链中第一个算子的包装器。
     // 如果算子链中有多个源算子，它可能不是 mainOperatorWrapper
     @Nullable protected final StreamOperatorWrapper<?, ?> firstOperatorWrapper;
-    //链中最后一个算子的包装器。
+    // 链中最后一个算子的包装器。
     // 通常是主算子链的末尾，但在一些特殊情况下，它可能会是其他算子
     @Nullable protected final StreamOperatorWrapper<?, ?> tailOperatorWrapper;
     // 存储与源输入相关的链式源算子映射。
@@ -329,6 +329,7 @@ public abstract class OperatorChain<OUT, OP extends StreamOperator<OUT>>
      * operator in the chain, contrary to {@link StreamOperator#open()} which happens <b>tail to
      * heads</b> (see {@link #initializeStateAndOpenOperators(StreamTaskStateInitializer)}).
      */
+    //执行链上所有operator的finished方法
     public abstract void finishOperators(StreamTaskActionExecutor actionExecutor, StopMode stopMode)
             throws Exception;
 

@@ -704,7 +704,7 @@ public class StreamConfig implements Serializable {
             toBeSerializedConfigObjects.put(CHECKPOINT_STORAGE, storage);
         }
     }
-
+    // 获取检查点存储
     public CheckpointStorage getCheckpointStorage(ClassLoader cl) {
         try {
             return InstantiationUtil.readObjectFromConfig(this.config, CHECKPOINT_STORAGE, cl);

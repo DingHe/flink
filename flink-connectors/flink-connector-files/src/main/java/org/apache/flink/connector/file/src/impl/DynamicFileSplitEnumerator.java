@@ -58,17 +58,27 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * received, it will enumerate all splits. If a DynamicFilterEvent is received during the fully
  * enumerating, the remaining splits will be filtered accordingly.
  */
+// DynamicFileSplitEnumerator 是 Flink 文件 Source (FileSource) 的 SplitEnumerator 实现，
+// 专门设计用于支持 Table/SQL 层面的**动态过滤（Dynamic Filtering）**优化。
+// 处理动态过滤事件： 它能够接收并处理来自 SourceReader 的 DynamicFilteringEvent，该事件携带着用于过滤的文件分区信息 (DynamicFilteringData)
+// 动态裁剪 Splits： 在接收到过滤数据后，它会使用实现了 DynamicFileEnumerator 的组件来重新枚举和切割文件，确保只生成与过滤条件匹配的文件分片。
+// 管理分片状态与恢复： 它管理着一个 FileSplitAssigner 来分配 splits，并维护一个 assignedSplits 集合来追踪哪些分片已经被分配，以防止在动态过滤导致的重新分配时重复分配 splits。
+// 批处理限定： 当前的实现（通过 snapshotState 抛出异常）表明它主要设计用于批处理执行场景。
+// 智能文件分片协调者，能够根据运行时从小表接收到的过滤数据，动态地优化大表的读取，避免扫描不必要的数据。
 @Internal
 public class DynamicFileSplitEnumerator<SplitT extends FileSourceSplit>
         implements SplitEnumerator<SplitT, PendingSplitsCheckpoint<SplitT>>,
                 SupportsHandleExecutionAttemptSourceEvent {
 
     private static final Logger LOG = LoggerFactory.getLogger(DynamicFileSplitEnumerator.class);
-
+    // 枚举器上下文。
+    // 用于与 Flink 运行时（JobManager）进行通信，例如分配 splits 或发送信号。
     private final SplitEnumeratorContext<SplitT> context;
-
+    // 动态文件枚举器工厂。
+    // 用于创建实际执行文件发现和动态过滤逻辑的 DynamicFileEnumerator 实例。
     private final DynamicFileEnumerator.Provider fileEnumeratorFactory;
-
+    // 分片分配器工厂。
+    // 用于创建负责管理 splits 分配顺序和本地性逻辑的 FileSplitAssigner 实例。
     private final FileSplitAssigner.Provider splitAssignerFactory;
 
     /**
@@ -77,10 +87,17 @@ public class DynamicFileSplitEnumerator<SplitT extends FileSourceSplit>
      * assigned for the second time. We have to retain the state and filter out the splits that has
      * been assigned with this set.
      */
+    // 已分配分片 ID 集合。
+    // 存储所有已经分配给 SourceReader 的分片 ID。
+    // 这是为了防止在重新创建 splitAssigner 后，已分配的分片被二次分配。
     private final Set<String> assignedSplits;
-
+    // 所有被枚举的分片 ID 集合。
+    // 存储最近一次调用 enumerateSplits 发现的所有分片 ID。
+    // 用于在 addSplitsBack 时过滤掉那些因动态过滤而被裁剪的分片。
     private transient Set<String> allEnumeratingSplits;
-
+    // 当前的分片分配器实例。
+    // 负责管理待分配 splits 的集合和分配逻辑。
+    // 它可以在收到动态过滤事件后被重建。
     private transient FileSplitAssigner splitAssigner;
 
     // ------------------------------------------------------------------------

@@ -31,7 +31,8 @@ import java.util.Objects;
  */
 // 在 Flink 中，为了提高效率，通常会将多个算子串联（Chaining）起来，在同一个线程中执行，形成一个算子链（Operator Chain）。
 // 当数据从算子链中的一个算子流向另一个算子链或未串联的单个算子时，这种连接就形成了非串联输出（Non-Chained Output）
-// NonChainedOutput 类的作用就是封装描述这种非串联数据流所需的所有元数据。这些元数据定义了数据如何从当前的算子链离开，通过网络或内存传输到下游任务的输入。
+// NonChainedOutput 类的作用就是封装描述这种非串联数据流所需的所有元数据。
+// 这些元数据定义了数据如何从当前的算子链离开，通过网络或内存传输到下游任务的输入。
 @Internal
 public class NonChainedOutput implements Serializable {
 
@@ -43,11 +44,13 @@ public class NonChainedOutput implements Serializable {
     private final boolean supportsUnalignedCheckpoints;
 
     /** ID of the producer {@link StreamNode}. */
-    // 生产者节点 ID。该输出所连接的源头 StreamNode 的唯一 ID。
+    // 生产者节点 ID。
+    // 该输出所连接的源头 StreamNode 的唯一 ID。
     private final int sourceNodeId;
 
     /** Parallelism of the consumer vertex. */
-    // 消费者并行度。下游接收数据的任务或算子的并行度。
+    // 消费者并行度。
+    // 下游接收数据的任务或算子的并行度。
     private final int consumerParallelism;
 
     /** Max parallelism of the consumer vertex. */

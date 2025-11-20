@@ -85,7 +85,8 @@ public interface MailboxDefaultAction {
          * Same as {@link #suspendDefaultAction(PeriodTimer)} but without any associated timer
          * measuring the idle time.
          */
-        // 暂停默认操作（无计时器）。功能同上，但没有传入用于测量空闲时间的计时器。必须从邮箱线程调用。
+        // 暂停默认操作（无计时器）。
+        // 功能同上，但没有传入用于测量空闲时间的计时器。必须从邮箱线程调用。
         Suspension suspendDefaultAction();
     }
 }
