@@ -51,51 +51,102 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /** Class representing the operators in the streaming programs, with all their properties. */
+// StreamNode 类是 Flink 流式拓扑图（StreamGraph）中的基本元素，代表了 Flink 流式程序中的一个算子（Operator）或用户定义的逻辑操作。
+// 算子抽象： 它封装了 Flink 拓扑图中一个节点（即一个操作，如 map, filter, keyBy 等）所需的所有配置和元数据。
+// 图结构： 它通过管理入边 (inEdges) 和出边 (outEdges) 来定义 Flink StreamGraph 的结构。
+// 运行时配置： 它存储了执行该操作所需的关键运行时配置，包括并行度、资源规格、Slot 共享组、算子工厂以及数据序列化器等。
+// StreamNode 是 Flink 逻辑执行图中的一个“操作符”节点，负责将用户代码中的操作转换为 Flink 运行时所需的详细配置。
+
+
 @Internal
 public class StreamNode {
-
-    private final int id;  //id
-    private int parallelism;  //并行度
+    // 节点唯一 ID。
+    // 在整个 StreamGraph 中，用于唯一标识这个 StreamNode。
+    private final int id;
+    // 并行度。
+    // 定义该算子将运行的并行任务实例数量。
+    private int parallelism;
     /**
      * Maximum parallelism for this stream node. The maximum parallelism is the upper limit for
      * dynamic scaling and the number of key groups used for partitioned state.
      */
-    private int maxParallelism; //最大并行度
-
+    // 最大并行度。
+    // 该算子并行度的上限，同时决定了用于分区状态的 Key Group 数量。
+    private int maxParallelism;
+    // 最小资源规格。
+    // 运行该节点所需的最小 CPU、内存等资源。
     private ResourceSpec minResources = ResourceSpec.DEFAULT;
+    // 首选资源规格。
+    // 运行该节点的推荐资源配置。
     private ResourceSpec preferredResources = ResourceSpec.DEFAULT;
+    // 操作符范围管理内存权重。
+    // 定义该算子对 Flink 管理内存（Managed Memory）的需求及其权重。
     private final Map<ManagedMemoryUseCase, Integer> managedMemoryOperatorScopeUseCaseWeights =
-            new HashMap<>(); // 管理内存分配
-    private final Set<ManagedMemoryUseCase> managedMemorySlotScopeUseCases = new HashSet<>(); //管理内存类型
+            new HashMap<>();
+    // Slot 范围管理内存类型。
+    // 包含该算子在 Slot 范围内需要的管理内存使用类型。
+    private final Set<ManagedMemoryUseCase> managedMemorySlotScopeUseCases = new HashSet<>();
+    // 缓冲区超时时间。
+    // 毫秒，定义数据在发送到下游前在缓冲区中等待的最长时间。
     private long bufferTimeout;
-    private final String operatorName;  // 操作名称
-    private String operatorDescription;  // 操作描述
-    private @Nullable String slotSharingGroup;  // slot共享组
+    // 操作名称。
+    // 算子在代码中或默认的名称（如 map, filter），用于日志和监控。
+    private final String operatorName;
+    // 操作描述。
+    // 更详细的描述信息。
+    private String operatorDescription;
+    // Slot 共享组。
+    // 如果设置，该节点的所有实例将与同一组中的其他节点实例共享 Slot，以优化资源利用。
+    private @Nullable String slotSharingGroup;
+    // 共同定位组。
+    //如果设置，该组中的所有任务必须部署在同一个 TaskManager 上，用于保证数据本地性（例如用于迭代操作）。
     private @Nullable String coLocationGroup;
-    private KeySelector<?, ?>[] statePartitioners = new KeySelector[0]; //key函数
+    // 状态分区函数。
+    // 针对有状态操作，定义如何对键控状态进行分区。
+    private KeySelector<?, ?>[] statePartitioners = new KeySelector[0];
+    // 状态键序列化器。
+    // 用于序列化和反序列化键控状态的 Key。
     private TypeSerializer<?> stateKeySerializer;
-
+    // 算子工厂。
+    // 用于在运行时创建 StreamOperator 实例的工厂。
     private @Nullable StreamOperatorFactory<?> operatorFactory;
+    // 输入序列化器。
+    // 用于序列化和反序列化该节点接收到的输入数据的序列化器数组（支持多输入）。
     private TypeSerializer<?>[] typeSerializersIn = new TypeSerializer[0];
+    // 输出序列化器。
+    // 用于序列化和反序列化该节点输出数据的序列化器。
     private TypeSerializer<?> typeSerializerOut;
-
-    private List<StreamEdge> inEdges = new ArrayList<StreamEdge>();// 入边
-    private List<StreamEdge> outEdges = new ArrayList<StreamEdge>();//出边
-
-    private final Class<? extends TaskInvokable> jobVertexClass;//指定了该节点在TaskManager上运行时的具体任务类，这个类在TaskManager上被实例化，负责执行具体的算子逻辑
-
+    // 入边列表。
+    // 连接到该节点的上游 StreamEdge 列表。
+    private List<StreamEdge> inEdges = new ArrayList<StreamEdge>();
+    // 出边列表。
+    // 从该节点连接到下游的 StreamEdge 列表。
+    private List<StreamEdge> outEdges = new ArrayList<StreamEdge>();
+    // 任务调用类。
+    // 指定了该节点在 TaskManager 上运行时实际执行的 Flink 任务类（如 StreamTask）。
+    private final Class<? extends TaskInvokable> jobVertexClass;
+    // 输入格式
+    // 如果该节点是 Source 任务（例如批处理中的文件 Source），则包含其输入格式。
     private InputFormat<?, ?> inputFormat;
+    // 输出格式。
+    // 如果该节点是 Sink 任务，则包含其输出格式。
     private OutputFormat<?> outputFormat;
-    //用户定义的hash值
+    // 用户为 Transformation 指定的唯一标识符，用于状态管理。
     private String transformationUID;
+    // 用户哈希值。
+    // 用户定义的哈希值，用于控制算子链化和任务分配。
     private String userHash;
-
+    // 输入要求。
+    // 定义了该算子对特定输入的特殊要求（例如，是否需要全量或仅增量输入）。
     private final Map<Integer, StreamConfig.InputRequirement> inputRequirements = new HashMap<>();
-
+    // 消费集群数据集 ID。
+    // 如果该节点消费的是 Flink 集群中持久化的数据集（例如批处理中的缓存数据），则为其 ID。
     private @Nullable IntermediateDataSetID consumeClusterDatasetId;
-
-    private boolean supportsConcurrentExecutionAttempts = true; //支持并发执行尝试
-
+    // 支持并发执行尝试。
+    // 标识该任务是否支持并发地启动多个执行尝试（通常用于推测执行）。
+    private boolean supportsConcurrentExecutionAttempts = true;
+    // 并行度是否已配置。
+    // 标识并行度是否由用户或系统明确设置，而不是使用默认值。
     private boolean parallelismConfigured = false;
 
     @VisibleForTesting
