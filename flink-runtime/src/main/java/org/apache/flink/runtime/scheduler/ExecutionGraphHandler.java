@@ -51,14 +51,18 @@ import java.util.Optional;
 import java.util.concurrent.Executor;
 
 /** Handler for the {@link ExecutionGraph} which offers some common operations. */
+// ExecutionGraphHandler（执行图处理器）是一个实用工具类，它封装了调度器 (Scheduler) 与底层 ExecutionGraph 交互时的核心公共操作。
+// 职责划分： 它的存在是为了将 ExecutionGraph 的细节操作（如查找执行、状态更新、数据结构访问）与上层调度逻辑分离，使调度器代码更专注于高级的调度决策。
+// 功能集中： 它将与 Checkpointing 协调、输入数据分配和结果分区状态查询等相关的逻辑集中管理，确保这些操作在 Flink 的主线程和 I/O 线程之间能安全、高效地执行。
 public class ExecutionGraphHandler {
-
+    // 执行图实例。
     private final ExecutionGraph executionGraph;
 
     private final Logger log;
-
+    // I/O 线程池。
+    // 用于执行非阻塞的、可能涉及 I/O 或耗时的操作（如检查点报告、输入切片序列化）的线程池，避免阻塞 Flink 的主调度线程。
     private final Executor ioExecutor;
-
+    // 主线程执行器。
     private final ComponentMainThreadExecutor mainThreadExecutor;
 
     public ExecutionGraphHandler(
@@ -71,14 +75,14 @@ public class ExecutionGraphHandler {
         this.ioExecutor = ioExecutor;
         this.mainThreadExecutor = mainThreadExecutor;
     }
-
+    // 报告单个任务的检查点性能指标。
     public void reportCheckpointMetrics(
             ExecutionAttemptID attemptId, long id, CheckpointMetrics metrics) {
         processCheckpointCoordinatorMessage(
                 "ReportCheckpointStats",
                 coordinator -> coordinator.reportCheckpointMetrics(id, attemptId, metrics));
     }
-
+    // 报告子任务初始化时的性能指标。
     public void reportInitializationMetrics(
             ExecutionAttemptID executionAttemptId,
             SubTaskInitializationMetrics initializationMetrics) {
@@ -96,7 +100,7 @@ public class ExecutionGraphHandler {
                         coordinator.reportInitializationMetrics(
                                 executionAttemptId, initializationMetrics));
     }
-
+    // 确认任务已完成 Checkpoint。
     public void acknowledgeCheckpoint(
             final JobID jobID,
             final ExecutionAttemptID executionAttemptID,
@@ -116,6 +120,7 @@ public class ExecutionGraphHandler {
                                 retrieveTaskManagerLocation(executionAttemptID)));
     }
 
+    // 报告任务拒绝（未能参与）Checkpint。
     public void declineCheckpoint(final DeclineCheckpoint decline) {
         processCheckpointCoordinatorMessage(
                 "DeclineCheckpoint",

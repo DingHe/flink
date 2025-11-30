@@ -35,14 +35,22 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @see ResultPartition
  */
+// Flink 运行时（Runtime）内部使用的部署描述符（Deployment Descriptor）
+// 部署数据描述： 在 JobManager 将一个 Task 部署到 TaskManager 时，它携带了关于该 Task **输出数据（Result Partition）**所需的所有配置和标识信息。
+// 指导 TaskManager 创建分区： TaskManager 接收到这个描述符后，就知道应该如何配置和创建一个 ResultPartition 实例，包括它的类型（如 PIPELINED 或 BLOCKING）、ID 以及如何与下游 Task 进行数据交换（Shuffle）。
+
+
 public class ResultPartitionDeploymentDescriptor implements Serializable {
 
     private static final long serialVersionUID = 6343547936086963705L;
-
+    // 分区逻辑描述符。
+    // 包含了分区本身的逻辑属性和标识符，例如中间数据集 ID (IntermediateDataSetID)、分区类型 (ResultPartitionType)、是否为广播分区等。
     private final PartitionDescriptor partitionDescriptor;
-
+    // 数据交换描述符。
+    // 包含了分区在网络层或存储层的物理信息和配置，用于指导下游消费者 Task 如何连接到这个分区以获取数据。这通常由 Shuffle Service 负责处理。
     private final ShuffleDescriptor shuffleDescriptor;
-
+    // 最大并行度。表示 Job 中整个 IntermediateDataSet（中间数据集）的最大并行度。
+    // 该值主要用于状态管理中的 KeyGroup 范围划分，与当前 Task 的并行度无关，但与 Key 相关的操作有关。
     private final int maxParallelism;
 
     public ResultPartitionDeploymentDescriptor(

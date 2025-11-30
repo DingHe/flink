@@ -39,7 +39,8 @@ public class SavepointRestoreSettings implements Serializable {
     private static final SavepointRestoreSettings NONE =
             new SavepointRestoreSettings(null, false, RecoveryClaimMode.NO_CLAIM);
 
-    /** Savepoint restore path. 指定Savepoint路径: 指明从哪个Savepoint恢复作业*/
+    /** Savepoint restore path.
+     * 指定Savepoint路径: 指明从哪个Savepoint恢复作业*/
     private final String restorePath;
 
     /**

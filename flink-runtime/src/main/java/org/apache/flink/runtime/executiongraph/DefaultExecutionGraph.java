@@ -125,6 +125,12 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /** Default implementation of the {@link ExecutionGraph}. */
+// DefaultExecutionGraph 是 Flink 作业在 JobMaster 上的实时物理执行计划和状态管理器。
+// 它将用户提交的逻辑作业图 (JobGraph) 转化为一个可执行的、带有具体并行度、数据流和任务尝试的物理图结构。
+// 图结构维护： 维护作业的三层结构（ExecutionJobVertex -> ExecutionVertex -> Execution），以及任务间的数据依赖（IntermediateResult）。
+// 状态管理： 跟踪整个作业的全局状态（JobStatus）以及所有任务实例的状态（ExecutionState），并管理状态转换的时间戳。
+
+
 public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionGraphAccessor {
 
     /** The log object used for debugging. */
@@ -137,42 +143,63 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
      * multiple execution graphs created from one job graph, in cases like job re-submission, job
      * master failover and job rescaling.
      */
+    // 执行图唯一 ID。
+    // 区别于 JobID，每次作业重启或重新提交时，都会有一个新的 ExecutionGraphID。
     private final ExecutionGraphID executionGraphId;
 
     /** Job specific information like the job id, job name, job configuration, etc. */
+    // 作业元数据。
+    // 包含 JobID、作业名称、执行配置等基础信息。
     private final JobInformation jobInformation;
 
     /** The executor which is used to execute futures. */
+    // Future 执行器。
+    // 用于执行异步操作和 Future 回调的线程池。
     private final ScheduledExecutorService futureExecutor;
 
     /** The executor which is used to execute blocking io operations. */
+    // I/O 执行器。
+    // 用于执行阻塞 I/O 操作的线程池，避免阻塞主调度线程。
     private final Executor ioExecutor;
 
     /** {@link CoordinatorStore} shared across all operator coordinators within this execution. */
+    // 协调器共享存储。
+    // 用于不同的 OperatorCoordinator 实例之间共享信息。
     private final CoordinatorStore coordinatorStore = new CoordinatorStoreImpl();
 
     /** Executor that runs tasks in the job manager's main thread. */
+    // JobMaster 主线程执行器。
+    // 确保所有对 ExecutionGraph 状态的修改都在 JobMaster 的主调度线程上执行，保证线程安全和状态一致性。
     @Nonnull private ComponentMainThreadExecutor jobMasterMainThreadExecutor;
 
     /** {@code true} if all source tasks are stoppable. */
     private boolean isStoppable = true;
-    //存储执行图的顶点
+    // 所有 JobVertex。
+    // 存储了执行图中所有的 ExecutionJobVertex 实例。
     /** All job vertices that are part of this graph. */
     private final Map<JobVertexID, ExecutionJobVertex> tasks;
     //按照执行图顶点的创建顺序存储
     /** All vertices, in the order in which they were created. * */
+    // 按创建顺序的顶点列表。
+    // 存储了 JobVertex 的创建顺序列表，通常用于拓扑遍历。
     private final List<ExecutionJobVertex> verticesInCreationOrder;
     //中间结果集
     /** All intermediate results that are part of this graph. */
+    // 所有中间结果。
+    // 存储了所有由上游任务产生的数据集 (IntermediateResult)。
     private final Map<IntermediateDataSetID, IntermediateResult> intermediateResults;
 
     /** The currently executed tasks, for callbacks. */
+    // 当前执行尝试映射。
+    // 存储所有正在进行或已完成的 Execution 实例，通过 ExecutionAttemptID 索引。
     private final Map<ExecutionAttemptID, Execution> currentExecutions;
 
     /**
      * Listeners that receive messages when the entire job switches it status (such as from RUNNING
      * to FINISHED).
      */
+    // 作业状态监听器列表。
+    // 外部组件注册的监听器，用于接收作业状态变更通知。
     private final List<JobStatusListener> jobStatusListeners;
 
     /**
@@ -181,58 +208,83 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
      * of the enum value, i.e. the timestamp when the graph went into state "RUNNING" is at {@code
      * stateTimestamps[RUNNING.ordinal()]}.
      */
+    // 状态时间戳数组。
+    // 记录作业进入每个 JobStatus 的时间戳。
     private final long[] stateTimestamps;
 
     /** The timeout for all messages that require a response/acknowledgement. */
+    // RPC 超时时间。
+    // 所有需要远程响应的消息（如部署任务）的超时配置。
     private final Time rpcTimeout;
 
     /** The classloader for the user code. Needed for calls into user code classes. */
+    // 用户代码类加载器。
+    // 用于加载用户提交的 JAR 包中的类。
     private final ClassLoader userClassLoader;
 
     /** Registered KvState instances reported by the TaskManagers. */
     private final KvStateLocationRegistry kvStateLocationRegistry;
 
     /** Blob writer used to offload RPC messages. */
+    // BLOB 写入器。
+    // 用于上传用户 JAR 包、配置等大文件。
     private final BlobWriter blobWriter;
-   //总的执行图顶点数量
+    // JobVertex 总数。
+    // 整个作业中 ExecutionJobVertex 的数量。
     /** Number of total job vertices. */
     private int numJobVerticesTotal;
-
+    // 分区组释放策略。
+    // 用于决定何时释放上游中间结果分区资源。
     private final PartitionGroupReleaseStrategy.Factory partitionGroupReleaseStrategyFactory;
 
     private PartitionGroupReleaseStrategy partitionGroupReleaseStrategy;
-    //调度拓扑图
+    // 调度拓扑。
+    // ExecutionGraph 拓扑结构在调度层面的适配器，用于提供给调度器进行操作。
     private DefaultExecutionTopology executionTopology;
 
     @Nullable private InternalFailuresListener internalTaskFailuresListener;
 
     /** Counts all restarts. Used by other Gauges/Meters and does not register to metric group. */
+    // 重启计数器。
+    // 跟踪作业发生的总重启次数。
     private final Counter numberOfRestartsCounter = new SimpleCounter();
 
     // ------ Configuration of the Execution -------
 
     /** The maximum number of historical execution attempts kept in history. */
+    // 执行历史限制。
+    // 每个 ExecutionVertex 保留的执行尝试历史记录（Execution 实例）的最大数量。
     private final int executionHistorySizeLimit;
 
     // ------ Execution status and progress. These values are volatile, and accessed under the lock
     // -------
 
     /** Number of finished job vertices. */
+    // 已完成 JobVertex 数。
+    // 记录已完成所有子任务的 JobVertex 数量。。
     private int numFinishedJobVertices;
 
     /** Current status of the job execution. */
+    // 当前作业状态。
+    // 整个作业的当前状态（如 RUNNING、FAILED）。使用 volatile 关键字确保可见性。
     private volatile JobStatus state = JobStatus.CREATED;
 
     /** The job type of the job execution. */
+    // 作业类型。
+    // 流式 (STREAMING) 或批式 (BATCH)。
     private final JobType jobType;
 
     /** A future that completes once the job has reached a terminal state. */
+    // 终止 Future。
+    // 作业达到终止状态时完成。
     private final CompletableFuture<JobStatus> terminationFuture = new CompletableFuture<>();
 
     /**
      * The exception that caused the job to fail. This is set to the first root exception that was
      * not recoverable and triggered job failure.
      */
+    // 故障根源。
+    // 导致作业失败的原始异常。
     private Throwable failureCause;
 
     /**
@@ -240,6 +292,8 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
      * 'failureCause', to let 'failureCause' be a strong reference to the exception, while this info
      * holds no strong reference to any user-defined classes.
      */
+    // 扩展故障信息。
+    // 包含序列化的异常信息，避免强引用用户代码类。
     private ErrorInfo failureInfo;
 
     private final JobMasterPartitionTracker partitionTracker;
@@ -259,6 +313,8 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
     @Nullable private CheckpointCoordinatorConfiguration checkpointCoordinatorConfiguration;
 
     /** The coordinator for checkpoints, if snapshot checkpoints are enabled. */
+    // 检查点协调器实例。
+    // 实时管理和触发作业 Checkpoint 的核心组件。
     @Nullable private CheckpointCoordinator checkpointCoordinator;
 
     /** TODO, replace it with main thread executor. */
@@ -278,7 +334,8 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
     @Nullable private String changelogStorageName;
 
     @Nullable private TernaryBoolean stateChangelogEnabled;
-    //JogGraph的json格式
+    // JSON 计划。
+    // 作业的 JSON 格式描述，常用于 Web UI 展示。
     private String jsonPlan;
 
     /** Shuffle master to register partitions for task deployment. */
@@ -286,10 +343,14 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
 
     private final ExecutionDeploymentListener executionDeploymentListener;
     private final ExecutionStateUpdateListener executionStateUpdateListener;
-    //边管理器
+    // 边管理器。
+    // 负责维护和查询任务间数据流的依赖关系。
     private final EdgeManager edgeManager;
-
+    // 执行顶点映射。
+    // 按 ID 存储所有并行任务实例 (ExecutionVertex)。
     private final Map<ExecutionVertexID, ExecutionVertex> executionVerticesById;
+    // 结果分区映射。
+    // 按 ID 存储所有中间结果分区实例。
     private final Map<IntermediateResultPartitionID, IntermediateResultPartition>
             resultPartitionsById;
 
@@ -421,7 +482,7 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
     // --------------------------------------------------------------------------------------------
     //  Configuration of Data-flow wide execution settings
     // --------------------------------------------------------------------------------------------
-
+    // 获取调度拓扑图
     @Override
     public SchedulingTopology getSchedulingTopology() {
         return executionTopology;
@@ -452,41 +513,45 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
     public Optional<String> getChangelogStorageName() {
         return Optional.ofNullable(changelogStorageName);
     }
-
+    // 启用 Flink 作业检查点（Checkpointing）功能 的核心方法。
+    // 它负责初始化和配置所有检查点相关的组件，特别是创建和设置 CheckpointCoordinator。
     @Override
     public void enableCheckpointing(
-            CheckpointCoordinatorConfiguration chkConfig,
-            List<MasterTriggerRestoreHook<?>> masterHooks,
-            CheckpointIDCounter checkpointIDCounter,
-            CompletedCheckpointStore checkpointStore,
-            StateBackend checkpointStateBackend,
-            CheckpointStorage checkpointStorage,
-            CheckpointStatsTracker statsTracker,
-            CheckpointsCleaner checkpointsCleaner,
-            String changelogStorageName) {
-
+            CheckpointCoordinatorConfiguration chkConfig, // 检查点协调器的运行时配置（如间隔、超时、容错次数等）。
+            List<MasterTriggerRestoreHook<?>> masterHooks, // 在 JobMaster 端执行的检查点触发/恢复钩子，允许用户或 Flink 组件在检查点生命周期中执行自定义逻辑。
+            CheckpointIDCounter checkpointIDCounter, // 用于原子性地生成和分配全局唯一检查点 ID 的计数器。
+            CompletedCheckpointStore checkpointStore, // 用于存储已完成检查点元数据的存储组件（如 JobManager 内存或 ZooKeeper）。
+            StateBackend checkpointStateBackend, // 任务使用的状态后端（如 RocksDB, Filesystem）。主要用于记录名称。
+            CheckpointStorage checkpointStorage, // 用于存储检查点数据的物理存储组件（如 HDFS, S3）。
+            CheckpointStatsTracker statsTracker, // 用于收集和跟踪检查点执行统计信息（如延迟、大小等）。
+            CheckpointsCleaner checkpointsCleaner, // 负责清理过期或失败的检查点数据的组件。
+            String changelogStorageName) { // 状态变更日志（Changelog）存储的名称。
+        // 检查当前作业状态，只有在 CREATED 状态才能启用检查点
         checkState(state == JobStatus.CREATED, "Job must be in CREATED state");
         checkState(checkpointCoordinator == null, "checkpointing already enabled");
-
+        // // 构建 OperatorCoordinator 的检查点上下文
         final Collection<OperatorCoordinatorCheckpointContext> operatorCoordinators =
                 buildOpCoordinatorCheckpointContexts();
 
         checkpointStatsTracker = checkNotNull(statsTracker, "CheckpointStatsTracker");
         checkpointCoordinatorConfiguration =
                 checkNotNull(chkConfig, "CheckpointCoordinatorConfiguration");
-
+        //  初始化检查点故障管理器
         CheckpointFailureManager failureManager =
                 new CheckpointFailureManager(
+                        // / 配置容忍的检查点失败次数
                         chkConfig.getTolerableCheckpointFailureNumber(),
                         new CheckpointFailureManager.FailJobCallback() {
                             @Override
                             public void failJob(Throwable cause) {
+                                // 如果故障管理器决定失败整个作业，在 JobMaster 主线程执行 failGlobal
                                 getJobMasterMainThreadExecutor().execute(() -> failGlobal(cause));
                             }
 
                             @Override
                             public void failJobDueToTaskFailure(
                                     Throwable cause, ExecutionAttemptID failingTask) {
+                                // 如果故障是因为特定任务失败触发，在主线程执行有条件地全局失败
                                 getJobMasterMainThreadExecutor()
                                         .execute(
                                                 () ->
@@ -496,7 +561,7 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
                         });
 
         checkState(checkpointCoordinatorTimer == null);
-
+        // // 创建一个单线程的定时执行器，用于周期性触发检查点
         checkpointCoordinatorTimer =
                 MdcUtils.scopeToJob(
                         getJobID(),
@@ -506,14 +571,15 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
                                         "Checkpoint Timer")));
 
         // create the coordinator that triggers and commits checkpoints and holds the state
+        // // 创建 CheckpointCoordinator 实例
         checkpointCoordinator =
                 new CheckpointCoordinator(
                         jobInformation.getJobId(),
                         chkConfig,
-                        operatorCoordinators,
+                        operatorCoordinators, // 3. 算子协调器检查点上下文
                         checkpointIDCounter,
-                        checkpointStore,
-                        checkpointStorage,
+                        checkpointStore, // 5. 已完成检查点存储
+                        checkpointStorage, // 6. 检查点数据存储
                         ioExecutor,
                         checkpointsCleaner,
                         new ScheduledExecutorServiceAdapter(checkpointCoordinatorTimer),
@@ -523,6 +589,7 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
                         checkpointStatsTracker);
 
         // register the master hooks on the checkpoint coordinator
+        // 注册主钩子（Master Hooks）
         for (MasterTriggerRestoreHook<?> hook : masterHooks) {
             if (!checkpointCoordinator.addMasterHook(hook)) {
                 LOG.warn(
@@ -530,24 +597,28 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
                         hook.getIdentifier());
             }
         }
-
+        // 检查是否配置了周期性检查点
         if (checkpointCoordinator.isPeriodicCheckpointingConfigured()) {
             // the periodic checkpoint scheduler is activated and deactivated as a result of
             // job status and topology changes (running & all edges non-blocking -> on, all
             // other states -> off)
+            // 检查所有 JobVertex 的输出边是否都不是 BLOCKING 类型 (即是否全部是 PILELINED)
             boolean allTasksOutputNonBlocking =
                     tasks.values().stream()
                             .noneMatch(vertex -> vertex.getJobVertex().isAnyOutputBlocking());
+            // 创建一个 JobStatusListener，用于根据作业状态和拓扑变化来激活/去激活周期性检查点调度
             registerJobStatusListener(
                     checkpointCoordinator.createActivatorDeactivator(allTasksOutputNonBlocking));
         }
-
+        // 记录状态后端名称，用于归档 ExecutionGraph
         this.stateBackendName = checkpointStateBackend.getName();
+        // 检查并记录状态变更日志（Changelog）是否启用
         this.stateChangelogEnabled =
                 TernaryBoolean.fromBoolean(
                         StateBackendLoader.isChangelogStateBackend(checkpointStateBackend));
-
+        // 记录检查点存储的名称（使用其类名）
         this.checkpointStorageName = checkpointStorage.getClass().getSimpleName();
+        // 记录 Changelog 存储的名称
         this.changelogStorageName = changelogStorageName;
     }
 
@@ -588,7 +659,9 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
             return null;
         }
     }
-
+    // 作用是收集 ExecutionGraph 中所有需要参与检查点（Checkpoint）的 OperatorCoordinator 实例。
+    // 遍历作业中所有的 ExecutionJobVertex，从每个 JobVertex 中提取其关联的 OperatorCoordinator 实例，
+    // 并将这些实例的检查点上下文 (OperatorCoordinatorCheckpointContext) 聚合成一个集合返回。
     private Collection<OperatorCoordinatorCheckpointContext>
             buildOpCoordinatorCheckpointContexts() {
         final ArrayList<OperatorCoordinatorCheckpointContext> contexts = new ArrayList<>();
@@ -837,7 +910,9 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
     public void notifyNewlyInitializedJobVertices(List<ExecutionJobVertex> vertices) {
         executionTopology.notifyExecutionGraphUpdated(this, vertices);
     }
-
+    // 将逻辑作业图 (JobGraph) 附加到实时执行图 (ExecutionGraph) 上的关键步骤
+    // 将 JobMaster 启动时接收到的 JobVertex 列表集成到 ExecutionGraph 的结构中，并构建初始的拓扑依赖关系。
+    // 该方法在作业启动初期执行，或在支持动态图（Dynamic Graph）的场景下，用于增量地将新顶点附加到正在运行的作业中。
     @Override
     public void attachJobGraph(
             List<JobVertex> verticesToAttach, JobManagerJobMetricGroup jobManagerJobMetricGroup)
@@ -851,32 +926,44 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
                 verticesToAttach.size(),
                 tasks.size(),
                 intermediateResults.size());
-
+        // 附加 JobVertex
         attachJobVertices(verticesToAttach, jobManagerJobMetricGroup);
         if (!isDynamic) {
+            // 初始化执行顶点
+            // 如果不是动态图，则调用私有方法为新附加的每个 ExecutionJobVertex 初始化其并行子任务，即创建所有的 ExecutionVertex 实例，
+            // 并建立 ExecutionVertex 与上游 IntermediateResultPartition 之间的连接（即填充 EdgeManager）
             initializeJobVertices(verticesToAttach);
         }
 
         // the topology assigning should happen before notifying new vertices to failoverStrategy
+        // 构建调度拓扑。 使用当前 ExecutionGraph 的结构信息创建一个 DefaultExecutionTopology 实例。
+        // 这是将物理执行图结构转换为调度器（Scheduler）可理解的拓扑视图。
         executionTopology = DefaultExecutionTopology.fromExecutionGraph(this);
-
+        // 创建分区释放策略。 使用工厂 (partitionGroupReleaseStrategyFactory) 和刚创建的调度拓扑 (getSchedulingTopology()) 来实例化一个分区组释放策略。
+        // 该策略用于在任务完成或失败时，决定何时可以安全地清理上游的中间结果分区。
         partitionGroupReleaseStrategy =
                 partitionGroupReleaseStrategyFactory.createInstance(getSchedulingTopology());
     }
-    //遍历JobGraph的顶点，并创建ExecutionJobVertex，设置并行度
+    // 负责将逻辑作业图中的 JobVertex 转换为 Flink 运行时所需的物理执行图顶点 ExecutionJobVertex 并将其集成到 ExecutionGraph 中。
+    // 接收按拓扑顺序排列的逻辑作业顶点列表 (topologicallySorted) 和 JobManager 的度量组 (jobManagerJobMetricGroup)
     /** Attach job vertices without initializing them. */
     private void attachJobVertices(
             List<JobVertex> topologicallySorted, JobManagerJobMetricGroup jobManagerJobMetricGroup)
             throws JobException {
+        // 检查作业可停止性。
+        // 如果当前 JobVertex 是一个 输入顶点（Source），并且其自身属性标记为不可停止。
         for (JobVertex jobVertex : topologicallySorted) {
-
+            // 将 DefaultExecutionGraph 的全局 isStoppable 标志设置为 false。
+            // 只要有一个 Source 任务不可停止，整个作业就不能安全地执行 STOP 操作。
             if (jobVertex.isInputVertex() && !jobVertex.isStoppable()) {
                 this.isStoppable = false;
             }
-
+            // 获取并行度信息。
+            // 从 parallelismStore（并行度存储组件）中获取当前 JobVertex 的并行度配置信息。
             VertexParallelismInformation parallelismInfo =
                     parallelismStore.getParallelismInfo(jobVertex.getID());
-            //创建执行图的顶点
+            // 创建 ExecutionJobVertex。
+            // 使用 executionJobVertexFactory（ExecutionJobVertex 的工厂类）来创建对应的物理执行顶点实例 (ejv)
             // create the execution job vertex and attach it to the graph
             ExecutionJobVertex ejv =
                     executionJobVertexFactory.createExecutionJobVertex(
@@ -907,7 +994,8 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
             initializeJobVertex(ejv, createTimestamp);
         }
     }
-
+    // 负责在一个 ExecutionJobVertex（作业执行顶点）被附加到图后，
+    // 进行完整的物理初始化，包括创建其所有并行任务和建立数据流连接。
     @Override
     public void initializeJobVertex(
             ExecutionJobVertex ejv,
@@ -917,20 +1005,28 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
 
         checkNotNull(ejv);
         checkNotNull(jobVertexInputInfos);
-
+        // 存储输入信息。
+        // 遍历输入信息映射，将每个中间结果集 ID (resultId) 及其对应的输入信息 (info) 存储到 vertexInputInfoStore 中，键是当前 ejv 的 ID。
         jobVertexInputInfos.forEach(
                 (resultId, info) ->
                         this.vertexInputInfoStore.put(ejv.getJobVertexId(), resultId, info));
-
+        // 初始化 ExecutionJobVertex。
+        // 调用 ExecutionJobVertex 实例自身的 initialize 方法，负责创建该逻辑顶点下的所有 ExecutionVertex（并行子任务实例）。
         ejv.initialize(
                 executionHistorySizeLimit,
                 rpcTimeout,
                 createTimestamp,
                 this.initialAttemptCounts.getAttemptCounts(ejv.getJobVertexId()));
-
+        // 连接到前驱节点。
+        // 建立当前 ejv 及其所有 ExecutionVertex 到上游生产的中间结果 (intermediateResults) 的连接。
+        // 这会填充 EdgeManager，定义任务之间的数据依赖。
         ejv.connectToPredecessors(this.intermediateResults);
 
+        // 遍历并注册产生的数据集。
+        // 遍历当前 ejv 生产的所有中间结果集 (IntermediateResult)
         for (IntermediateResult res : ejv.getProducedDataSets()) {
+            // 存储中间结果。
+            // 尝试将当前生产的中间结果 (res) 存储到 ExecutionGraph 的全局 intermediateResults 映射中。使用 putIfAbsent 来检查唯一性。
             IntermediateResult previousDataSet =
                     this.intermediateResults.putIfAbsent(res.getId(), res);
             if (previousDataSet != null) {
@@ -940,18 +1036,24 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
                                 res.getId(), res, previousDataSet));
             }
         }
-
+        // 注册执行顶点和分区
+        // 将 ejv 下新创建的所有 ExecutionVertex 和它们产生的 IntermediateResultPartition 注册到 DefaultExecutionGraph 的全局映射中（如 executionVerticesById 和 resultPartitionsById），
+        // 以便于通过 ID 进行查找。
         registerExecutionVerticesAndResultPartitionsFor(ejv);
 
         // enrich network memory.
         SlotSharingGroup slotSharingGroup = ejv.getSlotSharingGroup();
+        // 检查共享组初始化状态。
+        // 检查属于该共享组的所有 ExecutionJobVertex 是否都已经完成了初始化。
         if (areJobVerticesAllInitialized(slotSharingGroup)) {
             SsgNetworkMemoryCalculationUtils.enrichNetworkMemory(
                     slotSharingGroup, this::getJobVertex, shuffleMaster);
         }
     }
-
+    // 用于检查一个槽位共享组 (SlotSharingGroup) 内的所有作业顶点是否都已完成初始化。
     private boolean areJobVerticesAllInitialized(final SlotSharingGroup group) {
+        // 遍历共享组内的顶点 ID。
+        // 遍历该 SlotSharingGroup 中注册的所有 JobVertexID。
         for (JobVertexID jobVertexId : group.getJobVertexIds()) {
             final ExecutionJobVertex jobVertex = getJobVertex(jobVertexId);
             checkNotNull(jobVertex, "Unknown job vertex %s", jobVertexId);
@@ -1143,7 +1245,8 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
     private void transitionState(JobStatus newState, Throwable error) {
         transitionState(state, newState, error);
     }
-
+    // 作用是尝试原子性地将作业状态从一个预期状态切换到新的状态，
+    // 并处理状态转换相关的逻辑，包括记录时间戳和通知监听器。
     private boolean transitionState(JobStatus current, JobStatus newState, Throwable error) {
         assertRunningInJobMasterMainThread();
         // consistency check
@@ -1600,31 +1703,41 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
             jobStatusListeners.add(listener);
         }
     }
-
+    // 通知所有已注册的监听器作业状态发生了变化
     private void notifyJobStatusChange(
             JobStatus oldState, JobStatus newState, @Nullable Throwable cause) {
+        // 检查旧式监听器。
+        // 检查是否存在已注册的 JobStatusListener（较旧的、基于时间戳的监听器接口）。
         if (jobStatusListeners.size() > 0) {
             final long timestamp = System.currentTimeMillis();
 
             for (JobStatusListener listener : jobStatusListeners) {
                 try {
+                    // 执行通知。
+                    // 调用监听器的 jobStatusChanges 方法，传递作业 ID、新的状态 (newState) 和当前时间戳。
                     listener.jobStatusChanges(getJobID(), newState, timestamp);
                 } catch (Throwable t) {
                     LOG.warn("Error while notifying JobStatusListener", t);
                 }
             }
         }
-
+        // 检查新式监听器。
+        // 检查是否存在已注册的 JobStatusChangedListener（较新的、基于事件对象的监听器接口）。
         if (jobStatusChangedListeners.size() > 0) {
             jobStatusChangedListeners.forEach(
                     listener ->
                             listener.onEvent(
+                                    // 创建事件对象。
+                                    // 构造一个 DefaultJobExecutionStatusEvent 实例。
                                     new DefaultJobExecutionStatusEvent(
                                             getJobID(), getJobName(), oldState, newState, cause)));
         }
     }
-
+    // 提供一个可扩展的机制，
+    // 允许外部组件或 Flink 内部高级功能（如度量系统、HA 存储更新等）在作业生命周期中的特定关键状态（CREATED, CANCELED, FAILED, FINISHED）发生时执行自定义逻辑。
     private void notifyJobStatusHooks(JobStatus newState, @Nullable Throwable cause) {
+        // 获取作业 ID。
+        // 从 jobInformation 属性中获取当前作业的唯一标识符 JobID，这是通知钩子所需的关键信息。
         JobID jobID = jobInformation.getJobId();
         for (JobStatusHook hook : jobStatusHooks) {
             try {

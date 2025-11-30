@@ -27,42 +27,68 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * intermediate result partition to a job vertex. An edge is parametrized with its {@link
  * DistributionPattern}.
  */
+// JobEdge 类是 Flink JobGraph 中的基本连接单元，它代表了物理数据流的通道，连接着上游任务产生的中间数据集 (IntermediateDataSet) 和下游任务的目标顶点 (JobVertex)
+// 物理数据通道： 它定义了数据从上游任务的输出（中间结果）流向下游任务的输入所遵循的具体网络通信规则。
+// 数据分发模式： 它封装了 DistributionPattern（如 ALL_TO_ALL 或 POINTWISE），决定了上游任务的哪些子任务将数据发送给下游任务的哪些子任务。
+// 动态弹性配置： 它包含了 SubtaskStateMapper，专门用于在任务发生扩缩容（Rescaling）时，指导如何重新映射和分配通道状态，确保数据通道的正确恢复。
+// JobEdge 是 Flink 调度器和运行时网络栈用来理解和建立任务间数据传输路径的关键配置载体。
+
 public class JobEdge implements java.io.Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** The vertex connected to this edge. 目标顶点*/
+    /** The vertex connected to this edge.*/
+    // 目标顶点。
+    // 该边指向的下游任务组 (JobVertex)。
     private final JobVertex target;
 
-    /** The distribution pattern that should be used for this job edge.定义如何跟下游顶点连接，ALL_TO_ALL或者POINTWISE */
+    /** The distribution pattern that should be used for this job edge.*/
+    // 数据分发模式。
+    // 定义上游任务的输出分区如何连接到下游任务的输入实例。常见的模式包括：
+    // POINTWISE (或 Forward): 一对一连接。
+    // ALL_TO_ALL (或 Rebalance/Hash): 多对多连接。
     private final DistributionPattern distributionPattern;
 
-    /** The channel rescaler that should be used for this job edge on downstream side. 并行度变化时，旧的子任务如何连接到新的子任务*/
+    /** The channel rescaler that should be used for this job edge on downstream side.*/
+    // 下游子任务状态映射器。
+    // 在 Job 发生弹性扩缩容时，指导如何将上游持久化的通道状态（如批处理模式下的数据）正确地分配给新的下游子任务。默认是 ROUND_ROBIN。
     private SubtaskStateMapper downstreamSubtaskStateMapper = SubtaskStateMapper.ROUND_ROBIN;
 
     /** The channel rescaler that should be used for this job edge on upstream side. */
+    // 上游子任务状态映射器。
+    // 作用与下游映射器类似，但用于指导如何将状态分配给新的上游子任务。默认是 ROUND_ROBIN。
     private SubtaskStateMapper upstreamSubtaskStateMapper = SubtaskStateMapper.ROUND_ROBIN;
 
-    /** The data set at the source of the edge, may be null if the edge is not yet connected. 源节点*/
+    /** The data set at the source of the edge, may be null if the edge is not yet connected.*/
+    // 该边连接的上游任务产生的中间结果数据集。
     private final IntermediateDataSet source;
 
     /**
      * Optional name for the data shipping strategy (forward, partition hash, rebalance, ...), to be
      * displayed in the JSON plan.
      */
+    // 数据传输策略名称。
+    // 可选名称，用于描述数据传输的具体策略（如 "forward"、"partition hash"、"rebalance"、"broadcast"），
+    // 主要用于 JSON 计划显示。
     private String shipStrategyName;
-
+    // 是否为广播边。
+    // 标识该边是否为广播连接，即上游的每个子任务都将数据发送给下游的所有子任务。
     private final boolean isBroadcast;
-
+    // 是否为前传边 (Forward)。
+    // 标识该边是否为点对点无重新分区的连接，通常用于链化后的内部数据流。
     private boolean isForward;
 
     /**
      * Optional name for the pre-processing operation (sort, combining sort, ...), to be displayed
      * in the JSON plan.
      */
+    // 预处理操作名称。
+    // 可选名称，描述在数据传输前可能发生的预处理操作（如 "sort"、"combining sort"），主要用于 JSON 计划显示。
     private String preProcessingOperationName;
 
     /** Optional description of the caching inside an operator, to be displayed in the JSON plan. */
+    // 操作符级别缓存描述。
+    // 可选描述，指明在该输入上可能存在的操作符级别缓存策略。
     private String operatorLevelCachingDescription;
 
     /**

@@ -72,7 +72,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * JobGraph}.
  */
 public class DefaultExecutionGraphBuilder {
-    //在这里真正构建执行图
+    // 这个方法是 Flink JobMaster 将逻辑作业图 (JobGraph) 转换为运行时执行图 (ExecutionGraph) 的核心入口。
     public static DefaultExecutionGraph buildGraph(
             JobGraph jobGraph,
             Configuration jobManagerConfig,  //与作业管理器相关的配置，如最大重试次数、检查点设置等
@@ -102,11 +102,13 @@ public class DefaultExecutionGraphBuilder {
             throws JobExecutionException, JobException {
 
         checkNotNull(jobGraph, "job graph cannot be null");
-        //获取名字、id和类型
+        // 获取作业名称。
         final String jobName = jobGraph.getName();
+        // 获取作业 ID。
         final JobID jobId = jobGraph.getJobID();
+        // 获取作业的类型（如批处理 BATCH 或流处理 STREAMING）。
         final JobType jobType = jobGraph.getJobType();
-        //包含了作业的基本信息，包括作业 ID、类型、名称、执行配置、作业配置、JAR 包路径等
+        // 包含了作业的基本信息，包括作业 ID、类型、名称、执行配置、作业配置、JAR 包路径等
         final JobInformation jobInformation =
                 new JobInformation(
                         jobId,
@@ -116,20 +118,25 @@ public class DefaultExecutionGraphBuilder {
                         jobGraph.getJobConfiguration(),
                         jobGraph.getUserJarBlobKeys(),
                         jobGraph.getClasspaths());
-        //最大尝试次数
+        // 获取历史记录限制。
+        // 从 JobManager 配置中获取任务执行历史记录（失败尝试）的最大存储数量。
         final int executionHistorySizeLimit =
                 jobManagerConfig.get(JobManagerOptions.MAX_ATTEMPTS_HISTORY_SIZE);
-
+        // 加载分区释放策略工厂。
+        // 加载并创建用于决定何时释放（清理）中间结果分区的策略工厂。
         final PartitionGroupReleaseStrategy.Factory partitionGroupReleaseStrategyFactory =
                 PartitionGroupReleaseStrategyFactoryLoader.loadPartitionGroupReleaseStrategyFactory(
                         jobManagerConfig);
-
+        // 获取 Shuffle 描述符卸载阈值。
+        // 获取配置值，用于确定何时将任务部署描述符中的 Shuffle 描述符（可能包含大量数据）卸载到 BLOB 存储而不是直接嵌入到部署消息中
         final int offloadShuffleDescriptorsThreshold =
                 jobManagerConfig.get(
                         TaskDeploymentDescriptorFactory.OFFLOAD_SHUFFLE_DESCRIPTORS_THRESHOLD);
         //任务部署描述符工厂
         final TaskDeploymentDescriptorFactory taskDeploymentDescriptorFactory;
         try {
+            // 实例化任务部署描述符工厂
+            // 使用 BlobWriter 来序列化 JobInformation 并可能卸载 Shuffle 描述符，以准备 TaskManager 部署所需的数据。
             taskDeploymentDescriptorFactory =
                     new TaskDeploymentDescriptorFactory(
                             BlobWriter.serializeAndTryOffload(jobInformation, jobId, blobWriter),
@@ -141,12 +148,15 @@ public class DefaultExecutionGraphBuilder {
         } catch (IOException e) {
             throw new JobException("Could not create the TaskDeploymentDescriptorFactory.", e);
         }
-
+        // 基于配置加载并创建所有外部或用户定义的监听器，
+        // 这些监听器将在作业状态发生变化时被通知。
         final List<JobStatusChangedListener> jobStatusChangedListeners =
                 JobStatusChangedListenerUtils.createJobStatusChangedListeners(
                         classLoader, jobManagerConfig, ioExecutor);
 
         // create a new execution graph, if none exists so far
+        // 使用前面准备的所有参数和服务组件（执行器、跟踪器、监听器、ShuffleMaster 等）初始化 DefaultExecutionGraph。
+        // 这是 ExecutionGraph 对象的创建点。
         final DefaultExecutionGraph executionGraph =
                 new DefaultExecutionGraph(
                         jobGraph.getJobType(),
@@ -187,9 +197,10 @@ public class DefaultExecutionGraphBuilder {
 
         final long initMasterStart = System.nanoTime();
         log.info("Running initialization on master for job {} ({}).", jobName, jobId);
-        //遍历JobGraph的顶点
+        // 遍历JobGraph的顶点
         for (JobVertex vertex : jobGraph.getVertices()) {
-            String executableClass = vertex.getInvokableClassName(); //task的执行类
+            // task的执行类
+            String executableClass = vertex.getInvokableClassName();
             if (executableClass == null || executableClass.isEmpty()) {
                 throw new JobSubmissionException(
                         jobId,
@@ -218,7 +229,8 @@ public class DefaultExecutionGraphBuilder {
         log.info(
                 "Successfully ran initialization on master in {} ms.",
                 (System.nanoTime() - initMasterStart) / 1_000_000);
-        //拓扑排序
+
+        // 根据任务依赖关系对 JobGraph 中的所有 JobVertex 进行拓扑排序。
         // topologically sort the job vertices and attach the graph to the existing one
         List<JobVertex> sortedTopology = jobGraph.getVerticesSortedTopologicallyFromSources();
         if (log.isDebugEnabled()) {
@@ -228,6 +240,11 @@ public class DefaultExecutionGraphBuilder {
                     jobName,
                     jobId);
         }
+
+        // 连接 JobGraph 到 ExecutionGraph。
+        // 建 ExecutionGraph 核心结构的关键一步。
+        // 它遍历拓扑排序后的 JobVertex 列表，为每个 JobVertex 创建相应的 ExecutionJobVertex，
+        // 并进一步创建 ExecutionVertex 和 Execution 实例，建立任务间的边（Intermediate Result Partitions）。
         executionGraph.attachJobGraph(sortedTopology, jobManagerJobMetricGroup);
 
         if (log.isDebugEnabled()) {
@@ -236,14 +253,17 @@ public class DefaultExecutionGraphBuilder {
         }
 
         // configure the state checkpointing
+        // 检查作业是否是动态图（不支持 Checkpointing），或者是否启用了 Checkpointing。
         if (isDynamicGraph) {
             // dynamic graph does not support checkpointing so we skip it
             log.warn("Skip setting up checkpointing for a job with dynamic graph.");
         } else if (isCheckpointingEnabled(jobGraph)) {
+            // 获取 Checkpointing 配置。
             JobCheckpointingSettings snapshotSettings = jobGraph.getCheckpointingSettings();
 
             // load the state backend from the application settings
             final StateBackend applicationConfiguredBackend;
+            // 尝试从应用配置中反序列化用户定义的 StateBackend。如果没有配置，则为 null。
             final SerializedValue<StateBackend> serializedAppConfigured =
                     snapshotSettings.getDefaultStateBackend();
 
@@ -251,6 +271,8 @@ public class DefaultExecutionGraphBuilder {
                 applicationConfiguredBackend = null;
             } else {
                 try {
+                    // 尝试从应用配置中反序列化用户定义的 StateBackend。
+                    // 如果没有配置，则为 null。
                     applicationConfiguredBackend =
                             serializedAppConfigured.deserializeValue(classLoader);
                 } catch (IOException | ClassNotFoundException e) {
@@ -261,6 +283,7 @@ public class DefaultExecutionGraphBuilder {
 
             final StateBackend rootBackend;
             try {
+                // 根据应用配置、Job 配置和 JobManager 配置的默认值，确定并加载最终要使用的 StateBackend 实例。
                 rootBackend =
                         StateBackendLoader.fromApplicationOrConfigOrDefault(
                                 applicationConfiguredBackend,
@@ -337,10 +360,10 @@ public class DefaultExecutionGraphBuilder {
                     thread.setContextClassLoader(originalClassLoader);
                 }
             }
-
+            // 获取 Checkpoint 协调器配置。
             final CheckpointCoordinatorConfiguration chkConfig =
                     snapshotSettings.getCheckpointCoordinatorConfiguration();
-
+            // 启用 Checkpointing。
             executionGraph.enableCheckpointing(
                     chkConfig,
                     hooks,

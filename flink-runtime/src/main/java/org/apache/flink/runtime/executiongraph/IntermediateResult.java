@@ -42,35 +42,59 @@ import java.util.Map;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
-//ExecutionJobVertex的输出结果
-public class IntermediateResult {
-    //JobVertex的输出结果
-    private final IntermediateDataSet intermediateDataSet;
 
+// JobGraph (逻辑层): 包含 JobVertex（算子）和 IntermediateDataSet（中间数据集）。
+// ExecutionGraph (物理执行层): JobVertex 会并发执行，变成 ExecutionJobVertex。它产生的输出就是 IntermediateResult。
+// IntermediateResult 是逻辑数据集在物理执行层的表现形式。
+// IntermediateResult 表示 ExecutionJobVertex（一个并行的任务组）产生的输出结果。
+// 连接生产者与消费者： 它是上游任务（Producer）和下游任务（Consumer）之间的“桥梁”。它记录了谁产生了数据，以及谁将消费这些数据。
+// 管理数据分区（Partitions）： 一个任务通常有多个并发（Parallelism）。
+// IntermediateResult 维护了一个 IntermediateResultPartition 数组，每个并发子任务（ExecutionVertex）都会产生一个分区。
+// 元数据管理： 它不直接存储实际的数据（数据在 Netty 缓存或磁盘中），而是存储元数据
+public class IntermediateResult {
+    // 指向 JobGraph 中定义的那个逻辑中间数据集。
+    // 它包含了数据分发模式（如 Hash、Rebalance）等静态配置信息。
+    private final IntermediateDataSet intermediateDataSet;
+    // 唯一标识符。
+    // 用于在全局范围内唯一标识这个中间结果。
     private final IntermediateDataSetID id;
-   //明中间结果的生产者，便于任务间的关联
+    // 生产者。
+    // 指向生产这个结果的那个并行任务组（JobVertex 在执行图中的对象）
     private final ExecutionJobVertex producer;
-   //更多地是作为一个元数据对象来管理和描述数据的生产、消费和状态信息，而不直接存储数据本身
+    // 物理分区数组。
+    // 这是最核心的数据结构。
+    // 如果并发度是 10，这里就有 10 个元素。每个元素代表一个并发子任务产生的数据流。
     private final IntermediateResultPartition[] partitions;
 
-    /**将分区 ID 映射到分区索引，用于快速查找特定分区
+    /**
      * Maps intermediate result partition IDs to a partition index. This is used for ID lookups of
      * intermediate results. I didn't dare to change the partition connect logic in other places
      * that is tightly coupled to the partitions being held as an array.
      */
+    // 存储 PartitionID -> 数组索引 的映射。
+    // 用于快速通过 ID 找到 partitions 数组中的对应对象，避免遍历数组，提高查找性能。
     private final HashMap<IntermediateResultPartitionID, Integer> partitionLookupHelper =
             new HashMap<>();
-
+    // 生产者并发度。
+    // 即上游任务的并行度，也决定了 partitions 数组的大小
     private final int numParallelProducers;
-    //记录已经被分配的分区数量
+    // 已分配计数器。
+    // 记录目前有多少个分区已经被成功初始化并注册到了这个类中。
     private int partitionsAssigned;
-
+    // 连接索引。
+    // 一个随机生成的整数。
+    // 用于在消费者端区分不同的输入源（例如一个算子消费两个不同的流，通过这个索引区分）。
     private final int connectionIndex;
-   //指定中间结果的分区类型
+    // 结果类型。
+    // 决定数据传输方式：
+    // BLOCKING（批处理）：产完存磁盘，下游再读。
+    // PIPELINED（流处理）：产出即发送，内存传输。
     private final ResultPartitionType resultType;
-    //存特定消费分区组（ConsumedPartitionGroup）的 Shuffle 描述符
+    // 存储了下游消费组（ConsumedPartitionGroup）所需的网络连接信息（ShuffleDescriptor）。
+    // 缓存是为了避免重复计算，加速调度。
     private final Map<ConsumedPartitionGroup, CachedShuffleDescriptors> shuffleDescriptorCache;
-   //存储所有消费此数据集的任务（JobVertex）的 ID
+    // 消费者列表。
+    // 记录了所有将要消费这个数据集的下游任务节点的 ID。
     /** All consumer job vertex ids of this dataset. */
     private final List<JobVertexID> consumerVertices = new ArrayList<>();
 

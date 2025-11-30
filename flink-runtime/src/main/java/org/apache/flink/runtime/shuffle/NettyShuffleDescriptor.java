@@ -32,16 +32,30 @@ import java.util.List;
 import java.util.Optional;
 
 /** Default implementation of {@link ShuffleDescriptor} for {@link NettyShuffleMaster}. */
+// NettyShuffleDescriptor 是 Flink 基于 Netty 的内部网络堆栈实现 ShuffleDescriptor 接口的默认实现类。
+// 核心作用是为 Flink 数据流经 Netty 网络栈的中间结果分区提供完整的物理访问信息和连接详情。
+// 当一个任务（消费者）需要读取另一个任务（生产者）的中间结果数据时，它会使用 NettyShuffleDescriptor 来建立连接和获取数据。
+// Netty 连接信息封装： 它封装了下游任务通过 Netty 连接上游 TaskManager 提取数据所需的全部信息，包括生产者的地址、端口和连接索引。
+// 本地性判断： 提供了快速判断数据生产者和数据消费者是否在同一个 TaskManager 上运行的能力（即数据是否为本地）。
+// Tiered Shuffle 支持： 支持分层 Shuffle (Tiered Shuffle)，可以携带不同存储层（Tier）的 Shuffle 描述符。
+// NettyShuffleDescriptor 是数据消费者获取数据源的**“通信地址簿和钥匙”**，专门用于指导 Flink 的 Netty 网络模块进行数据传输。
 public class NettyShuffleDescriptor implements ShuffleDescriptor {
 
     private static final long serialVersionUID = 852181945034989215L;
-
+    // 生产者位置 ID。
+    // 生产该分区的 TaskExecutor（TaskManager）的唯一资源 ID。用于本地性检查和资源清理。
     private final ResourceID producerLocation;
-
+    // 分区连接信息。
+    // 包含用于建立网络连接的网络地址和连接索引。
+    // 它是一个接口，有两个具体实现：
+    // NetworkPartitionConnectionInfo（用于远程连接）和 LocalExecutionPartitionConnectionInfo（用于本地执行）。
     private final PartitionConnectionInfo partitionConnectionInfo;
-
+    // 结果分区 ID。
+    // 该描述符所指向的逻辑中间结果分区的唯一 ID。
     private final ResultPartitionID resultPartitionID;
-
+    // 分层 Shuffle 描述符。
+    // 可选属性，用于支持 Tiered Shuffle 架构。
+    // 它包含指向数据可能存储在不同存储层（如内存、磁盘、外部存储）的描述符列表。
     @Nullable private final List<TierShuffleDescriptor> tierShuffleDescriptors;
 
     public NettyShuffleDescriptor(

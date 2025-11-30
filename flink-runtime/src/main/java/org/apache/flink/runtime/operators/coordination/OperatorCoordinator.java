@@ -76,6 +76,11 @@ import java.util.concurrent.CompletableFuture;
  *       because between those methods, the new attempts are scheduled and deployed.
  * </ol>
  */
+// OperatorCoordinator 接口是 Flink 1.11 引入的算子协调器机制的核心，
+// 它运行在 JobManager/Dispatcher 侧，负责管理和协调一个逻辑算子（Operator）的所有并行任务实例（Subtasks）。
+// 解耦与集中管理： 将传统上由 Source Task 自己完成的、涉及 I/O 或阻塞操作的复杂协调逻辑（如发现新文件、分配分片）从 TaskManager 侧卸载到 JobManager 侧。
+// 保证一致性： 提供了与 Flink 检查点（Checkpoint）机制严格集成的恢复和状态管理生命周期，确保在故障恢复时，协调器与并行子任务的状态保持一致
+// 应用场景： 最典型的应用是 新 Source 架构 中的 SourceCoordinator，用于动态发现和分配数据分片（Splits）。
 @Internal
 public interface OperatorCoordinator extends CheckpointListener, AutoCloseable {
 
@@ -84,9 +89,11 @@ public interface OperatorCoordinator extends CheckpointListener, AutoCloseable {
      * indicates that the restore is to the "initial state" of the coordinator or the failed
      * subtask.
      */
+    // 当没有已完成的检查点可供恢复时，传给恢复方法的检查点 ID，通常表示恢复到“初始状态”。
     long NO_CHECKPOINT = -1L;
 
     /** The checkpoint ID passed to the restore methods when batch scenarios. */
+    // 在批处理（Batch）场景下，如果支持快照，用于 checkpointCoordinator 和 resetToCheckpoint的检查点 ID。
     long BATCH_CHECKPOINT_ID = -1L;
 
     // ------------------------------------------------------------------------
@@ -97,12 +104,16 @@ public interface OperatorCoordinator extends CheckpointListener, AutoCloseable {
      *
      * @throws Exception Any exception thrown from this method causes a full job failure.
      */
+    // 启动协调器。
+    // 在协调器开始工作前调用一次。如果抛出异常，会导致整个作业失败。
     void start() throws Exception;
 
     /**
      * This method is called when the coordinator is disposed. This method should release currently
      * held resources. Exceptions in this method do not cause the job to fail.
      */
+    // 关闭/资源释放。
+    // 当协调器被销毁时调用，用于释放资源。此方法中的异常不会导致作业失败。
     @Override
     void close() throws Exception;
 
@@ -115,6 +126,9 @@ public interface OperatorCoordinator extends CheckpointListener, AutoCloseable {
      * @throws Exception Any exception thrown by this method results in a full job failure and
      *     recovery.
      */
+    // 处理来自算子的事件。
+    // 接收并处理来自某个并行算子实例（Subtask）发送的事件。
+    // 协调器可以根据这些事件做出反应，例如 Source 任务报告已完成分片。
     void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event)
             throws Exception;
 
@@ -147,6 +161,9 @@ public interface OperatorCoordinator extends CheckpointListener, AutoCloseable {
      * @throws Exception Any exception thrown by this method results in a full job failure and
      *     recovery.
      */
+    // 协调器检查点。 异步地对协调器进行状态快照。
+    // 协调器状态（以 $\text{byte[]}$ 形式）必须通过完成 $\text{resultFuture}$ 来提交。
+    // 这保证了精确一次 (Exactly-once) 的语义。
     void checkpointCoordinator(long checkpointId, CompletableFuture<byte[]> resultFuture)
             throws Exception;
 

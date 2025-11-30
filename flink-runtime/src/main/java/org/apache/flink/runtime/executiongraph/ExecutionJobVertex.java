@@ -78,50 +78,74 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * An {@code ExecutionJobVertex} is part of the {@link ExecutionGraph}, and the peer to the {@link
  * JobVertex}.
- *表示作业中一个逻辑算子的并行化实现
+ *
  * <p>The {@code ExecutionJobVertex} corresponds to a parallelized operation. It contains an {@link
- * ExecutionVertex} for each parallel instance of that operation. 通过Archiveable接口，ExecutionJobVertex可以变为归档ArchivedExecutionJobVertex
+ * ExecutionVertex} for each parallel instance of that operation.
  */
+// ExecutionJobVertex 是 Flink 执行图 (ExecutionGraph) 中的一个核心组件，是 逻辑作业图 (JobGraph) 中 JobVertex 的运行时对应物。
+// 逻辑到物理的桥梁： 将一个逻辑算子（如 Map、Source、Sink）转换为 Flink 运行时可调度和管理的物理执行结构。
+// 并行实例的容器： 它包含该算子的所有并行子任务实例，即 ExecutionVertex 数组。如果一个 Job Vertex 的并行度为 $N$，那么它就包含 $N$ 个 ExecutionVertex。
+// Job 级别状态管理： 维护和聚合其所有子任务的运行时状态（如总进度、聚合状态、累计器），并提供对连接信息（输入、输出）和配置信息（并行度、资源）的访问。
+// ExecutionJobVertex 代表了 Flink 作业中的一个并行算子阶段。
+
+
 public class ExecutionJobVertex
         implements AccessExecutionJobVertex, Archiveable<ArchivedExecutionJobVertex> {
 
     /** Use the same log for all ExecutionGraph classes. */
     private static final Logger LOG = DefaultExecutionGraph.LOG;
 
+    // 用于同步对 ExecutionJobVertex 内部状态（尤其是涉及到 taskInformationOrBlobKey 的并发访问）进行修改的锁对象。
     private final Object stateMonitor = new Object();
 
-    private final InternalExecutionGraphAccessor graph;  //表示当前任务所属的 ExecutionGraph
-    //JobGraph的顶点
+    // 所属的 ExecutionGraph 接口。
+    // 允许访问其父级 ExecutionGraph 的信息和功能（如作业 ID、Blob 写入器）。
+    private final InternalExecutionGraphAccessor graph;
+    // 对应的逻辑作业顶点。
+    // 指向 JobGraph 中表示该算子的原始配置。
     private final JobVertex jobVertex;
-    //表示每个并行子任务的执行单元
+    // 并行子任务实例数组。
+    // 包含该逻辑顶点所有并行度上的 $\text{ExecutionVertex}$ 实例。只有在初始化后才非空。
     @Nullable private ExecutionVertex[] taskVertices;
-    //表示当前任务产生的所有中间结果
+    // 产生的中间结果。
+    // 包含该顶点所有输出边对应的中间结果集。
     @Nullable private IntermediateResult[] producedDataSets;
-    //表示当前任务的所有输入
+    // 任务的所有输入。
+    // 包含该顶点从其前驱节点接收数据的所有中间结果集。
     @Nullable private List<IntermediateResult> inputs;
-    //存储并行度及最大并行度信息
+    // 并行度信息存储。
+    // 存储配置的并行度、最大并行度等信息。
     private final VertexParallelismInformation parallelismInfo;
-     //任务的 Slot 共享组，用于优化资源使用
+     // 槽位共享组。
+     // 定义了哪些 Job Vertex 可以共享 TaskManager 中的 Slot 资源。
     private final SlotSharingGroup slotSharingGroup;
-    //控制多个任务的协同调度
+    // 协同定位组。
+    // 如果任务需要严格地部署在同一个 TaskManager 上，此属性定义了该分组。
     @Nullable private final CoLocationGroup coLocationGroup;
-    //表示当前任务的输入分片，用于数据分片和分配
+    // 输入分片。
+    // 对于 Source 算子，存储该任务需要处理的数据输入分片列表。
     @Nullable private InputSplit[] inputSplits;
-     //描述此任务的资源需求（CPU、内存等）
+     // 资源配置。
+     // 描述该 Job Vertex 的子任务所需的资源（CPU、内存等）。
     private final ResourceProfile resourceProfile;
-     //记录已完成的执行子任务数量
+     // 已完成子任务计数器。
+     // 记录当前已处于 FINISHED 状态的 ExecutionVertex 数量。
     private int numExecutionVertexFinished;
 
     /**
      * Either store a serialized task information, which is for all sub tasks the same, or the
      * permanent blob key of the offloaded task information BLOB containing the serialized task
-     * information.存储任务信息或其对应的永久 Blob 键
+     * information.
      */
+    // 任务信息或其 Blob 键。
+    // 存储序列化后的任务配置信息 $\text{TaskInformation}$，如果信息过大，则存储其在 Blob 存储中的永久键。
     private Either<SerializedValue<TaskInformation>, PermanentBlobKey> taskInformationOrBlobKey =
             null;
-    //当前任务中所有算子的协调器集合
+    // 算子协调器集合。
+    // 包含该顶点中所有算子相关的 $\text{OperatorCoordinatorHolder}$ 实例，用于管理 Source 协调或状态处理。
     private final Collection<OperatorCoordinatorHolder> operatorCoordinators;
-    //为任务分配输入分片的分配器
+    // 输入分片分配器。
+    // 对于 Source 算子，负责将 inputSplits 分配给各个并行子任务。
     @Nullable private InputSplitAssigner splitAssigner;
 
     @VisibleForTesting
@@ -185,6 +209,9 @@ public class ExecutionJobVertex
         }
     }
 
+    // 作用是执行物理初始化，将一个逻辑作业顶点 (JobVertex) 转化为可运行的并行执行结构，并为调度和执行做好准备。
+    // 创建了所有的并行子任务实例（ExecutionVertex）、定义了输出数据集，并为 Source 任务准备了输入数据。
+
     protected void initialize(
             int executionHistorySizeLimit,
             Time timeout,
@@ -192,17 +219,23 @@ public class ExecutionJobVertex
             SubtaskAttemptNumberStore initialAttemptCounts)
             throws JobException {
 
+        // 前置条件检查 1。
+        // 确保该 JobVertex 的并行度已确定且大于零。如果并行度为零或未确定，则抛出异常。
         checkState(parallelismInfo.getParallelism() > 0);
+        // 前置条件检查 2。
+        // 确保该 JobVertex 尚未初始化（即 taskVertices 仍为 $\text{null}$），防止重复初始化。
         checkState(!isInitialized());
-
+        // 初始化 ExecutionVertex 数组。
         this.taskVertices = new ExecutionVertex[parallelismInfo.getParallelism()];
-
+        // 初始化输入列表
         this.inputs = new ArrayList<>(jobVertex.getInputs().size());
 
         // create the intermediate results
+        // 初始化输出数据集数组
         this.producedDataSets =
                 new IntermediateResult[jobVertex.getNumberOfProducedIntermediateDataSets()];
-
+        // 遍历逻辑输出。
+        // 遍历 $\text{JobVertex}$ 配置中定义的所有逻辑输出数据集 (IntermediateDataSet)
         for (int i = 0; i < jobVertex.getProducedDataSets().size(); i++) {
             final IntermediateDataSet result = jobVertex.getProducedDataSets().get(i);
 
@@ -215,6 +248,7 @@ public class ExecutionJobVertex
         }
 
         // create all task vertices
+        // 创建 ExecutionVertex 实例
         for (int i = 0; i < this.parallelismInfo.getParallelism(); i++) {
             ExecutionVertex vertex =
                     createExecutionVertex(
@@ -231,6 +265,9 @@ public class ExecutionJobVertex
 
         // sanity check for the double referencing between intermediate result partitions and
         // execution vertices
+
+        // 遍历所有新创建的IntermediateResult，
+        // 检查其分配的分区数量是否恰好等于该 JobVertex 的并行度。这是确保数据流拓扑完整性的重要检查。
         for (IntermediateResult ir : this.producedDataSets) {
             if (ir.getNumberOfAssignedPartitions() != this.parallelismInfo.getParallelism()) {
                 throw new RuntimeException(
@@ -241,10 +278,13 @@ public class ExecutionJobVertex
         // set up the input splits, if the vertex has any
         try {
             @SuppressWarnings("unchecked")
+            // 获取 JobVertex 上配置的 InputSplitSource（通常是 Source 任务才有）
             InputSplitSource<InputSplit> splitSource =
                     (InputSplitSource<InputSplit>) jobVertex.getInputSplitSource();
 
             if (splitSource != null) {
+                // 设置类加载器。
+                // 为了安全地调用用户代码（splitSource 可能在用户 JAR 包中），需要临时将当前线程的上下文类加载器设置为用户的类加载器。
                 Thread currentThread = Thread.currentThread();
                 ClassLoader oldContextClassLoader = currentThread.getContextClassLoader();
                 currentThread.setContextClassLoader(graph.getUserClassLoader());
@@ -300,7 +340,8 @@ public class ExecutionJobVertex
                 getTaskInformation(),
                 jobManagerJobMetricGroup);
     }
-
+    //  检查初始化状态。
+    //  返回 taskVertices 是否已创建（即 initialize方法是否已成功执行）
     public boolean isInitialized() {
         return taskVertices != null;
     }

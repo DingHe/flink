@@ -82,6 +82,14 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * requests and spawning threads to handle these requests. Furthermore, it takes care of creating
  * the directory structure to store the BLOBs or temporarily cache them.
  */
+// Flink 集群中负责**二进制大对象（Binary Large Object，BLOB）**存储和传输的核心组件。
+// BlobServer 充当 Flink 集群的中央存储服务，主要职能是接收、存储和分发 JobMaster（或 Dispatcher）提交的各类大型二进制文件或数据块。
+// 文件存储与访问（读写）：
+// 接收和存储 永久 BLOB（如用户 JAR 文件、JobGraph 依赖，生命周期与作业或集群相关）。
+// 接收和存储 瞬态 BLOB（如大型序列化配置、运行时优化数据，有生存时间 TTL）。
+// 提供接口供 TaskManager 等组件通过 BlobKey 获取这些文件的本地副本。
+// 网络服务： 作为一个独立的 Thread 运行，监听配置的端口，接收来自 BlobClient 的上传（PUT）和下载（GET）请求。
+// 高可用（HA）集成： 如果配置了高可用，它与 BlobStore（如 ZooKeeper/HDFS 支持的 HA 存储）进行交互，将永久 BLOB 持久化到共享存储中，并在 TaskManager 本地缓存缺失时从 HA 存储下载。
 public class BlobServer extends Thread
         implements BlobService,
                 BlobWriter,

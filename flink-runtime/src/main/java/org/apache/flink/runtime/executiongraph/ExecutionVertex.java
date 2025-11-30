@@ -53,44 +53,68 @@ import static org.apache.flink.runtime.execution.ExecutionState.FINISHED;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** 会被调度到TaskManager执行
+/**
  * The ExecutionVertex is a parallel subtask of the execution. It may be executed once, or several
  * times, each of which time it spawns an {@link Execution}.
  */
+// ExecutionVertex 是 Flink 执行图 (ExecutionGraph) 中的核心组件，
+// 它代表了 Flink 任务中的一个并行子任务（Subtask）。它是实际调度到 TaskManager 上执行的最小工作单元。
+// 并行任务实例： ExecutionVertex 是 JobGraph 中 JobVertex 的一个并行实例（例如，如果一个 Map 算子并行度为 4，那么它对应 4 个 ExecutionVertex）。
+// 执行尝试的容器： 它充当了任务历次执行尝试（Execution）的容器。当一个子任务失败需要重试时，ExecutionVertex 会创建并管理一个新的 Execution 对象，同时保留历史记录。
+// 状态与产出管理： 它记录了该子任务的当前状态、所属的并行度、以及它所产生的中间结果分区（IntermediateResultPartition）。
+// 调度与资源管理： 它负责处理输入分片（InputSplit）的分配，并记录上一次成功分配的 TaskManager 位置，为后续调度提供位置偏好（Locality Preference）。
+// ExecutionVertex 是 Flink 调度和执行的核心实体，它将逻辑任务转化为可执行的物理实例，并管理该实例在 Job 生命周期内的所有运行状态和重试历史。
 public class ExecutionVertex
         implements AccessExecutionVertex, Archiveable<ArchivedExecutionVertex> {
 
     public static final long NUM_BYTES_UNKNOWN = -1;
 
     // --------------------------------------------------------------------------------------------
-
+    // 所属任务组。
+    // 指向该并行子任务所属的逻辑任务组（JobVertex 在执行图中的对应）。
     final ExecutionJobVertex jobVertex;
-
+    // 产生的中间结果分区。
+    // 该子任务所产出的所有中间结果分区 (IntermediateResultPartition) 的映射。
+    // 这是数据流向下游任务的出口。
     private final Map<IntermediateResultPartitionID, IntermediateResultPartition> resultPartitions;
-
+    // 并行子任务索引。
+    // 该子任务在整个任务组中的唯一索引（从 0 开始）。
     private final int subTaskIndex;
-
+    // 执行顶点 ID。
+    // 该并行子任务的全局唯一 ID，由 JobVertexID 和 subTaskIndex 构成。
     private final ExecutionVertexID executionVertexId;
-
+    // 执行历史记录。
+    // 记录该子任务从开始到现在的所有执行尝试 (Execution) 的历史信息。
     final ExecutionHistory executionHistory;
-
+    // RPC 超时时间。
+    //
     private final Time timeout;
 
     /** The name in the format "myTask (2/7)", cached to avoid frequent string concatenations. */
+    // 格式化的任务名称。
+    // 缓存了如 "myTask (2/7)" 的任务名称，便于日志和 UI 显示。
     private final String taskNameWithSubtask;
 
     /** The current or latest execution attempt of this vertex's task. */
+    // 当前执行尝试。
+    // 该子任务当前或最近一次执行尝试的运行时对象。
     Execution currentExecution; // this field must never be null
-
+    // 已分配的输入分片。
+    // 记录分配给该子任务的输入数据分片列表。
     final ArrayList<InputSplit> inputSplits;
-
+    // 下一个尝试编号。
+    // 记录下一次创建 Execution 对象时应使用的尝试编号。
     private int nextAttemptNumber;
-
+    // 输入字节数。
+    // 记录该子任务已处理的输入数据量（字节），默认为 -1。
     private long inputBytes;
 
     /** This field holds the allocation id of the last successful assignment. */
+    // 上次分配位置。
+    // 记录该任务上一次成功执行或分配资源的 TaskManager 的位置，用于数据本地性调度。
     @Nullable private TaskManagerLocation lastAssignedLocation;
-
+    // 上次分配 ID。
+    // 记录该任务上一次成功分配资源的 AllocationID。
     @Nullable private AllocationID lastAssignedAllocationID;
 
     // --------------------------------------------------------------------------------------------
@@ -156,7 +180,8 @@ public class ExecutionVertex
     // --------------------------------------------------------------------------------------------
     //  Properties
     // --------------------------------------------------------------------------------------------
-
+    // 创建新的执行尝试。
+    // 创建一个新的 Execution 实例，增加 nextAttemptNumber，并用新的尝试编号初始化。
     Execution createNewExecution(final long timestamp) {
         return new Execution(
                 getExecutionGraphAccessor().getFutureExecutor(),
@@ -165,7 +190,8 @@ public class ExecutionVertex
                 timestamp,
                 timeout);
     }
-
+    // 获取输入信息。
+    // 获取该子任务消费特定上游数据集的输入元信息。
     public ExecutionVertexInputInfo getExecutionVertexInputInfo(IntermediateDataSetID resultId) {
         return getExecutionGraphAccessor()
                 .getJobVertexInputInfo(getJobvertexId(), resultId)
@@ -257,7 +283,8 @@ public class ExecutionVertex
 
         return allConsumedPartitions.get(input);
     }
-
+    // 获取下一个输入分片。
+    // 从所属任务组的 InputSplitAssigner 获取该子任务要处理的下一个输入分片，并记录到 inputSplits 列表中。
     public Optional<InputSplit> getNextInputSplit(String host, int attemptNumber) {
         final int subtaskIndex = getParallelSubtaskIndex();
         final InputSplit nextInputSplit =
@@ -281,6 +308,8 @@ public class ExecutionVertex
         checkArgument(attemptNumber == currentExecution.getAttemptNumber());
         return currentExecution;
     }
+    // 获取当前执行状态。
+    // 返回当前执行尝试 (currentExecution) 的 ExecutionState（如 RUNNING, FINISHED 等）。
 
     @Override
     public ExecutionState getExecutionState() {
@@ -443,11 +472,11 @@ public class ExecutionVertex
                             + '.');
         }
     }
-
+    // 触发当前 Execution 尝试向 TaskManager 部署任务。
     public void deploy() throws JobException {
         currentExecution.deploy();
     }
-
+    // 代理调用当前 Execution 尝试的对应方法，用于取消、挂起或标记任务失败。
     @VisibleForTesting
     public void deployToSlot(LogicalSlot slot) throws JobException {
         if (currentExecution.tryAssignResource(slot)) {

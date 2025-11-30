@@ -25,12 +25,20 @@ import java.util.Collection;
 import java.util.Optional;
 
 /** Common interface for the runtime {@link ExecutionVertex} and {@link ArchivedExecutionVertex}. */
+// AccessExecutionVertex 是 Flink 执行图 (ExecutionGraph) 中的一个公共接口，
+// 用于提供对 一个并行子任务（即 JobVertex 的一个并行实例）状态和元数据的统一访问。
+// 该接口的作用是为 Flink 的监控、调度和恢复组件提供一个标准化的、统一的视图，来访问单个并行子任务的生命周期信息，无论该信息是来自：
+// 当前运行时的执行顶点 (ExecutionVertex)：代表 JobGraph 中一个任务的一个并行实例。
+// 已归档的历史执行顶点 (ArchivedExecutionVertex)：代表已完成 Job 的历史记录中的一个并行实例。
+// 它代表了 JobGraph 中一个 JobVertex 的特定并行实例（如 MapFunction (1/4)），并聚合了该子任务的所有执行尝试信息和当前状态。
 public interface AccessExecutionVertex {
     /**
      * Returns the name of this execution vertex in the format "myTask (2/7)".
      *
      * @return name of this execution vertex
      */
+    // 获取包含子任务索引的任务名称。
+    // 返回一个格式化的字符串，清晰地标识出任务名称及其并行度索引，例如 "myTask (2/7)"。这对于用户界面和日志记录非常有用。
     String getTaskNameWithSubtaskIndex();
 
     /**
@@ -38,6 +46,8 @@ public interface AccessExecutionVertex {
      *
      * @return subtask index of this execution vertex.
      */
+    // 获取并行子任务索引。
+    // 返回该执行顶点在整个任务组（JobVertex）中的并行索引（从 0 开始）。
     int getParallelSubtaskIndex();
 
     /**
@@ -45,6 +55,8 @@ public interface AccessExecutionVertex {
      *
      * @return current execution
      */
+    // 获取当前执行尝试。
+    // 返回最近或当前正在活动的 AccessExecution 实例。这个实例包含了该子任务当前这次执行尝试的详细信息（如尝试 ID、状态时间戳等）。
     AccessExecution getCurrentExecutionAttempt();
 
     /**
@@ -53,6 +65,9 @@ public interface AccessExecutionVertex {
      *
      * @return current executions
      */
+    // 获取当前活动的执行尝试集合。
+    // 返回该执行顶点当前所有活动的执行尝试集合。在不支持并发执行尝试（supportsConcurrentExecutionAttempts）的场景中，
+    // 集合中通常只包含一个元素，即 getCurrentExecutionAttempt() 返回的结果。
     <T extends AccessExecution> Collection<T> getCurrentExecutions();
 
     /**
@@ -60,6 +75,9 @@ public interface AccessExecutionVertex {
      *
      * @return execution state for this execution vertex
      */
+    // 获取执行状态。
+    // 返回该执行顶点当前的聚合 ExecutionState（例如：DEPLOYING、RUNNING、FAILED）。
+    // 这个状态通常由当前活动的执行尝试的状态决定。
     ExecutionState getExecutionState();
 
     /**
@@ -68,6 +86,8 @@ public interface AccessExecutionVertex {
      * @param state state for which the timestamp should be returned
      * @return timestamp for the given state
      */
+    // 获取指定状态的时间戳。
+    // 返回该并行子任务进入指定 ExecutionState 的时间戳。
     long getStateTimestamp(ExecutionState state);
 
     /**

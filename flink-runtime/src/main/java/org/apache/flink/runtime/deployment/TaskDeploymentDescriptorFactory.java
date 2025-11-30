@@ -64,15 +64,23 @@ import static org.apache.flink.configuration.ConfigOptions.key;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** 主要负责根据任务的执行信息创建任务部署描述符（TaskDeploymentDescriptor）。这个类包含了任务部署所需的各种信息，包括任务信息、分区描述符、Shuffle 描述符等
+/**
  * Factory of {@link TaskDeploymentDescriptor} to deploy {@link
  * org.apache.flink.runtime.taskmanager.Task} from {@link Execution}.
  */
+// Flink JobMaster 侧的一个核心组件，其主要作用是封装创建任务部署描述符 (TaskDeploymentDescriptor, TDD) 的复杂逻辑。
+// TDD 是一个包含任务执行所需所有信息的序列化对象，JobMaster 会将其发送给 TaskManager，TaskManagers 依据 TDD 来启动和运行任务。
+// 收集信息： 从 Execution、ExecutionVertex 和 ExecutionGraph 中收集运行任务所需的所有元数据（如 Job 信息、Task 信息、检查点恢复信息等）
+// 生成连接信息： 为任务要消费的上游分区（输入）和要生产的下游分区（输出）生成网络/Shuffle 连接描述符 (ShuffleDescriptor)
+// 处理数据： 决定是否将大型元数据（如 Job/Task 信息和大量的 Shuffle 描述符）卸载到 Blob Server (BLOB: Binary Large Object) 上，以减少 JobMaster 与 TaskManager 之间的 RPC 消息大小，优化部署效率。
+
 public class TaskDeploymentDescriptorFactory {
-    /** 用于设置在何种情况下将 Shuffle 描述符转储到 Blob 服务器。如果 Shuffle 描述符的数量超过这个阈值（默认是 2048 * 2048），则会将其转储到 Blob 服务器
+    /**
      * This is an expert option, that we do not want to expose in the documentation. The default
      * value is good enough for almost all cases
      */
+    // 定义了一个阈值，
+    // 用于判断是否应该将任务的输入 Shuffle 描述符卸载到 BLOB Server
     @Experimental
     public static final ConfigOption<Integer> OFFLOAD_SHUFFLE_DESCRIPTORS_THRESHOLD =
             key("jobmanager.task-deployment.offload-shuffle-descriptors-to-blob-server.threshold-num")
@@ -83,12 +91,20 @@ public class TaskDeploymentDescriptorFactory {
                                     + " exceeds this value, we will offload the shuffle descriptors to blob server."
                                     + " This default value means JobManager need to serialize and transport"
                                     + " 2048 shuffle descriptors (almost 32KB) to 2048 consumers (64MB in total)");
-    //该属性存储序列化后的作业信息，MaybeOffloaded 类型表示作业信息可能已经转储到 Blob 服务器，也可能未转储，具体取决于数据的大小
+    // 序列化后的 Job 级别配置和信息 (JobInformation)。
+    // 它是一个包装类，可能包含序列化的 JobInformation 本身，或者指向 BLOB Server 上的一个永久 Blob Key（如果信息已卸载）。
     private final MaybeOffloaded<JobInformation> serializedJobInformation;
+    // 当前作业的唯一标识符。
     private final JobID jobID;
-    private final PartitionLocationConstraint partitionDeploymentConstraint; //该约束定义了分区的位置是否必须在部署时已知，或者可以稍后更新
-    private final boolean nonFinishedHybridPartitionShouldBeUnknown; //这个标志表示是否将未完成的混合分区标记为未知的 Shuffle 描述符
-    private final ShuffleDescriptorSerializer shuffleDescriptorSerializer; //用于序列化 Shuffle 描述符的序列化器
+    // 定义分区位置的约束。对于流处理 (STREAMING) 任务，上游分区的位置必须是已知的 (MUST_BE_KNOWN)；
+    // 对于批处理 (BATCH) 任务，上游分区位置可以是未知的 (CAN_BE_UNKNOWN)，允许运行时再获取
+    private final PartitionLocationConstraint partitionDeploymentConstraint;
+    // 如果结果分区类型是 Hybrid（混合存储/网络），并且上游生产者尚未完成 (FINISHED)，
+    // 则该标志决定是否将对应的 Shuffle 描述符标记为 UnknownShuffleDescriptor。
+    // 这是针对混合模式下的优化或特殊处理。
+    private final boolean nonFinishedHybridPartitionShouldBeUnknown;
+    // 用于序列化 Shuffle 描述符的接口实例
+    private final ShuffleDescriptorSerializer shuffleDescriptorSerializer;
 
     public TaskDeploymentDescriptorFactory(
             Either<SerializedValue<JobInformation>, PermanentBlobKey> jobInformationOrBlobKey,
@@ -109,12 +125,13 @@ public class TaskDeploymentDescriptorFactory {
     public MaybeOffloaded<JobInformation> getSerializedJobInformation() {
         return serializedJobInformation;
     }
-
+    // 负责将 JobMaster 侧的调度和元数据信息整合，创建出要发送给 TaskManager 的任务部署描述符 (TaskDeploymentDescriptor 或 TDD)。
+    //
     public TaskDeploymentDescriptor createDeploymentDescriptor(
-            Execution execution, //表示任务的执行对象
-            AllocationID allocationID, //任务分配的 ID
-            @Nullable JobManagerTaskRestore taskRestore, //如果任务需要恢复（可选）
-            Collection<ResultPartitionDeploymentDescriptor> producedPartitions) //任务产生的分区
+            Execution execution, // 当前任务的执行尝试实例 (Execution)，从中获取任务 ID、尝试次数和父顶点等信息。
+            AllocationID allocationID, // 任务被分配到的资源槽的唯一 ID (AllocationID)。TaskManagers 用此 ID 识别资源槽。
+            @Nullable JobManagerTaskRestore taskRestore, // 任务的恢复信息 (JobManagerTaskRestore)，如果任务是从检查点恢复启动，则包含状态数据的位置信息。对于新启动的任务，该参数为 null。
+            Collection<ResultPartitionDeploymentDescriptor> producedPartitions) // 该任务将要产生的所有输出中间结果分区的部署描述符集合，这些信息已通过 ShuffleMaster 注册并准备好。
             throws IOException, ClusterDatasetCorruptedException {
         final ExecutionVertex executionVertex = execution.getVertex();
 
@@ -129,20 +146,25 @@ public class TaskDeploymentDescriptorFactory {
                 new ArrayList<>(producedPartitions),
                 createInputGateDeploymentDescriptors(executionVertex));
     }
-    //该方法为任务创建输入门（Input Gate）部署描述符
+    // 核心作用是为当前任务（ExecutionVertex）创建所有输入连接的部署描述符列表，即 InputGateDeploymentDescriptor
+    // 这些描述符告诉 TaskManager 上的 Task 如何以及在哪里连接和消费上游任务产生的数据。
     private List<InputGateDeploymentDescriptor> createInputGateDeploymentDescriptors(
             ExecutionVertex executionVertex) throws IOException, ClusterDatasetCorruptedException {
 
+        // 从 ExecutionVertex 获取当前任务需要消费的所有分区组 (ConsumedPartitionGroup)。
+        // 一个分区组通常对应于一个上游 JobVertex 的全部输出分区。
         List<ConsumedPartitionGroup> consumedPartitionGroups =
                 executionVertex.getAllConsumedPartitionGroups();
+        // 初始化一个列表，用于存储最终的 InputGateDeploymentDescriptor 实例。
         List<InputGateDeploymentDescriptor> inputGates =
                 new ArrayList<>(consumedPartitionGroups.size());
-
+        // 遍历所有需要消费的分区组。
         for (ConsumedPartitionGroup consumedPartitionGroup : consumedPartitionGroups) {
             // If the produced partition has multiple consumers registered, we
             // need to request the one matching our sub task index.
             // TODO Refactor after removing the consumers from the intermediate result partitions
-
+            // 根据分区组中的第一个分区 ID 找到对应的 IntermediateResult 对象。
+            // 该对象包含了数据流的逻辑信息。
             IntermediateResult consumedIntermediateResult =
                     executionVertex
                             .getExecutionGraphAccessor()
@@ -151,11 +173,13 @@ public class TaskDeploymentDescriptorFactory {
 
             IntermediateDataSetID resultId = consumedIntermediateResult.getId();
             ResultPartitionType partitionType = consumedIntermediateResult.getResultType();
+            // 获取当前子任务需要消费的子分区（Subpartition）的索引范围。
+            // 这对于非全部分区消费（如 RANGE 分区策略）是必需的。
             IndexRange subpartitionRange =
                     executionVertex
                             .getExecutionVertexInputInfo(resultId)
                             .getSubpartitionIndexRange();
-
+            // 创建并添加 InputGate 描述符。
             inputGates.add(
                     new InputGateDeploymentDescriptor(
                             resultId,
@@ -171,6 +195,8 @@ public class TaskDeploymentDescriptorFactory {
         final Map<IntermediateDataSetID, ShuffleDescriptorAndIndex[]>
                 consumedClusterPartitionShuffleDescriptors;
         try {
+            // 获取该分区组中所有上游分区的 ShuffleDescriptor（包含连接地址），
+            // 这是 TaskManager 建立数据连接的关键。
             consumedClusterPartitionShuffleDescriptors =
                     getClusterPartitionShuffleDescriptors(executionVertex);
         } catch (Throwable e) {
@@ -181,7 +207,7 @@ public class TaskDeploymentDescriptorFactory {
                             .getJobVertex()
                             .getIntermediateDataSetIdsToConsume());
         }
-
+        // 处理集群共享分区输入。
         for (Map.Entry<IntermediateDataSetID, ShuffleDescriptorAndIndex[]> entry :
                 consumedClusterPartitionShuffleDescriptors.entrySet()) {
             // For FLIP-205, the JobGraph generating side ensure that the cluster partition is
@@ -197,7 +223,6 @@ public class TaskDeploymentDescriptorFactory {
 
         return inputGates;
     }
-   //该方法获取已消费分区的 Shuffle 描述符
     private List<MaybeOffloaded<ShuffleDescriptorGroup>> getConsumedPartitionShuffleDescriptors(
             IntermediateResult intermediateResult,
             ConsumedPartitionGroup consumedPartitionGroup,
@@ -277,7 +302,8 @@ public class TaskDeploymentDescriptorFactory {
         }
         return clusterPartitionShuffleDescriptors;
     }
-
+    // 获取序列化的 Job 信息
+    // 返回 serializedJobInformation 成员属性，即包含 Job 信息序列化数据或其 Blob Key 的 MaybeOffloaded 实例
     private static MaybeOffloaded<JobInformation> getSerializedJobInformation(
             Either<SerializedValue<JobInformation>, PermanentBlobKey> jobInformationOrBlobKey) {
         if (jobInformationOrBlobKey.isLeft()) {
@@ -286,7 +312,8 @@ public class TaskDeploymentDescriptorFactory {
             return new TaskDeploymentDescriptor.Offloaded<>(jobInformationOrBlobKey.right());
         }
     }
-
+    // 获取序列化的 Task 信息。
+    // 类似于 getSerializedJobInformation，将 TaskInformation 的序列化数据或其 Blob Key 封装到 MaybeOffloaded 中。
     private static MaybeOffloaded<TaskInformation> getSerializedTaskInformation(
             Either<SerializedValue<TaskInformation>, PermanentBlobKey> taskInfo) {
         return taskInfo.isLeft()

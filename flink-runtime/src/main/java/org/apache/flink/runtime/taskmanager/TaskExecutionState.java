@@ -34,6 +34,14 @@ import java.io.Serializable;
  * deserialized without a special class loader. For that reason, the class keeps the actual
  * exception field transient and deserialized it lazily, with the appropriate class loader.
  */
+// 想象一下 Flink 的架构：TaskManager 负责干活（执行 Task），JobMaster 负责指挥（调度）。
+// 当 TaskManager 上的一个任务状态发生变化（比如任务跑完了，或者报错挂了），它必须向 JobMaster 汇报。TaskExecutionState 就是这份“汇报单”。
+// TaskExecutionState 是一个数据传输对象（DTO），用于在 TaskManager 和 JobMaster 之间传递关于任务执行状态的更新信息。
+// 状态汇报：它封装了一个任务（Task）当前的执行状态（如 RUNNING、FINISHED、FAILED）
+// 异常携带：如果任务失败，它会携带导致失败的异常信息（Throwable）
+// 结果统计：在任务结束时，它会携带任务执行期间产生的累加器（Accumulators）数据和 I/O 指标（IOMetrics），供 JobMaster 统计和展示。
+// 序列化与类加载隔离：它特殊处理了异常对象。因为用户的代码可能会抛出自定义异常，而 JobMaster 的系统类加载器可能无法识别这些用户定义的类。
+// 因此，这个类将异常包装为 SerializedThrowable，直到需要时再用正确的用户类加载器去反序列化它。
 public class TaskExecutionState implements Serializable {
 
     private static final long serialVersionUID = 1L;

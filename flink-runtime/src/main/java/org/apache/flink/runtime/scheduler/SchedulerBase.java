@@ -135,40 +135,55 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /** Base class which can be used to implement {@link SchedulerNG}. */
+// SchedulerBase 是 Flink 中实现 SchedulerNG 接口的一个抽象基类。
+// 它的主要作用是为所有具体的调度器（如 DefaultScheduler、AdaptiveScheduler 等）提供通用、统一的基础架构和核心组件管理能力。
+// ExecutionGraph 的创建与管理：负责将逻辑 JobGraph 转换为物理 ExecutionGraph，并进行状态恢复。
+// 容错服务集成：管理检查点（Checkpoint）相关的核心服务，如 CompletedCheckpointStore、CheckpointIDCounter 和 CheckpointCoordinator 的创建和生命周期管理。
 public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling {
 
     private final Logger log;
-    //作业图
+    // 逻辑作业图。
+    // 原始的用户作业定义，包含所有算子和连接关系。
     private final JobGraph jobGraph;
     //作业信息，就是id和name
     protected final JobInfo jobInfo;
-    //执行图
+    // 物理执行图。
+    // obGraph 的可执行版本，包含所有的执行顶点（ExecutionVertex）和执行尝试（ExecutionAttempt），是 Flink 运行时状态的核心数据结构。
     private final ExecutionGraph executionGraph;
-    //调度拓扑
+    // 调度拓扑。
+    // ExecutionGraph 的简化视图，专为调度器设计，用于分析任务的依赖关系和状态。
     private final SchedulingTopology schedulingTopology;
-    //执行顶点在哪个taskmanager
+    // 执行顶点在哪个taskmanager
     protected final StateLocationRetriever stateLocationRetriever;
-    //输入数据的位置
+    // 输入数据的位置
     protected final InputsLocationsRetriever inputsLocationsRetriever;
-    //检查点存储路径
+    // 已完成检查点存储。
+    // 负责管理和存储已成功完成的检查点元数据。
     private final CompletedCheckpointStore completedCheckpointStore;
-    //检查点清理
+    // 检查点清理器。
+    // 负责删除不再需要的或过期的检查点文件。
     private final CheckpointsCleaner checkpointsCleaner;
-
+    // 检查点 ID 计数器。
+    // 用于生成全局唯一的检查点 ID。
     private final CheckpointIDCounter checkpointIdCounter;
 
     protected final JobManagerJobMetricGroup jobManagerJobMetricGroup;
 
     protected final ExecutionVertexVersioner executionVertexVersioner;
-
+    // KvState 处理器。
+    // 管理可查询状态（Queryable State）的注册和查询。
     private final KvStateHandler kvStateHandler;
-
+    // ExecutionGraph 操作处理器。
+    // 封装了对 ExecutionGraph 进行复杂操作的逻辑。
     private final ExecutionGraphHandler executionGraphHandler;
-    //operator 协调器的handler
+    // 操作符协调器处理器。
+    // 管理所有 OperatorCoordinator 的生命周期和事件转发。
     protected final OperatorCoordinatorHandler operatorCoordinatorHandler;
-    //保证任务在指定线程处理
+    // 主线程执行器。
+    // 保证所有对调度器状态的修改都在同一个线程内安全执行，防止并发冲突。
     private final ComponentMainThreadExecutor mainThreadExecutor;
-
+    // 异常历史队列。
+    // 记录最近发生的根异常信息，用于 Web UI 展示和调试，避免内存无限增长。
     private final BoundedFIFOQueue<RootExceptionHistoryEntry> exceptionHistory;
 
     private RootExceptionHistoryEntry latestRootExceptionEntry;
@@ -176,7 +191,8 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
     private final ExecutionGraphFactory executionGraphFactory;
 
     private final MetricOptions.JobStatusMetricsSettings jobStatusMetricsSettings;
-
+    // 部署状态时间指标。
+    // 记录任务在各个部署状态（如部署中、运行中）花费的时间。
     private final DeploymentStateTimeMetrics deploymentStateTimeMetrics;
 
     private final VertexEndOfDataListener vertexEndOfDataListener;

@@ -35,6 +35,11 @@ import java.util.Map;
  * Simple registry, which maps {@link InternalKvState} registration notifications to {@link
  * KvStateLocation} instances.
  */
+// KvStateLocationRegistry（键值状态位置注册表）是 Flink 查询服务 (Queryable State) 的核心组件，
+// 它通常由 JobManager/Checkpoint Coordinator 持有。
+// 核心职责： 它充当一个中央查找服务，用于记录作业中所有 TaskManager 上注册的 KvState 实例的位置信息。
+// 映射关系： 它建立从用户定义的 KvState 注册名称 到 KvState 所在 TaskManager 地址的精确映射。
+// 将属于同一个 KvState（由相同的 registrationName 标识）但在不同 Task 实例上（即不同的 Key Group Range）的物理位置信息聚合起来，形成一个完整的 KvStateLocation 视图，供客户端查询。
 public class KvStateLocationRegistry {
 
     /** JobID this coordinator belongs to. */

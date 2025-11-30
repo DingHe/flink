@@ -33,6 +33,6 @@ public interface Result<
     RID getId();
     //获取结果类型
     ResultPartitionType getResultType();
-    //获取生产者
+    // 获取生产者
     V getProducer();
 }

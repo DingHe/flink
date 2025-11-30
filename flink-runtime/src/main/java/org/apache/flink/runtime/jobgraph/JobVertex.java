@@ -43,6 +43,12 @@ import java.util.Map;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /** The base class for job vertexes. */
+// JobVertex 是 Flink JobGraph 的基本组成单元，代表了在 Flink 集群上实际运行的一个任务组或算子链（Operator Chain）。
+// 物理执行节点： 它将 Flink 逻辑图（StreamGraph）中经过优化（如操作符链化）后的一个或多个操作符抽象为一个单一的、可调度的任务单元。
+// 拓扑结构定义： 它通过管理 JobEdge（输入边）和 IntermediateDataSet（输出数据集）来定义 JobGraph 的物理数据流和依赖关系。
+// 运行时配置： 它封装了任务执行所需的全部运行时配置，包括并行度、资源需求、Slot 共享策略、任务实现类 (TaskInvokable) 以及算子协调器。
+// JobVertex 是从用户逻辑到 Flink 运行时的关键桥梁。它是 Flink 任务调度的最小单位之一。
+
 public class JobVertex implements java.io.Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -55,7 +61,9 @@ public class JobVertex implements java.io.Serializable {
     // Members that define the structure / topology of the graph
     // --------------------------------------------------------------------------------------------
 
-    /** The ID of the vertex. 顶点id*/
+    /** The ID of the vertex. */
+    // 顶点 ID。
+    // JobGraph 中该节点的唯一标识符。
     private final JobVertexID id;
 
     /**
@@ -69,64 +77,93 @@ public class JobVertex implements java.io.Serializable {
      *   \    \
      *    C    E
      * </pre>
-     * 自动生成的id和手动指定的id的映射
      * <p>This is the same order that operators are stored in the {@code StreamTask}.
      */
+    // 操作符 ID 列表。
+    // 包含组成该 JobVertex 的所有逻辑操作符的 ID 对。
+    // 这反映了操作符链化的结果。
     private final List<OperatorIDPair> operatorIDs;
 
     /** Produced data sets, one per writer. */
+    // 产生的中间数据集。
+    // 该 JobVertex 的输出数据集合。
+    // 每个输出对应一个 IntermediateDataSet。
     private final Map<IntermediateDataSetID, IntermediateDataSet> results = new LinkedHashMap<>();
 
-    /** List of edges with incoming data. One per Reader. 输入数据*/
+    /** List of edges with incoming data. One per Reader. */
+    // 输入边列表。
+    // 连接到该 JobVertex 的所有输入边，每一条边都代表来自上游 JobVertex 的数据流。
     private final List<JobEdge> inputs = new ArrayList<>();
 
     /** The list of factories for operator coordinators. */
+    // 算子协调器提供者。
+    // 序列化后的 OperatorCoordinator.Provider 列表，用于在 JobManager 上为该任务创建和管理协调器实例（如 Source Coordinator）。
     private final List<SerializedValue<OperatorCoordinator.Provider>> operatorCoordinators =
             new ArrayList<>();
 
     /** Number of subtasks to split this task into at runtime. */
+    // 并行度。
+    // 任务在运行时应启动的并行实例数量。
+    // 默认值为 ExecutionConfig.PARALLELISM_DEFAULT (-1)。
     private int parallelism = ExecutionConfig.PARALLELISM_DEFAULT;
 
     /** Maximum number of subtasks to split this task into a runtime. */
+    // 最大并行度。
+    // 任务并行度的上限，通常用于状态的键组（Key Group）计算。默认值为 -1。
     private int maxParallelism = MAX_PARALLELISM_DEFAULT;
 
     /** The minimum resource of the vertex. */
     private ResourceSpec minResources = ResourceSpec.DEFAULT;
 
     /** The preferred resource of the vertex. */
+    // 首选资源规格。
     private ResourceSpec preferredResources = ResourceSpec.DEFAULT;
 
     /** Custom configuration passed to the assigned task at runtime. */
+    // 传递给任务在运行时使用的自定义配置。
     private Configuration configuration;
 
-    /** The class of the invokable.调用的类名称 */
+    /** The class of the invokable. */
+    // 任务调用类名。
+    // 实际在 TaskManager 上执行该任务逻辑的 TaskInvokable 类的全限定名（如 StreamTask）
     private String invokableClassName;
 
     /** Indicates of this job vertex is stoppable or not. */
+    // 是否可停止。
+    // 指示该任务在运行时是否支持 "stop with savepoint" 机制。
     private boolean isStoppable = false;
 
     /** Optionally, a source of input splits. */
+    // 输入分片源。
+    // 如果是批处理 Source 任务，提供获取输入分片 (InputSplit) 的逻辑。
     private InputSplitSource<?> inputSplitSource;
 
     /**
      * The name of the vertex. This will be shown in runtime logs and will be in the runtime
      * environment.
      */
+    // 顶点名称
     private String name;
 
     /**
      * Optionally, a sharing group that allows subtasks from different job vertices to run
      * concurrently in one slot.
      */
+    // Slot 共享组。
+    // 调度优化参数，组内不同 JobVertex 的子任务可以共享同一个 Task Slot。
     @Nullable private SlotSharingGroup slotSharingGroup;
 
     /** The group inside which the vertex subtasks share slots. */
+    // 共同定位组。
+    // 调度约束参数，组内所有子任务的相同索引（如第 $n$ 个子任务）必须部署在同一个 TaskManager 上。
     @Nullable private CoLocationGroupImpl coLocationGroup;
 
     /**
      * Optional, the name of the operator, such as 'Flat Map' or 'Join', to be included in the JSON
      * plan.
      */
+    // 操作符名称。
+    // 算子的类型名称（如 "Flat Map"）。
     private String operatorName;
 
     /**
@@ -147,19 +184,27 @@ public class JobVertex implements java.io.Serializable {
     /**
      * The intermediateDataSetId of the cached intermediate dataset that the job vertex consumes.
      */
+    // 待消费的中间数据集 ID。
+    // 列表中包含该顶点将消费的已缓存（或持久化）的中间数据集的 ID。
     private final List<IntermediateDataSetID> intermediateDataSetIdsToConsume = new ArrayList<>();
 
     /**
      * Indicates whether this job vertex supports multiple attempts of the same subtask executing at
      * the same time.
      */
+    // 支持并发执行尝试。
+    // 指示该任务是否允许同时存在多个执行尝试（例如，用于推测执行）。
     private boolean supportsConcurrentExecutionAttempts = true;
-
+    // 是否有任何阻塞输出。
+    // 标记该 JobVertex 是否有任何输出是阻塞类型 (BLOCKING) 的。
     private boolean anyOutputBlocking = false;
-
+    // 并行度是否已配置。
+    // 标识并行度是否由用户或系统明确设置。
     private boolean parallelismConfigured = false;
 
     /** Indicates whether the parallelism of this job vertex is decided dynamically. */
+    // 是否动态并行度。
+    // 标识该任务的并行度是否将在运行时动态决定（例如通过 Adaptive Scheduler）。
     private boolean dynamicParallelism = false;
 
     // --------------------------------------------------------------------------------------------

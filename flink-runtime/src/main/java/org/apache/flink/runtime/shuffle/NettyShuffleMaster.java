@@ -46,24 +46,38 @@ import static org.apache.flink.api.common.BatchShuffleMode.ALL_EXCHANGES_HYBRID_
 import static org.apache.flink.configuration.ExecutionOptions.BATCH_SHUFFLE_MODE;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
-//适用于 Netty 和本地文件的 shuffle 环境
+// Flink 中 ShuffleMaster 接口的一个默认实现，专门用于管理基于 Netty 和本地文件的 Flink 内置数据交换机制。
+// 主要负责生成 Netty 连接描述符 (NettyShuffleDescriptor)、计算任务所需的网络内存资源，并集成对高级 Shuffle 功能（如分层 Shuffle/Hybrid Shuffle）的支持。
+// NettyShuffleMaster 在 Flink 的数据交换层扮演了配置中心和描述符工厂的角色：
+// Shuffle 描述符生成： 接收任务的逻辑和物理信息（PartitionDescriptor 和 ProducerDescriptor），并生成具体的 NettyShuffleDescriptor，其中包含下游消费者通过 Netty 连接获取数据所需的所有地址和 ID 信息。
+// 网络资源预估： 基于 Flink 的网络配置和任务的输入输出结构，精确计算一个任务在 TaskManager 上启动和运行所需的网络缓冲区内存大小。
+// 支持混合 Shuffle (Tiered Shuffle)： 如果配置开启，它会初始化并委托给 TieredInternalShuffleMaster 来处理更复杂的分层存储和数据访问逻辑。
+
 /** Default {@link ShuffleMaster} for netty and local file based shuffle implementation. */
 public class NettyShuffleMaster implements ShuffleMaster<NettyShuffleDescriptor> {
-
+    // 每个输入通道的缓冲区数。
+    // 从配置中读取，定义每个输入通道应分配的最小网络缓冲区数量。
     private final int buffersPerInputChannel;
-
+    // 每个 Gate 的浮动缓冲区数。
+    // 从配置中读取，定义每个输入门 (Input Gate) 可额外分配的浮动缓冲区数量。
     private final int floatingBuffersPerGate;
-
+    // 每个 Gate 最大必需缓冲区数。
+    // 可选配置，定义读取数据的输入门所需的网络缓冲区的上限。
     private final Optional<Integer> maxRequiredBuffersPerGate;
-    //对于基于排序的 shuffle 操作，要求的最小并行度
+    // 排序 Shuffle 最小并行度
+    // 从配置中读取，用于基于排序的 Shuffle，定义启用特定优化所需的最小任务并行度。
     private final int sortShuffleMinParallelism;
-
+    // 排序 Shuffle 最小缓冲区数。
+    // 定义排序 Shuffle 操作所需的最小网络缓冲区数量。
     private final int sortShuffleMinBuffers;
-
+    // 网络缓冲区大小。
+    // 从配置中读取，定义 Flink 网络缓冲区（页）的字节大小。
     private final int networkBufferSize;
-    //处理混合 shuffle 机制的实例，仅在启用混合 shuffle 时初始化
+    // 分层 Shuffle 内部主控。
+    // 仅在启用混合/分层 Shuffle 时初始化。 负责处理分层存储相关的 Shuffle 逻辑。
     @Nullable private final TieredInternalShuffleMaster tieredInternalShuffleMaster;
-
+    // 作业 Shuffle 上下文映射。
+    // 存储所有已注册 Job 的 Shuffle 上下文，用于 JobMaster 与 ShuffleMaster 之间的通信和回调。
     private final Map<JobID, JobShuffleContext> jobShuffleContexts = new HashMap<>();
 
     public NettyShuffleMaster(ShuffleMasterContext shuffleMasterContext) {

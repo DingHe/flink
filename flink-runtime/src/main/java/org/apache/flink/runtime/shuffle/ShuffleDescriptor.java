@@ -31,8 +31,13 @@ import java.util.Optional;
  * <p>The descriptor is used for the deployment of the partition producer/consumer and their data
  * exchange
  */
+// ShuffleDescriptor 接口是 Flink 中用于描述中间结果分区 (Result Partition) 在网络和存储层面的部署和访问信息的通用契约。
+// 核心作用是将逻辑结果分区（ResultPartitionID）与其物理存取方式（例如，在哪台 TaskManager 上，通过哪个外部 Shuffle 服务）关联起来，以指导任务的部署和数据交换。
+// 数据访问凭证： 它是数据消费者（下游任务）访问生产者（上游任务）产生的中间结果所需的所有配置和地址信息的抽象。
+// Shuffle 部署指导： 它被包含在 TaskDeploymentDescriptor 中，用于指导 TaskManager 的 Shuffle Environment 如何设置数据传输通道。
 public interface ShuffleDescriptor extends Serializable {
-
+    // 获取结果分区 ID。
+    // 返回该描述符所指向的逻辑中间结果分区的唯一标识符。这是建立数据连接的基础。
     ResultPartitionID getResultPartitionID();
 
     /**
@@ -51,6 +56,9 @@ public interface ShuffleDescriptor extends Serializable {
      * @return whether the partition producer has been ever deployed and the corresponding shuffle
      *     descriptor is obtained from the {@link ShuffleMaster} implementation.
      */
+    // 检查是否为未知描述符。
+    // 默认返回 false。
+    // 该方法用于判断 Shuffle Descriptor 是否为占位符 (UnknownShuffleDescriptor)。
     default boolean isUnknown() {
         return false;
     }
@@ -69,5 +77,7 @@ public interface ShuffleDescriptor extends Serializable {
      * @return the resource id of the producing task executor if the partition occupies local
      *     resources there
      */
+    // 本地资源存储位置。
+    // 返回该分区是否占用了生产任务 TaskExecutor 上的本地资源（例如本地文件或内存缓冲区）。
     Optional<ResourceID> storesLocalResourcesOn();
 }

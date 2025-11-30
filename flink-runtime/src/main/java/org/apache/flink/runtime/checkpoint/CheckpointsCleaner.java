@@ -43,21 +43,31 @@ import static org.apache.flink.util.Preconditions.checkState;
  * Delegate class responsible for checkpoints cleaning and counting the number of checkpoints yet to
  * clean.
  */
+// CheckpointsCleaner 是 Flink 检查点协调器 (Checkpoint Coordinator) 的委托类，专门负责管理和执行检查点 (Checkpoint) 的清理工作。
+// 主要职责是异步地释放不再需要的检查点所占用的资源，包括元数据和实际的状态文件。这些不再需要的检查点通常是：
+// 被新检查点取代 (Subsumed) 的旧检查点。
+// 在存储过程中失败的检查点。
+// 作业关闭时需要最终清理的所有检查点。
 @ThreadSafe
 public class CheckpointsCleaner implements Serializable, AutoCloseableAsync {
     private static final Logger LOG = LoggerFactory.getLogger(CheckpointsCleaner.class);
     private static final long serialVersionUID = 2545865801947537790L;
-
+    // 并行清理模式开关。
+    // 决定是否应使用异步/并行方式来执行检查点的丢弃操作。
+    // 可以通过 CheckpointingOptions.CLEANER_PARALLEL_MODE 配置。
     private final boolean parallelMode;
     private final Object lock = new Object();
-
+    // 待清理检查点计数器。
+    // 记录当前正在进行异步清理（即已触发清理但尚未完成）的检查点数量。
     @GuardedBy("lock")
     private int numberOfCheckpointsToClean;
-
+    // 异步关闭的 Future。
+    // 在调用 closeAsync() 时初始化。
+    // 当 numberOfCheckpointsToClean 降为 0 时，该 Future 会被完成 (complete)，表示所有待清理工作已完成，CheckpointsCleaner 已安全关闭。
     @GuardedBy("lock")
     @Nullable
     private CompletableFuture<Void> cleanUpFuture;
-
+    // 存储那些已被 CompletedCheckpointStore 取代（因容量限制而被移除），但尚未开始清理的旧检查点。
     /** All subsumed checkpoints. */
     @GuardedBy("lock")
     private final List<CompletedCheckpoint> subsumedCheckpoints = new ArrayList<>();
@@ -75,7 +85,10 @@ public class CheckpointsCleaner implements Serializable, AutoCloseableAsync {
             return numberOfCheckpointsToClean;
         }
     }
-
+    // 启动单个检查点的异步清理过程。
+    // 参数 checkpoint： 要清理的检查点对象（可以是 CompletedCheckpoint 或 Checkpoint 抽象类型）。
+    // 参数 shouldDiscard： 布尔值，指示是否应该真正执行丢弃操作（即释放资源）。如果为 false，则只执行 postCleanAction。
+    // 参数 postCleanAction： 检查点清理完成后需要执行的回调逻辑。
     public void cleanCheckpoint(
             Checkpoint checkpoint,
             boolean shouldDiscard,

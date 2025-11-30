@@ -38,19 +38,32 @@ import static org.apache.flink.util.Preconditions.checkState;
  * Group of consumed {@link IntermediateResultPartitionID}s. One such a group corresponds to one
  * {@link ConsumerVertexGroup}.
  */
+// ConsumedPartitionGroup 代表了一组上游任务（生产者）产生的、并作为一个逻辑单元被下游任务（消费者）消费的中间结果分区。
+// 它主要用于 Flink 的调度层来跟踪和管理数据依赖关系，特别是用于判断一组分区的生产状态。
+// 生产者状态跟踪： 跟踪该组中所有分区是否都已完成生产。这是决定下游任务何时可以开始执行的关键因素（尤其是对于阻塞式（BLOCKING）分区）。
+// 数据标识： 记录这组分区所属的中间数据集 ID (IntermediateDataSetID) 和分区类型 (ResultPartitionType)。
+// 连接消费者： 与消费它的 ConsumerVertexGroup 建立双向关联。
 public class ConsumedPartitionGroup implements Iterable<IntermediateResultPartitionID> {
-
+    // 结果分区 ID 列表。
+    // 存储构成该组的所有上游结果分区的唯一逻辑标识符。
     private final List<IntermediateResultPartitionID> resultPartitions;
-
+    // 未完成分区计数器。
+    // 使用原子整数，并发安全地跟踪该组中尚未完成生产的分区数量。初始化时等于 resultPartitions 的大小。
     private final AtomicInteger unfinishedPartitions;
-
+    // 中间数据集 ID。
+    // 该分区组所属的逻辑中间结果集（整个 JobVertex 的输出）的唯一标识。
     private final IntermediateDataSetID intermediateDataSetID;
-
+    // 结果分区类型。
+    // 该组分区的物理类型（如 BLOCKING, PIPELINED 等）。
     private final ResultPartitionType resultPartitionType;
 
     /** Number of consumer tasks in the corresponding {@link ConsumerVertexGroup}. */
+    // 消费者数量。
+    // 记录消费这个分区组的下游任务（Subtask）实例总数。
+    // 这个数量对动态图和分区释放策略很重要。
     private final int numConsumers;
-
+    // 消费者顶点组引用。
+    // 引用消费该分区组的下游 ConsumerVertexGroup 实例。用于建立上游数据到下游消费者的关联。
     @Nullable private ConsumerVertexGroup consumerVertexGroup;
 
     private ConsumedPartitionGroup(

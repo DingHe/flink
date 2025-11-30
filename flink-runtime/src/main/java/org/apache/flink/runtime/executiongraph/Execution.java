@@ -111,6 +111,14 @@ import static org.apache.flink.util.Preconditions.checkState;
  * a completed call is as expected, and trigger correcting actions if it is not. Many actions are
  * also idempotent (like canceling).
  */
+// Execution 类是 Flink 执行图 (ExecutionGraph) 中的核心运行时对象，它代表了对一个特定并行子任务（ExecutionVertex）的单次执行尝试。
+// 单次尝试的生命周期管理： ExecutionVertex 可以被多次执行（例如，为了恢复或重试），而 Execution 对象则负责跟踪和管理其中一次尝试的完整生命周期（从创建到终止）。
+// 状态机： 它管理着任务执行的状态机，包括 CREATED、SCHEDULED、DEPLOYING、RUNNING、FINISHED、CANCELED、FAILED 等状态之间的原子转换。
+// 资源绑定： 它记录了任务被分配到的**逻辑槽（LogicalSlot）**和相应的 TaskManager 位置。
+// 通信和部署： 它负责与 TaskManager 进行通信，执行任务的部署、取消、暂停等操作，并处理来自 TaskManager 的状态更新。
+// 元数据收集： 它收集和存储了该次执行尝试的关键元数据，包括尝试 ID、状态时间戳、失败原因、累加器结果以及用于恢复的检查点信息。
+// Execution 是 Flink 调度和任务控制的中心，它将一个抽象的执行尝试转化为一个具体、可控制、可跟踪的物理运行时实例。
+
 public class Execution
         implements AccessExecution, Archiveable<ArchivedExecution>, LogicalSlot.Payload {
 
@@ -120,72 +128,93 @@ public class Execution
 
     // --------------------------------------------------------------------------------------------
 
-    /** The executor which is used to execute futures. 行器，用于异步处理 Future 的回调逻辑*/
+    /** The executor which is used to execute futures. */
+    // 异步执行器。
+    // 用于执行 Future 的回调和异步 RPC 逻辑，防止阻塞 JobMaster 主线程。
     private final Executor executor;
 
     /** The execution vertex whose task this execution executes. */
+    // 所属执行顶点。
+    // 指向该执行尝试所属的并行子任务容器 (ExecutionVertex)。
     private final ExecutionVertex vertex;
 
     /** The unique ID marking the specific execution instant of the task. */
+    // 执行尝试 ID。
+    // 标识这次执行尝试的全局唯一 ID，包含 JobID、ExecutionVertexID 和尝试编号。
     private ExecutionAttemptID attemptId;
 
-    /** 任务状态执行开始时间
+    /**
      * The timestamps when state transitions occurred, indexed by {@link ExecutionState#ordinal()}.
      */
+    // 状态开始时间戳。
+    // 记录任务进入每个 ExecutionState 的时间戳。
     private final long[] stateTimestamps;
 
-    /** 任务状态的执行结束时间
+    /**
      * The end timestamps when state transitions occurred, indexed by {@link
      * ExecutionState#ordinal()}.
      */
+    // 状态结束时间戳。
+    // 记录任务离开（终止）每个 ExecutionState 的时间戳。
     private final long[] stateEndTimestamps;
-
+    // 用于部署、取消等操作的 RPC 调用超时时间。
     private final Time rpcTimeout;
-
+    // 分区信息。
+    // 用于缓存分区信息的集合，通常用于调度或网络连接。
     private final Collection<PartitionInfo> partitionInfos;
 
-    /** A future that completes once the Execution reaches a terminal ExecutionState.一个 Future，在任务到达终止状态（如 FINISHED, FAILED, CANCELED）时完成，提供任务结束的异步通知 */
+    /** A future that completes once the Execution reaches a terminal ExecutionState.*/
+    // 终止状态 Future。
+    // 在任务达到任何终止状态（FINISHED、FAILED、CANCELED）时完成。
     private final CompletableFuture<ExecutionState> terminalStateFuture;
-   //确保资源在任务结束后正确释放
+   // 确保资源在任务结束后正确释放
+    // 在任务达到终止状态且分配的资源被释放后完成。
     private final CompletableFuture<?> releaseFuture;
-    //表示任务分配的 TaskManager 的位置，异步获取
+    // 表示任务分配的 TaskManager 的位置，异步获取
+    // 在任务被分配到资源时，异步完成，提供 TaskManager 的位置信息。
     private final CompletableFuture<TaskManagerLocation> taskManagerLocationFuture;
 
     /**
      * Gets completed successfully when the task switched to {@link ExecutionState#INITIALIZING} or
      * {@link ExecutionState#RUNNING}. If the task never switches to those state, but fails
-     * immediately, then this future never completes.当任务进入 INITIALIZING 或 RUNNING 状态时完成，提供任务启动的异步通知
+     * immediately, then this future never completes.
      */
+    // 在任务状态进入 INITIALIZING 或 RUNNING 时完成，表示任务已开始在 TaskManager 上运行。
     private final CompletableFuture<?> initializingOrRunningFuture;
-    //表示当前执行实例的状态，初始为 CREATED
+    // 当前执行状态。
+    // 任务的当前状态，使用 volatile 关键字保证可见性。
     private volatile ExecutionState state = CREATED;
-    //表示任务在哪个物理或虚拟计算资源上运行
+    // 任务当前被分配到的计算资源槽。
     private LogicalSlot assignedResource;
-   //用于记录任务失败的原因和时间点，帮助调试。一旦设置便不会更改
+    // 如果任务失败，记录失败的异常信息和时间。
+    // 一旦设置，通常不会改变
     private Optional<ErrorInfo> failureCause =
             Optional.empty(); // once an ErrorInfo is set, never changes
 
-    /**用于任务在故障恢复时重新加载状态
+    /**
      * Information to restore the task on recovery, such as checkpoint id and task state snapshot.
      */
+    // 用于任务在故障恢复时重新加载状态（如检查点 ID 和状态快照）。
     @Nullable private JobManagerTaskRestore taskRestore;
 
     /** This field holds the allocation id once it was assigned successfully. */
+    // 分配给该任务的资源分配的唯一 ID。
     @Nullable private AllocationID assignedAllocationID;
 
     // ------------------------ Accumulators & Metrics ------------------------
 
     /**
      * Lock for updating the accumulators atomically. Prevents final accumulators to be overwritten
-     * by partial accumulators on a late heartbeat.防止多个线程同时修改累加器时出现不一致
+     * by partial accumulators on a late heartbeat.
      */
+    // 用于同步更新用户定义的累加器，防止并发修改。
     private final Object accumulatorLock = new Object();
-     //持续更新的用户定义累加器的集合
+    //存储用户定义的、持续更新的累加器。
     /* Continuously updated map of user-defined accumulators */
     private Map<String, Accumulator<?, ?>> userAccumulators;
     //用于监控任务的 I/O 性能
     private IOMetrics ioMetrics;
-   //管理任务的输出数据分区
+    // 任务生产的中间结果分区的部署信息。
     private Map<IntermediateResultPartitionID, ResultPartitionDeploymentDescriptor>
             producedPartitions;
 
@@ -279,6 +308,7 @@ public class Execution
      * @param logicalSlot to assign to this execution
      * @return true if the slot could be assigned to the execution, otherwise false
      */
+    // 用于尝试将一个逻辑资源槽 (LogicalSlot) 分配给一个任务的执行尝试 (Execution)。这是 Flink 任务从调度到实际部署过程中的关键一步。
     public boolean tryAssignResource(final LogicalSlot logicalSlot) {
 
         assertRunningInJobMasterMainThread();
@@ -287,11 +317,18 @@ public class Execution
 
         // only allow to set the assigned resource in state SCHEDULED or CREATED
         // note: we also accept resource assignment when being in state CREATED for testing purposes
+        // 判断当前 Execution 实例的状态是否为 SCHEDULED 或 CREATED。
+        // 如果不是，则资源分配失败，跳转到代码末尾的 return false;。
         if (state == SCHEDULED || state == CREATED) {
             if (assignedResource == null) {
+                // 临时分配资源。
                 assignedResource = logicalSlot;
+                // 尝试将当前的 Execution 实例（作为 LogicalSlot.Payload）绑定到 logicalSlot 上。
+                // LogicalSlot 确保一个槽只能被一个 Payload 成功绑定一次。
                 if (logicalSlot.tryAssignPayload(this)) {
                     // check for concurrent modification (e.g. cancelling call)
+                    // 再次检查状态是否仍为 SCHEDULED 或 CREATED，
+                    // 并且确认 taskManagerLocationFuture 尚未完成（表示任务还未被取消或部署流程尚未结束）。
                     if ((state == SCHEDULED || state == CREATED)
                             && !taskManagerLocationFuture.isDone()) {
                         taskManagerLocationFuture.complete(logicalSlot.getTaskManagerLocation());
@@ -319,13 +356,14 @@ public class Execution
             return false;
         }
     }
-
+    // 用于获取当前任务执行尝试（Execution）需要处理的下一个输入切片 (InputSplit)。
+    // 这是任务在 TaskManager 上启动和开始处理数据的前提。
     public Optional<InputSplit> getNextInputSplit() {
         final LogicalSlot slot = this.getAssignedResource();
         final String host = slot != null ? slot.getTaskManagerLocation().getHostname() : null;
         return this.vertex.getNextInputSplit(host, getAttemptNumber());
     }
-
+    // 用于获取当前任务执行尝试（Execution）所分配的TaskManager 的位置信息。
     @Override
     public TaskManagerLocation getAssignedResourceLocation() {
         // returns non-null only when a location is already assigned
@@ -422,21 +460,31 @@ public class Execution
     // --------------------------------------------------------------------------------------------
     //  Actions
     // --------------------------------------------------------------------------------------------
-
+    // 用于触发并处理该任务执行尝试（Execution）所产生的所有中间结果分区的注册过程。
+    // 它是任务部署流程中的重要一环，确保任务在开始执行前，其输出数据路径已在 JobMaster 和 ShuffleMaster 中设置完毕
+    // 接收任务被分配到的 TaskManagerLocation 作为参数。
     public CompletableFuture<Void> registerProducedPartitions(TaskManagerLocation location) {
 
         assertRunningInJobMasterMainThread();
 
         return FutureUtils.thenApplyAsyncIfNotDone(
+                // 调用 静态的 registerProducedPartitions 辅助方法（上一个回复中解读的方法），
+                // 该方法负责异步地与 ShuffleMaster 交互，获取所有分区的部署描述符。
                 registerProducedPartitions(vertex, location, attemptId),
                 vertex.getExecutionGraphAccessor().getJobMasterMainThreadExecutor(),
+                // 定义当静态注册方法返回所有分区描述符 Map (producedPartitionsCache) 后的回调逻辑。
                 producedPartitionsCache -> {
+                    // 将成功获取的分区部署描述符 Map 赋值给当前 Execution 实例的成员变量 (producedPartitions)，
+                    // 供后续部署 TaskManager 使用。
                     producedPartitions = producedPartitionsCache;
-
+                    // 检查当前 Execution 的状态是否仍为 SCHEDULED（已调度）。
+                    // 这是预期的状态，表示任务准备好被部署。
                     if (getState() == SCHEDULED) {
+                        // 开始监控这些已注册分区的状态，例如，当分区数据就绪（FINISHED）时进行通知。
                         startTrackingPartitions(
                                 location.getResourceID(), producedPartitionsCache.values());
                     } else {
+                        // 状态检查：延迟或取消。
                         LOG.info(
                                 "Discarding late registered partitions for {} task {}.",
                                 getState(),
@@ -446,6 +494,8 @@ public class Execution
                             getVertex()
                                     .getExecutionGraphAccessor()
                                     .getShuffleMaster()
+                                    // 调用 ShuffleMaster 的 releasePartitionExternally 方法，
+                                    // 立即释放这些分区所关联的外部资源（例如，在外部 Shuffle 服务或分层存储中预留的资源），防止资源泄漏。
                                     .releasePartitionExternally(desc.getShuffleDescriptor());
                         }
                     }
@@ -486,7 +536,12 @@ public class Execution
                     producedPartitions) {
         this.producedPartitions = checkNotNull(producedPartitions);
     }
-
+    // Flink 在任务部署到 TaskManager 之前执行的关键步骤之一。
+    // 它的作用是向 ShuffleMaster 注册该任务（Execution）将要产生的所有中间结果分区，
+    // 并获取用于 TaskManager 部署的结果分区部署描述符 (ResultPartitionDeploymentDescriptor)。
+    // ExecutionVertex（任务所在的顶点）
+    // TaskManagerLocation（任务被分配到的 TaskManager 位置）
+    // ExecutionAttemptID（当前执行尝试 ID）。
     private static CompletableFuture<
                     Map<IntermediateResultPartitionID, ResultPartitionDeploymentDescriptor>>
             registerProducedPartitions(
@@ -494,15 +549,22 @@ public class Execution
                     TaskManagerLocation location,
                     ExecutionAttemptID attemptId) {
 
+        // 创建生产者描述符。
+        // 该描述符包含了该任务作为数据生产者的物理位置和连接信息
         ProducerDescriptor producerDescriptor = ProducerDescriptor.create(location, attemptId);
-
+        // 获取生产的分区集合。
+        // 从 ExecutionVertex 中获取该任务产生的所有 IntermediateResultPartition 对象集合。
         Collection<IntermediateResultPartition> partitions =
                 vertex.getProducedPartitions().values();
+
         Collection<CompletableFuture<ResultPartitionDeploymentDescriptor>> partitionRegistrations =
                 new ArrayList<>(partitions.size());
 
         for (IntermediateResultPartition partition : partitions) {
+            // 为当前 IntermediateResultPartition 创建一个 PartitionDescriptor。
+            // 该描述符包含了分区的逻辑结构和类型信息。
             PartitionDescriptor partitionDescriptor = PartitionDescriptor.from(partition);
+            // 调用 ShuffleMaster 注册。
             CompletableFuture<? extends ShuffleDescriptor> shuffleDescriptorFuture =
                     vertex.getExecutionGraphAccessor()
                             .getShuffleMaster()
@@ -511,6 +573,7 @@ public class Execution
 
             CompletableFuture<ResultPartitionDeploymentDescriptor> partitionRegistration =
                     shuffleDescriptorFuture.thenApply(
+                            // 创建部署描述符。
                             shuffleDescriptor ->
                                     createResultPartitionDeploymentDescriptor(
                                             partitionDescriptor, partition, shuffleDescriptor));
@@ -541,6 +604,7 @@ public class Execution
                 partitionDescriptor, partition, shuffleDescriptor);
     }
 
+    // 创建分区部署描述
     private static ResultPartitionDeploymentDescriptor createResultPartitionDeploymentDescriptor(
             PartitionDescriptor partitionDescriptor,
             IntermediateResultPartition partition,
@@ -554,7 +618,10 @@ public class Execution
      *
      * @throws JobException if the execution cannot be deployed to the assigned resource
      */
+    // 负责将任务的执行尝试（Execution）真正部署到已经分配好的 TaskManager 资源槽（LogicalSlot）上。
+    // 这是 Flink 任务调度和生命周期管理的核心步骤。
     public void deploy() throws JobException {
+        // 断言当前操作在 JobMaster 的主线程中执行，确保状态转换和资源访问的线程安全。
         assertRunningInJobMasterMainThread();
 
         final LogicalSlot slot = assignedResource;
@@ -572,6 +639,7 @@ public class Execution
 
         // make sure exactly one deployment call happens from the correct state
         ExecutionState previous = this.state;
+        // 确保只在正确的状态 (SCHEDULED) 下发生一次部署调用。
         if (previous == SCHEDULED) {
             if (!transitionState(previous, DEPLOYING)) {
                 // race condition, someone else beat us to the deploying call.
@@ -614,7 +682,7 @@ public class Execution
                     vertex.getID(),
                     getAssignedResourceLocation(),
                     slot.getAllocationId());
-            //生成需要部署的task
+            // 生成需要部署的task
             final TaskDeploymentDescriptor deployment =
                     vertex.getExecutionGraphAccessor()
                             .getTaskDeploymentDescriptorFactory()
@@ -626,20 +694,25 @@ public class Execution
 
             // null taskRestore to let it be GC'ed
             taskRestore = null;
-
+            // 获取 TaskManager Gateway。
+            // 从 LogicalSlot 中获取用于与 TaskManager 进行 RPC 通信的 TaskManagerGateway。
             final TaskManagerGateway taskManagerGateway = slot.getTaskManagerGateway();
-
+            // 再次获取 JobMaster 的主线程执行器，用于处理部署结果的回调。
             final ComponentMainThreadExecutor jobMasterMainThreadExecutor =
                     vertex.getExecutionGraphAccessor().getJobMasterMainThreadExecutor();
-
+            // 通知父 ExecutionVertex 和 ExecutionGraph，当前任务已进入部署流程（通常用于更新监控状态）。
             getVertex().notifyPendingDeployment(this);
             // We run the submission in the future executor so that the serialization of large TDDs
             // does not block
             // the main thread and sync back to the main thread once submission is completed.
-            CompletableFuture.supplyAsync(  //通过taskManagerGateway部署任务
+            // 异步提交任务。
+            // 在指定的 executor 上异步执行提交任务的 RPC 调用，防止 TDD 序列化阻塞 JobMaster 主线程。
+            CompletableFuture.supplyAsync(
                             () -> taskManagerGateway.submitTask(deployment, rpcTimeout), executor)
                     .thenCompose(Function.identity())
                     .whenCompleteAsync(
+                            // 异步处理结果。
+                            // 在任务提交完成（无论是成功还是失败）后，在 JobMaster 主线程执行器 (jobMasterMainThreadExecutor) 上执行回调函数。
                             (ack, failure) -> {
                                 if (failure == null) {
                                     vertex.notifyCompletedDeployment(this);
@@ -1322,7 +1395,10 @@ public class Execution
                     });
         }
     }
-
+    // 启动对该任务所有输出中间结果分区状态的跟踪和监控
+    // 接收任务所在的 TaskExecutor (TaskManager) 的唯一 ID。
+    // 这是分区所在的物理位置信息。
+    // 接收该任务要产生的所有中间结果分区的部署描述符集合。这些描述符包含了分区 ID 和 Shuffle 访问信息。
     private void startTrackingPartitions(
             final ResourceID taskExecutorId,
             final Collection<ResultPartitionDeploymentDescriptor> partitions) {
@@ -1463,11 +1539,11 @@ public class Execution
     public void transitionState(ExecutionState targetState) {
         transitionState(state, targetState);
     }
-
+    // 状态转移
     private boolean transitionState(ExecutionState currentState, ExecutionState targetState) {
         return transitionState(currentState, targetState, null);
     }
-
+    // 状态转移
     private boolean transitionState(
             ExecutionState currentState, ExecutionState targetState, Throwable error) {
         // sanity check
@@ -1530,7 +1606,7 @@ public class Execution
             return "[unassigned resource]";
         }
     }
-
+    //记录状态的开始和结束时间
     private void markTimestamp(ExecutionState currentState, ExecutionState targetState) {
         long now = System.currentTimeMillis();
         markTimestamp(targetState, now);

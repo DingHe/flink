@@ -65,29 +65,43 @@ import java.util.stream.Stream;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
-//将底层的执行图（ExecutionGraph）映射为高层次的调度拓扑（SchedulingTopology），以便调度器能够高效地执行作业的计算任务
+// DefaultExecutionTopology 是接口 SchedulingTopology 的具体实现类，它的核心职能是作为 适配器 (Adapter)：
+// 构建调度视图： 它将 Flink 运行时底层的、复杂且动态变化的 ExecutionGraph（执行图，包含了所有物理执行细节）转换和映射成高层次的、面向调度策略的 SchedulingTopology（调度拓扑）
+// 解耦与简化： 它将重量级的 ExecutionVertex 和 IntermediateResultPartition 封装为轻量级的 DefaultExecutionVertex 和 DefaultResultPartition，供调度器使用，从而解耦了调度逻辑与执行图的复杂性。
+// 计算区域（Region）： 它的主要复杂性在于计算和管理 DefaultSchedulingPipelinedRegion。它根据逻辑图和数据交换模式（Pipelined vs. Blocking）将任务分组，这是 Flink 调度和故障恢复的基本单位。
+// 动态更新： 它支持对执行图的增量更新（例如，在自适应批处理模式下），通过 notifyExecutionGraphUpdated 方法来处理新加入的 JobVertex。
+
 /** Adapter of {@link ExecutionGraph} to {@link SchedulingTopology}. */
 public class DefaultExecutionTopology implements SchedulingTopology {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultExecutionTopology.class);
-    //映射每个 ExecutionVertexID 到其对应的 DefaultExecutionVertex。ExecutionVertex 是 Flink 作业执行中的最小单位，表示作业图中的一个执行任务
+    // 顶点索引。
+    // 存储所有调度执行顶点，通过 ID 快速查找。是调度拓扑中的节点集合。
     private final Map<ExecutionVertexID, DefaultExecutionVertex> executionVerticesById;
-    //包含所有执行顶点的列表。它存储了调度拓扑中的所有 ExecutionVertex，并且是有序的
+    // 顶点列表。
+    // 存储所有执行顶点，可能按拓扑顺序排列，方便迭代。
     private final List<DefaultExecutionVertex> executionVerticesList;
-    //用于存储作业的结果分区。每个 IntermediateResultPartition 被分配一个唯一标识符（IntermediateResultPartitionID）
+    // 结果分区索引。
+    // 存储所有调度结果分区，通过 ID 快速查找。是调度拓扑中的边集合。
     private final Map<IntermediateResultPartitionID, DefaultResultPartition> resultPartitionsById;
-    //将每个执行顶点映射到其所属的调度管道区域。调度管道区域（SchedulingPipelinedRegion）是作业中的计算任务的逻辑分组
+    // 顶点到区域的映射。
+    // 记录每个执行顶点所属的流水线区域，用于快速确定任务的调度单元。
     private final Map<ExecutionVertexID, DefaultSchedulingPipelinedRegion> pipelinedRegionsByVertex;
-    //表示所有的调度管道区域。每个管道区域包含一组执行顶点，它们之间有数据流关系
+    // 区域列表。
+    // 存储计算出的所有流水线区域，是调度和故障恢复的逻辑分组。
     private final List<DefaultSchedulingPipelinedRegion> pipelinedRegions;
-    //用于管理作业图中的边（即任务之间的数据流）。它帮助确定任务之间的依赖关系，并在调度时处理任务的执行顺序
+    // 边管理器引用。
+    // 引用执行图中的边管理器，用于查询顶点之间的连接和依赖关系（如 ConsumedPartitionGroup）。
     private final EdgeManager edgeManager;
-    //提供一个已排序的 ExecutionVertexID 列表。它用于控制执行顶点的执行顺序
+    // 拓扑排序 ID 提供者。
+    //   一个函数，用于获取按拓扑顺序排列的执行顶点 ID 列表。
     private final Supplier<List<ExecutionVertexID>> sortedExecutionVertexIds;
-    //将 JobVertexID 映射到逻辑管道区域（LogicalPipelinedRegion）。LogicalPipelinedRegion 是 Flink 作业的逻辑分区，表示一组可以并行执行的任务
+    // 将 JobVertexID 映射到逻辑管道区域（LogicalPipelinedRegion）。
+    // LogicalPipelinedRegion 是 Flink 作业的逻辑分区，表示一组可以并行执行的任务
     private final Map<JobVertexID, DefaultLogicalPipelinedRegion>
             logicalPipelinedRegionsByJobVertexId;
-    //监听调度拓扑更新的监听器列表。当调度拓扑发生变化时，所有注册的监听器都会被通知
+    // 拓扑监听器。
+    // 存储所有注册的监听器，用于在拓扑更新时通知外部组件。
     /** Listeners that will be notified whenever the scheduling topology is updated. */
     private final List<SchedulingTopologyListener> schedulingTopologyListeners = new ArrayList<>();
 
@@ -162,14 +176,19 @@ public class DefaultExecutionTopology implements SchedulingTopology {
     public EdgeManager getEdgeManager() {
         return edgeManager;
     }
-
+    // 将底层的 ExecutionGraph 转换成一个 JobVertex ID 到其所属的逻辑流水线区域 (DefaultLogicalPipelinedRegion) 的映射表。
+    // 这个映射是后续计算物理调度区域的基础。
+    // 接收一个 ExecutionGraph（Flink 物理执行图）作为输入参数。
     private static Map<JobVertexID, DefaultLogicalPipelinedRegion>
             computeLogicalPipelinedRegionsByJobVertexId(final ExecutionGraph executionGraph) {
+        // 从 ExecutionGraph 中获取所有 ExecutionJobVertex（JobVertex 在执行图中的抽象）的列表，
+        // 并确保它们是拓扑排序的（即上游 JobVertex 在下游 JobVertex 之前）。
+        // 返回一个 Iterable<ExecutionJobVertex>。
         List<JobVertex> topologicallySortedJobVertices =
                 IterableUtils.toStream(executionGraph.getVerticesTopologically())
                         .map(ExecutionJobVertex::getJobVertex)
                         .collect(Collectors.toList());
-
+        // 获得的拓扑排序的 JobVertex 列表为输入，构建出一个 DefaultLogicalTopology 对象。
         Iterable<DefaultLogicalPipelinedRegion> logicalPipelinedRegions =
                 DefaultLogicalTopology.fromTopologicallySortedJobVertices(
                                 topologicallySortedJobVertices)
@@ -177,6 +196,7 @@ public class DefaultExecutionTopology implements SchedulingTopology {
 
         Map<JobVertexID, DefaultLogicalPipelinedRegion> logicalPipelinedRegionsByJobVertexId =
                 new HashMap<>();
+        //构建 JobVertex ID 到区域的映射表
         for (DefaultLogicalPipelinedRegion logicalPipelinedRegion : logicalPipelinedRegions) {
             for (LogicalVertex vertex : logicalPipelinedRegion.getVertices()) {
                 logicalPipelinedRegionsByJobVertexId.put(vertex.getId(), logicalPipelinedRegion);

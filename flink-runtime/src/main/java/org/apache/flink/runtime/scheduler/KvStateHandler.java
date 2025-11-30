@@ -34,20 +34,28 @@ import org.slf4j.LoggerFactory;
 import java.net.InetSocketAddress;
 
 /** Handler for common queryable state logic. */
+// KvStateHandler（键值状态处理器）是一个封装了 查询服务 (Queryable State) 核心逻辑的辅助类。
+// 它的主要作用是充当 JobManager/Scheduler 与底层的 KvStateLocationRegistry 之间的桥梁。
+// 查询服务允许外部客户端或 Flink 内部组件通过网络查询 Flink 任务中的键值状态（KvState）。
+// KvStateHandler 负责处理与 KvState 注册、反注册和位置查询相关的请求。
 public class KvStateHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(KvStateHandler.class);
-
+    // 执行图实例。
+    // KvStateHandler 依赖于 ExecutionGraph 来获取作业的 ID 和其内置的 KvStateLocationRegistry（键值状态位置注册表），
+    // 所有操作都通过这个注册表进行。
     private final ExecutionGraph executionGraph;
 
     public KvStateHandler(ExecutionGraph executionGraph) {
         this.executionGraph = executionGraph;
     }
-
+    // 处理客户端请求 KvState 位置的查找操作。
     public KvStateLocation requestKvStateLocation(final JobID jobId, final String registrationName)
             throws UnknownKvStateLocation, FlinkJobNotFoundException {
 
         // sanity check for the correct JobID
+        // Job ID 校验： 首先检查传入的 jobId 是否与当前 executionGraph 的 ID 匹配。
+        // 如果不匹配，抛出 FlinkJobNotFoundException。
         if (executionGraph.getJobID().equals(jobId)) {
             if (LOG.isDebugEnabled()) {
                 LOG.debug(
@@ -55,7 +63,8 @@ public class KvStateHandler {
                         executionGraph.getJobID(),
                         registrationName);
             }
-
+            // 结果返回： 如果找到位置 (location != null)，
+            // 返回 KvStateLocation 对象（包含了 KvState 所在的 JobVertex、KeyGroup 范围以及服务地址等信息）。
             final KvStateLocationRegistry registry = executionGraph.getKvStateLocationRegistry();
             final KvStateLocation location = registry.getKvStateLocation(registrationName);
             if (location != null) {
@@ -71,7 +80,7 @@ public class KvStateHandler {
             throw new FlinkJobNotFoundException(jobId);
         }
     }
-
+    // 处理来自 TaskManager 的 KvState 注册通知。
     public void notifyKvStateRegistered(
             final JobID jobId,
             final JobVertexID jobVertexId,
@@ -80,7 +89,7 @@ public class KvStateHandler {
             final KvStateID kvStateId,
             final InetSocketAddress kvStateServerAddress)
             throws FlinkJobNotFoundException {
-
+        // Job ID 校验： 检查传入的 jobId 是否匹配，不匹配则抛出 FlinkJobNotFoundException。
         if (executionGraph.getJobID().equals(jobId)) {
             if (LOG.isDebugEnabled()) {
                 LOG.debug(
@@ -90,6 +99,8 @@ public class KvStateHandler {
             }
 
             try {
+                // 调用 registry.notifyKvStateRegistered(...) 方法，
+                // 将 KvState 的详细信息（KvState ID、它所在的 TaskManager 地址、所属的 JobVertex ID 和 KeyGroup 范围）转发给注册表进行记录。
                 executionGraph
                         .getKvStateLocationRegistry()
                         .notifyKvStateRegistered(

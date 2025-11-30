@@ -21,6 +21,8 @@ package org.apache.flink.runtime.executiongraph;
 import org.apache.flink.api.common.JobStatus;
 
 /** Interface for querying the state of a job and the timestamps of state transitions. */
+// JobStatusProvider 接口的作用是提供一个统一的机制，用于查询 Flink 作业的当前状态（JobStatus）以及该作业进入各个状态的时间戳。
+// 在 Flink 运行时，例如 ExecutionGraph（执行图）或更高级别的调度组件通常会实现此接口，以便外部或内部组件能够获取作业的健康状况和生命周期信息。
 public interface JobStatusProvider {
 
     /**
@@ -28,6 +30,8 @@ public interface JobStatusProvider {
      *
      * @return job status for this execution graph
      */
+    // 获取当前作业状态。
+    // 返回作业当前的 JobStatus 枚举值。这是最常用的方法，用于检查作业是否正在运行、已完成或发生故障。
     JobStatus getState();
 
     /**
@@ -36,5 +40,8 @@ public interface JobStatusProvider {
      * @param status status for which the timestamp should be returned
      * @return timestamp for the given job status
      */
+    // 获取状态时间戳。
+    // 返回作业第一次进入给定 JobStatus 状态时的时间戳（通常是 Unix 毫秒时间）。
+    // 例如，可以查询作业何时进入 RUNNING 状态或 FINISHED 状态。
     long getStatusTimestamp(JobStatus status);
 }

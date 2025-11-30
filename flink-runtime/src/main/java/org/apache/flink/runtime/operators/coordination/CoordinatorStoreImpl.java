@@ -28,6 +28,8 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /** Basic implementation of {@link CoordinatorStore}. */
+// 提供 CoordinatorStore 接口的线程安全、内存实现。
+// 它通过封装一个 Java 内建的并发数据结构，确保了多个 OperatorCoordinator 实例可以安全、原子性地访问和修改共享状态。
 @ThreadSafe
 @Internal
 public class CoordinatorStoreImpl implements CoordinatorStore {

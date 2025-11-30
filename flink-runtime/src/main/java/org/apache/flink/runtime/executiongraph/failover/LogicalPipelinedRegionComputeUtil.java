@@ -44,10 +44,13 @@ public final class LogicalPipelinedRegionComputeUtil {
         // regions on cycles.
         return uniqueVertexGroups(vertexToRegion);
     }
-
+    // 用于筛选出一个 LogicalVertex 所消费的所有结果（LogicalResult）中，哪些结果必须以 pipelined（流水线）方式消费。
+    // 这是构建 Logical Pipelined Region 的关键步骤：
     private static Iterable<LogicalResult> getMustBePipelinedConsumedResults(LogicalVertex vertex) {
         List<LogicalResult> mustBePipelinedConsumedResults = new ArrayList<>();
         for (LogicalResult consumedResult : vertex.getConsumedResults()) {
+            // 判断是否必须 pipelined 消费
+            // 意味着该边会在 Pipelined Region 构建过程中触发 region 合并。
             if (consumedResult.getResultType().mustBePipelinedConsumed()) {
                 mustBePipelinedConsumedResults.add(consumedResult);
             }
