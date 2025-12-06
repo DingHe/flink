@@ -86,32 +86,53 @@ import java.util.function.Function;
  * exclusively based on what a given job currently requires. It may repeatedly reserve/free slots
  * without any modifications to the requirements.
  */
+// DefaultDeclarativeSlotPool 是 Flink 声明式资源管理的核心组件之一，它在 JobMaster 层面扮演着资源需求管理者和槽位供需匹配器的角色。
+// 管理资源需求： 维护作业当前声明的总资源需求 (totalResourceRequirements)，并计算出尚未满足的资源需求。
+// 对接 ResourceManager： 通过 notifyNewResourceRequirements 回调函数，将更新后的资源需求声明给上层组件（通常是 ResourceManager 客户端），以请求资源。
+// 槽位匹配和接收： 当 TaskManager 提供槽位时，它负责根据当前的资源需求，决定是否接受这些槽位。
+// 槽位生命周期协调： 协调物理槽位池 (AllocatedSlotPool) 的操作，例如预定、释放和空闲槽位超时清理。
+// 延迟请求： 支持在设定的时间间隔内批量向 ResourceManager 声明资源需求，避免频繁的 RPC 调用。
+// 惰性释放： 槽位释放后不会立即返回给 TaskManager，而是等待超过 idleSlotTimeout 且该槽位多余时才释放。
+
 public class DefaultDeclarativeSlotPool implements DeclarativeSlotPool {
 
     protected final Logger log = LoggerFactory.getLogger(getClass());
-
+    // 通知资源需求的消费者。
+    // 一个回调函数，用于将新的资源需求集合 (Collection<ResourceRequirement>) 报告给外部组件（如 Resource Manager Client）。
     private final Consumer<? super Collection<ResourceRequirement>> notifyNewResourceRequirements;
-
+    // 空闲槽位超时时间。
+    // 定义一个槽位释放后，如果一直空闲且多余，多久之后可以被返还给 TaskManager/ResourceManager。
     private final Duration idleSlotTimeout;
+
+    // RPC 超时时间。
+    // 用于与 TaskManager 进行远程过程调用（如释放槽位）时的超时设置。
     private final Duration rpcTimeout;
-
+    // 当前作业 ID。
+    // 标识该 Slot Pool 所属的 Flink 作业。
     private final JobID jobId;
-    protected final AllocatedSlotPool slotPool; //负责维护分配的slot
-
+    // 底层物理槽位池。
+    // 负责维护和管理所有已获得的物理槽位 (AllocatedSlot) 的集合和状态（空闲/预定）。
+    protected final AllocatedSlotPool slotPool;
+    // 槽位与需求配置的映射。
+    // 存储每个已接受的槽位最初是匹配哪种 ResourceProfile 需求的。这是进行资源簿记（Book-keeping）的关键。
     private final Map<AllocationID, ResourceProfile> slotToRequirementProfileMappings;
-    //总的资源需求
+    // 总资源需求计数。
+    // 声明式需求。 当前作业总共需要的资源（按 ResourceProfile 分组计数）。
     private ResourceCounter totalResourceRequirements;
-
+    // 已满足的资源需求计数。
+    // 当前 Slot Pool 中已接受的槽位所能满足的资源总量。
     private ResourceCounter fulfilledResourceRequirements;
-
+    // 当有新的槽位被接受或从预定状态释放变为空闲时，通知上层组件（如 Scheduler）的监听器。
     private NewSlotsListener newSlotsListener = NoOpNewSlotsListener.INSTANCE;
-
+    // 用于判断一个槽位的 ResourceProfile 是否能匹配当前的未满足资源需求。
     private final RequirementMatcher requirementMatcher = new DefaultRequirementMatcher();
-
+    // 确保所有核心状态修改操作都在 Flink 组件的主线程中执行，以保证线程安全。
     @Nonnull private final ComponentMainThreadExecutor componentMainThreadExecutor;
 
     // For slots(resources) requests by batch.
+    // 槽位请求最大间隔。
     @Nonnull private final Duration slotRequestMaxInterval;
+    // 槽位请求调度句柄。
     @Nullable private ScheduledFuture<?> slotRequestFuture;
 
     public DefaultDeclarativeSlotPool(

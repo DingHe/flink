@@ -148,7 +148,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
     //作业信息，就是id和name
     protected final JobInfo jobInfo;
     // 物理执行图。
-    // obGraph 的可执行版本，包含所有的执行顶点（ExecutionVertex）和执行尝试（ExecutionAttempt），是 Flink 运行时状态的核心数据结构。
+    // jobGraph 的可执行版本，包含所有的执行顶点（ExecutionVertex）和执行尝试（ExecutionAttempt），是 Flink 运行时状态的核心数据结构。
     private final ExecutionGraph executionGraph;
     // 调度拓扑。
     // ExecutionGraph 的简化视图，专为调度器设计，用于分析任务的依赖关系和状态。
@@ -247,7 +247,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
                                         jobMasterConfiguration.get(
                                                 WebOptions.CHECKPOINTS_HISTORY_SIZE),
                                         jobManagerJobMetricGroup));
-        this.executionGraph =  //创建执行图
+        this.executionGraph =  // 创建执行图
                 createAndRestoreExecutionGraph(
                         completedCheckpointStore,
                         checkpointsCleaner,

@@ -39,14 +39,22 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /** The Interface of a slot pool that manages slots. */
+// 统一管理资源槽位： 维护 JobMaster 从 TaskManager 处获得的所有可用和已占用的物理资源槽位 (PhysicalSlot)。
+// 对接资源管理器： 负责与 ResourceManager 通信，发起新的资源请求，以获取额外的 TaskManager 资源。
+// 服务调度器： 响应调度器（Scheduler）的槽位请求，根据资源需求和本地性偏好，立即分配已有的槽位或请求新的槽位。
+// SlotPool 是 JobMaster 端的资源库存和请求中心。
 public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
 
     // ------------------------------------------------------------------------
     //  lifecycle
     // ------------------------------------------------------------------------
-
+    // 启动槽位池。
+    // 初始化 Slot Pool，使其开始运行。
+    // 它接收 JobMaster 的 ID 和地址，这些信息对于 TaskManager 和 ResourceManager 的通信是必需的。
     void start(JobMasterId jobMasterId, String newJobManagerAddress) throws Exception;
-
+    // 关闭槽位池。
+    // 清理并释放 Slot Pool 持有的所有资源。
+    // 这通常涉及取消所有待处理的槽位请求，并释放所有已分配的物理槽位。
     void close();
 
     // ------------------------------------------------------------------------
@@ -59,6 +67,8 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      *
      * @param resourceManagerGateway The RPC gateway for the resource manager.
      */
+    // 连接到 ResourceManager。
+    // 建立 Slot Pool 与 ResourceManager 之间的通信。连接成功后，Slot Pool 才能向 ResourceManager 请求新的资源。
     void connectToResourceManager(ResourceManagerGateway resourceManagerGateway);
 
     /**
@@ -68,6 +78,9 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      *
      * <p>The slot pool will still be able to serve slots from its internal pool.
      */
+    // 断开与 ResourceManager 的连接。
+    // 终止与当前 ResourceManager 的连接。
+    // 所有待处理的资源请求都会被取消，但 Slot Pool 内部已获得的槽位仍然可以继续服务。
     void disconnectResourceManager();
 
     // ------------------------------------------------------------------------
@@ -80,6 +93,8 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      * @param resourceID identifying the TaskExecutor to register
      * @return true iff a new resource id was registered
      */
+    // 注册 TaskManager。
+    // 将一个 TaskManager 注册到 Slot Pool，表明这个 TaskManager 正在为 JobMaster 提供资源。
     boolean registerTaskManager(ResourceID resourceID);
 
     /**
@@ -89,6 +104,8 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      * @param cause for the releasing of the TaskManager
      * @return true iff a given registered resource id was removed
      */
+    // 释放 TaskManager。
+    // 从 Slot Pool 中注销一个 TaskManager，通常是因为 TaskManager 故障或断开连接。所有该 TaskManager 上的槽位都将被释放。
     boolean releaseTaskManager(final ResourceID resourceId, final Exception cause);
 
     /**
@@ -101,6 +118,9 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      * @return A collection of accepted slot offers. The remaining slot offers are implicitly
      *     rejected.
      */
+    // 处理槽位提供。
+    // TaskManager 通过此方法向 Slot Pool 提供（Offer）其可用的物理槽位。
+    // Slot Pool 根据内部需求和策略，选择性地接受并返回接受的槽位列表。未接受的槽位将被隐式拒绝。
     Collection<SlotOffer> offerSlots(
             TaskManagerLocation taskManagerLocation,
             TaskManagerGateway taskManagerGateway,
@@ -115,6 +135,8 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      *
      * @return all free slot tracker
      */
+    // 获取空闲槽位追踪器。
+    // 提供一个接口来追踪当前 Slot Pool 中所有空闲槽位的状态。
     FreeSlotTracker getFreeSlotTracker();
 
     /**
@@ -124,6 +146,8 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      * @return a list of {@link SlotInfo} objects about all slots that are currently allocated in
      *     the slot pool.
      */
+    // 获取已分配槽位信息。
+    // 返回当前 Slot Pool 中所有已分配（即被任务使用）的槽位的元数据信息。
     Collection<SlotInfo> getAllocatedSlotsInformation();
 
     /**
@@ -137,6 +161,9 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      * @return the previously available slot with the given allocation id, if a slot with this
      *     allocation id exists
      */
+    // 分配已可用的槽位。
+    // 尝试从 Slot Pool 中已有的空闲槽位中，根据 AllocationID 和 ResourceProfile 匹配并分配一个槽位。
+    // 如果找到并满足要求，返回 PhysicalSlot，否则返回 Optional.empty()。
     Optional<PhysicalSlot> allocateAvailableSlot(
             SlotRequestId slotRequestId,
             AllocationID allocationID,
@@ -153,6 +180,9 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      * @param timeout timeout for the allocation procedure
      * @return a newly allocated slot that was previously not available.
      */
+    // 请求新的普通槽位。
+    // 向 ResourceManager 请求一个全新的槽位。
+    // 这个请求是异步的，返回一个 CompletableFuture。此方法通常用于流式或要求快速分配的场景。
     default CompletableFuture<PhysicalSlot> requestNewAllocatedSlot(
             SlotRequestId slotRequestId,
             ResourceProfile resourceProfile,
@@ -189,6 +219,7 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      *     requested batch slot
      * @return a future which is completed with newly allocated batch slot
      */
+    // 请求新的批处理槽位。
     default CompletableFuture<PhysicalSlot> requestNewAllocatedBatchSlot(
             SlotRequestId slotRequestId, ResourceProfile resourceProfile) {
         return requestNewAllocatedBatchSlot(
@@ -204,6 +235,8 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      * Disables batch slot request timeout check. Invoked when someone else wants to take over the
      * timeout check responsibility.
      */
+    // 禁用批处理槽位超时检查。
+    // 在某些场景下（如弹性或自适应调度），可能由外部组件接管超时检查职责，此时调用此方法禁用 Slot Pool 内部的超时机制。
     void disableBatchSlotRequestTimeoutCheck();
 
     /**
@@ -212,6 +245,8 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      * @param taskManagerId identifies the task manager
      * @return the allocated slots on the task manager
      */
+    // 创建已分配槽位报告。
+    // 生成一个报告，列出指定 TaskManager 上当前被 JobMaster 分配和使用的所有槽位信息。
     AllocatedSlotReport createAllocatedSlotReport(ResourceID taskManagerId);
 
     /**
@@ -219,5 +254,6 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      *
      * @param isJobRestarting whether the job is restarting or not
      */
+    // 设置作业重启状态。
     void setIsJobRestarting(boolean isJobRestarting);
 }

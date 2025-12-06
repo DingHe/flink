@@ -53,28 +53,39 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /** {@link SlotPoolService} implementation for the {@link DeclarativeSlotPool}. */
+// 专为声明式槽位池 (DeclarativeSlotPool) 设计。
+// 它扮演着 JobMaster 与外部实体（如 ResourceManager 和 TaskManager）进行交互的适配层和状态机。
+// 生命周期管理： 负责 DeclarativeSlotPool 的启动和关闭流程，并维护服务自身的运行状态（CREATED, STARTED, CLOSED）。
+// 对接 ResourceManager： 通过 DeclareResourceRequirementServiceConnectionManager 将 JobMaster 产生的资源需求（由 DeclarativeSlotPool 产生）发送给 ResourceManager。
+// 对接 TaskManager： 接收 TaskManager 的槽位提供 (offerSlots)，并管理 TaskManager 的注册和释放。
+// 状态同步和报告： 处理槽位分配失败，并在 TaskManager 宕机时释放所有相关槽位。同时，它能生成当前 TaskManager 上槽位的报告。
+// 是 JobMaster 中实现声明式资源分配逻辑的主要服务门面。
 public class DeclarativeSlotPoolService implements SlotPoolService {
-
+    // 当前作业 ID。
+    // 标识该服务所属的 Flink 作业。
     private final JobID jobId;
-
+    // RPC 超时时间。
+    // 用于与 TaskManager 或 ResourceManager 进行远程通信时的超时设置。
     private final Duration rpcTimeout;
-    //管理资源的申请
+    // 核心槽位池逻辑。
+    // 实际负责维护资源需求和槽位状态的核心组件。该服务类围绕它进行调度和外部通信。
     private final DeclarativeSlotPool declarativeSlotPool;
 
     private final Clock clock;
-    //注册的taskmanager
+    // 已注册的 TaskManager 集合。
     private final Set<ResourceID> registeredTaskManagers;
 
     protected final Logger log = LoggerFactory.getLogger(getClass());
-    //请求资源的接口，初始化为空操作
+    // 负责管理与声明资源需求服务（即 ResourceManager）的连接，并在连接建立后将资源需求转发给它。
     private DeclareResourceRequirementServiceConnectionManager
             resourceRequirementServiceConnectionManager =
                     NoOpDeclareResourceRequirementServiceConnectionManager.INSTANCE;
-
+    // 当前 JobMaster 的唯一标识符。
     @Nullable private JobMasterId jobMasterId;
-    //JobMaster的地址
+    // 当前 JobMaster 的网络通信地址，
+    // 用于发送给 ResourceManager。
     @Nullable private String jobManagerAddress;
-
+    // 维护服务的生命周期状态（CREATED, STARTED, CLOSED）。
     private State state = State.CREATED;
     protected final ComponentMainThreadExecutor componentMainThreadExecutor;
 

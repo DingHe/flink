@@ -57,19 +57,32 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /** {@link SlotPool} implementation which uses the {@link DeclarativeSlotPool} to allocate slots. */
+// DeclarativeSlotPoolBridge 类是 Flink 中 SlotPool 接口的一个实现，它继承自 DeclarativeSlotPoolService。
+// 它的主要作用是作为 JobMaster 的旧调度器（通常是基于请求-响应模型的调度器，如 SchedulerNG）与新声明式资源管理核心（即 DeclarativeSlotPool）之间的桥梁 (Bridge)。
+// 适配请求-响应模型： 它接收来自上层调度器（例如，JobGraph 阶段）的具体的槽位请求（requestNewAllocatedSlot），并将这些请求转换为对底层 DeclarativeSlotPool 的抽象资源需求。
+// 管理待定请求： 它内部维护了所有待处理的槽位请求（PendingRequest），并在底层 DeclarativeSlotPool 报告有新的可用槽位时，负责将这些槽位与待处理请求进行匹配和分配。
+// 超时处理： 它实现了对空闲槽位和批处理槽位请求的超时检查逻辑。
+// 作业重启逻辑： 在作业重启期间，它能够区别对待槽位提供，确保快速恢复。
 public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implements SlotPool {
-
+    // 待处理的槽位请求集合。
+    // 存储所有尚未被满足的槽位请求。使用 LinkedHashMap 可能是为了维护请求的插入顺序，便于匹配和超时检查。
     private final Map<SlotRequestId, PendingRequest> pendingRequests;
+    // 已满足请求与槽位 ID 的映射。
+    // 存储已经被分配槽位但尚未释放的请求。用于通过 SlotRequestId 快速查找对应的 AllocationID。
     private final Map<SlotRequestId, AllocationID> fulfilledRequests;
+    // 空闲槽位超时时间。
     private final Duration idleSlotTimeout;
-
+    // 请求槽位匹配策略。
     private final RequestSlotMatchingStrategy requestSlotMatchingStrategy;
-
+    // 批处理槽位请求超时时间
     private final Duration batchSlotTimeout;
+    // 批处理超时检查开关。
     private boolean isBatchSlotRequestTimeoutCheckDisabled;
-
+    // 作业重启标志。
+    // 标志当前作业是否正在重启过程中。重启期间，槽位提供可能被特殊处理 (registerSlots)。
     private boolean isJobRestarting = false;
-
+    // 槽位批量分配标志。
+    // 如果为 true，槽位匹配将等待收集到足够的槽位后再进行批量分配（针对批处理场景）。
     private final boolean slotBatchAllocatable;
 
     public DeclarativeSlotPoolBridge(

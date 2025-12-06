@@ -24,7 +24,12 @@ import org.apache.flink.runtime.jobmaster.SlotInfo;
 
 import java.util.Collection;
 import java.util.Optional;
-//负责维护分配的slot
+// AllocatedSlotPool（已分配槽位池）是一个低层级的接口，它的核心职责是作为 JobMaster 中所有已获得的物理槽位 (AllocatedSlot) 的集中式仓库和生命周期管理器。
+// 维护一组 AllocatedSlot 实例，并提供添加、移除、查询、预定和释放这些物理资源槽位的基础操作。
+// 管理的是 JobMaster 已经从 TaskManager 成功获取的物理资源，而不是更高层级的逻辑槽位请求。
+// 负责**“库存管理”**的组件，记录了 JobMaster 当前拥有哪些 TaskManager 上的哪些物理资源，以及这些资源是空闲还是已被预定。
+
+
 /** The slot pool is responsible for maintaining a set of {@link AllocatedSlot AllocatedSlots}. */
 public interface AllocatedSlotPool {
 
@@ -35,6 +40,9 @@ public interface AllocatedSlotPool {
      * @param currentTime currentTime when the slots have been added to the slot pool
      * @throws IllegalStateException if the slot pool already contains a to be added slot
      */
+    // 添加槽位。
+    // 将从 TaskManager 获得的 AllocatedSlot 集合添加到槽位池中。
+    // currentTime 记录槽位加入的时间点。如果槽位池中已存在相同的槽位（通过 AllocationID 识别），则会抛出异常。
     void addSlots(Collection<AllocatedSlot> slots, long currentTime);
 
     /**
@@ -44,6 +52,8 @@ public interface AllocatedSlotPool {
      * @return the removed slot if there was a slot with the given allocationId; otherwise {@link
      *     Optional#empty()}
      */
+    // 移除单个槽位。
+    // 根据 AllocationID 将指定的槽位从池中移除（无论其是否被预定）。如果槽位存在则返回被移除的槽位，否则返回空。
     Optional<AllocatedSlot> removeSlot(AllocationID allocationId);
 
     /**
@@ -52,6 +62,8 @@ public interface AllocatedSlotPool {
      * @param owner owner identifies the TaskExecutor whose slots shall be removed
      * @return the collection of removed slots and for each slot whether it was currently free
      */
+    // 移除 TaskExecutor 的所有槽位。
+    // 移除属于指定 TaskExecutor (owner) 的所有槽位。返回一个包含所有被移除槽位及其预定状态的集合。
     AllocatedSlotsAndReservationStatus removeSlots(ResourceID owner);
 
     /**
@@ -61,6 +73,7 @@ public interface AllocatedSlotPool {
      * @return {@code true} if the slot pool contains a slot from the given owner; otherwise {@code
      *     false}
      */
+    // 检查 TaskExecutor 是否有槽位。
     boolean containsSlots(ResourceID owner);
 
     /**
@@ -71,6 +84,7 @@ public interface AllocatedSlotPool {
      * @return {@code true} if the slot pool contains the slot with the given allocationId;
      *     otherwise {@code false}
      */
+    // 检查槽位是否存在。
     boolean containsSlot(AllocationID allocationId);
 
     /**
@@ -81,6 +95,8 @@ public interface AllocatedSlotPool {
      * @return {@code true} if the slot pool contains a free slot registered under the given
      *     allocation id; otherwise {@code false}
      */
+    // 检查空闲槽位是否存在。
+    // 检查槽位池中是否包含具有指定 AllocationID 且当前处于空闲状态的槽位。
     boolean containsFreeSlot(AllocationID allocationId);
 
     /**
@@ -90,6 +106,8 @@ public interface AllocatedSlotPool {
      * @return the {@link AllocatedSlot} which has been reserved
      * @throws IllegalStateException if there is no free slot with the given allocationId
      */
+    // 预定空闲槽位。
+    // 将池中指定的空闲槽位标记为已预定状态。预定成功的槽位将被用于创建 LogicalSlot。如果槽位不存在或不是空闲状态，则抛出 IllegalStateException。
     AllocatedSlot reserveFreeSlot(AllocationID allocationId);
 
     /**
@@ -100,6 +118,8 @@ public interface AllocatedSlotPool {
      * @return the freed {@link AllocatedSlot} if there was an allocated with the given
      *     allocationId; otherwise {@link Optional#empty()}.
      */
+    // 释放已预定的槽位。
+    // 将指定的已预定槽位释放，并将其重新放回空闲槽位集合中。currentTime 记录其变为空闲的时间。
     Optional<AllocatedSlot> freeReservedSlot(AllocationID allocationId, long currentTime);
 
     /**

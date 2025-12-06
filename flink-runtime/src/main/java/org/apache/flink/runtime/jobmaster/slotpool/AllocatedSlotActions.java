@@ -24,6 +24,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /** Interface for components which have to perform actions on allocated slots. */
+// AllocatedSlotActions（已分配槽位操作）接口定义了对已经分配给 JobMaster 并处于活跃状态的资源槽位可以执行的行为。
+// 释放（或归还）特定的已分配资源槽位。
 public interface AllocatedSlotActions {
 
     /**
@@ -33,5 +35,8 @@ public interface AllocatedSlotActions {
      * @param slotRequestId identifying the slot to release
      * @param cause of the slot release, null if none
      */
+    // 释放由特定请求 ID 标识的已分配资源槽位。
+    // slotRequestId (@Nonnull SlotRequestId): 槽位请求 ID。
+    // 这个 ID 唯一标识了当初 JobMaster 请求并最终分配到的那个资源槽位。释放操作必须准确地通过这个 ID 来定位目标槽位。
     void releaseSlot(@Nonnull SlotRequestId slotRequestId, @Nullable Throwable cause);
 }

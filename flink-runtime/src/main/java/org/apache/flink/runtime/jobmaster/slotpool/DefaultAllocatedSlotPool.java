@@ -38,16 +38,24 @@ import java.util.Optional;
 import java.util.Set;
 
 /** Default {@link AllocatedSlotPool} implementation. */
+// 精确管理和追踪 JobMaster 从 TaskManager 获得的每一个物理资源槽位 (AllocatedSlot)
+// 槽位存储和索引： 维护所有已分配槽位的完整集合，并提供基于 AllocationID 和 ResourceID (TaskManager ID) 的快速查找能力。
+// 空闲状态管理： 精确追踪哪些槽位是空闲的，并记录它们空闲了多久 (FreeSlots)，这是实现空闲槽位超时释放的基础。
+// 预定和释放： 实现空闲槽位的原子性预定和释放操作，确保资源分配的正确性。
 public class DefaultAllocatedSlotPool implements AllocatedSlotPool {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultAllocatedSlotPool.class);
-
+    // 所有已注册槽位的主映射表。
+    // 以 AllocationID 为键，存储所有已分配给 JobMaster 的 AllocatedSlot 实例，无论其是空闲还是已被预定。
     private final Map<AllocationID, AllocatedSlot> registeredSlots;
 
     /** All free slots and since when they are free, index by TaskExecutor. */
+    // 空闲槽位管理器。
+    // 专门负责追踪哪些槽位当前是空闲的，以及它们开始空闲的时间。
     private final FreeSlots freeSlots;
 
     /** Index containing a mapping between TaskExecutors and their slots. */
+    // 按 TaskExecutor 索引的槽位映射表。
     private final Map<ResourceID, Set<AllocationID>> slotsPerTaskExecutor;
 
     public DefaultAllocatedSlotPool() {

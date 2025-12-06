@@ -37,11 +37,17 @@ import java.util.stream.Collectors;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /** The provider serves physical slot requests. */
+// PhysicalSlotProviderImpl 是 Flink 中 PhysicalSlotProvider 接口的实现，它是 JobMaster 调度器层（如 SchedulerNG）用于获取实际物理槽位的主要入口。
+// 策略驱动的槽位选择： 它结合了槽位选择策略（SlotSelectionStrategy），从当前 JobMaster 槽位池（SlotPool）中的可用空闲槽位中，选择出最合适的槽位来满足任务的资源需求和位置偏好。
+// 统一请求接口： 它向上层提供了一个统一的 allocatePhysicalSlots 接口，可以批量处理多个槽位请求。
+// 桥接分配逻辑： 如果没有合适的空闲槽位，它会通过 SlotPool 向底层（DeclarativeSlotPoolBridge 和 DeclarativeSlotPool）发起新的资源分配请求，从而触发与 ResourceManager 的通信。
+// 是 JobMaster 中将调度请求（PhysicalSlotRequest）转化为实际的槽位分配动作的关键组件。
 public class PhysicalSlotProviderImpl implements PhysicalSlotProvider {
     private static final Logger LOG = LoggerFactory.getLogger(PhysicalSlotProviderImpl.class);
-
+    // 槽位选择策略。
+    // 核心组件之一。定义了如何从一组可用的空闲槽位中，根据资源配置文件（SlotProfile）和位置偏好，选择出最优槽位的逻辑。
     private final SlotSelectionStrategy slotSelectionStrategy;
-
+    // 核心组件之二。引用 JobMaster 中负责维护槽位状态和管理资源需求的组件（例如 DeclarativeSlotPoolBridge）。它用于执行实际的槽位分配和释放操作。
     private final SlotPool slotPool;
 
     public PhysicalSlotProviderImpl(
@@ -54,7 +60,7 @@ public class PhysicalSlotProviderImpl implements PhysicalSlotProvider {
     public void disableBatchSlotRequestTimeoutCheck() {
         slotPool.disableBatchSlotRequestTimeoutCheck();
     }
-
+    // 分配物理槽位。
     @Override
     public Map<SlotRequestId, CompletableFuture<PhysicalSlotRequest.Result>> allocatePhysicalSlots(
             Collection<PhysicalSlotRequest> physicalSlotRequests) {
@@ -107,7 +113,7 @@ public class PhysicalSlotProviderImpl implements PhysicalSlotProvider {
                                                             slotRequestId, physicalSlot));
                                 }));
     }
-
+    // 尝试从现有空闲槽位分配。
     private Map<SlotRequestId, Optional<PhysicalSlot>> tryAllocateFromAvailable(
             Collection<PhysicalSlotRequest> slotRequests) {
         FreeSlotTracker freeSlotTracker = slotPool.getFreeSlotTracker();

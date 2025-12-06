@@ -167,6 +167,7 @@ public class DefaultExecutionGraphFactory implements ExecutionGraphFactory {
             MarkPartitionFinishedStrategy markPartitionFinishedStrategy,
             Logger log)
             throws Exception {
+
         // 将任务部署事件桥接到 executionDeploymentTracker
         ExecutionDeploymentListener executionDeploymentListener =
                 new ExecutionDeploymentTrackerDeploymentListenerAdapter(executionDeploymentTracker);
