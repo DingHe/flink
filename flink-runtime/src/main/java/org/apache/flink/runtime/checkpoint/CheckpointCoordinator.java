@@ -100,6 +100,11 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * acknowledgements. It also collects and maintains the overview of the state handles reported by
  * the tasks that acknowledge the checkpoint.
  */
+// CheckpointCoordinator 是 Flink JobMaster 上的核心组件，负责管理和协调整个分布式应用的状态快照（检查点和保存点）的生命周期。
+// 触发和调度： 根据配置（时间间隔、数据积压状态等）或外部请求，触发新的检查点。
+// 协调和追踪： 向所有参与任务发送检查点障碍物 (Barrier)，并追踪哪些任务已确认 (Acknowledge) 和哪些任务未完成。
+// 状态收集和存储： 收集所有任务报告的算子状态句柄，并将其写入 CompletedCheckpointStore 和 CheckpointStorage
+// 是 Flink 可靠性机制的大脑，负责将分散在集群中的任务状态同步、持久化并管理起来，以实现容错和状态恢复。
 public class CheckpointCoordinator {
 
     private static final Logger LOG = LoggerFactory.getLogger(CheckpointCoordinator.class);
@@ -109,123 +114,178 @@ public class CheckpointCoordinator {
 
     // ------------------------------------------------------------------------
 
-    /** Coordinator-wide lock to safeguard the checkpoint updates.确保对检查点状态的更新是线程安全的。检查点协调器需要保证对其状态的修改不被多个线程同时访问 */
+    /** Coordinator-wide lock to safeguard the checkpoint updates.*/
+    // 协调器级锁。
+    // 用于同步访问所有关键的、可变的状态，特别是对 pendingCheckpoints 的操作，以确保线程安全。
     private final Object lock = new Object();
 
     /** The job whose checkpoint this coordinator coordinates. */
+    // 作业 ID。
+    // 当前 Job 的唯一标识符。
     private final JobID job;
 
-    /** Default checkpoint properties. 默认的检查点属性，配置检查点的具体行为，例如是否是增量检查点、是否为一致性检查点等*/
+    /** Default checkpoint properties. */
+    // 默认检查点属性。
+    // 封装了如保留策略 (RETAIN_ON_FAILURE 等) 等检查点配置。
     private final CheckpointProperties checkpointProperties;
 
     /** The executor used for asynchronous calls, like potentially blocking I/O. */
+    // 异步执行器。
+    // 用于执行可能阻塞的 I/O 操作（如存储检查点），避免阻塞 JobMaster 的主线程。
     private final Executor executor;
-   //负责清理已完成的检查点，避免过时或无用的检查点数据占用存储空间
+    // 检查点清理器。
+    // 负责异步清理已完成或失败的检查点。
     private final CheckpointsCleaner checkpointsCleaner;
 
-    /** The operator coordinators that need to be checkpointed. 一个集合，包含所有需要进行检查点的操作符协调器（OperatorCoordinator），即所有参与检查点的算子*/
+    /** The operator coordinators that need to be checkpointed. */
+    // 要检查点的算子协调器。
+    // 存储需要参与检查点流程的所有 OperatorCoordinator 的上下文，包括 Source 协调器等。
     private final Collection<OperatorCoordinatorCheckpointContext> coordinatorsToCheckpoint;
 
-    /** Map from checkpoint ID to the pending checkpoint. 一个映射，从检查点 ID 到正在等待完成的检查点对象*/
+    /** Map from checkpoint ID to the pending checkpoint. */
+    // 待处理的检查点映射。
+    // 存储所有当前正在进行中、等待任务确认的检查点。Key 是检查点 ID，Value 是 PendingCheckpoint 对象。
     @GuardedBy("lock")
     private final Map<Long, PendingCheckpoint> pendingCheckpoints;
 
     /**
      * Completed checkpoints. Implementations can be blocking. Make sure calls to methods accessing
-     * this don't block the job manager actor and run asynchronously.已完成检查点的存储。它存储那些已经成功完成的检查点信息，通常是持久化的，以便恢复作业的状态
+     * this don't block the job manager actor and run asynchronously.
      */
+    // 已完成检查点存储。
+    // 外部存储接口，用于持久化已成功完成的检查点元数据。
+    // 侧重点是元数据管理 (Metadata Management)
+    // 仅存储已完成检查点的元数据（CompletedCheckpoint 对象，包含 ID、状态句柄引用等）。
+    // 通常驻留在 高可用服务 (HA) 中，如 ZooKeeper、JobManager 的内存或外部持久化服务（如 Flink 的 FileSystemCompletedCheckpointStore）。
     private final CompletedCheckpointStore completedCheckpointStore;
 
     /**
      * The root checkpoint state backend, which is responsible for initializing the checkpoint,
-     * storing the metadata, and cleaning up the checkpoint.根检查点状态后端，负责初始化、存储和清理检查点的元数据
+     * storing the metadata, and cleaning up the checkpoint.
      */
+    // 检查点存储视图。
+    // 负责与底层的 CheckpointStorage 交互，包括初始化位置、存储元数据和清理。
+    // 侧重点是实际数据 I/O 与位置管理 (Data I/O & Location)
+    // 负责创建和管理检查点数据文件和元数据文件的存储位置。
+    // 负责与 底层存储系统 (如 HDFS, S3, 本地文件系统) 交互。
     private final CheckpointStorageCoordinatorView checkpointStorageView;
 
-    /** A list of recent expired checkpoint IDs, to identify late messages (vs invalid ones). 一个双端队列，存储最近过期的检查点 ID，用于识别延迟消息（如恢复时）*/
+    /** A list of recent expired checkpoint IDs, to identify late messages (vs invalid ones). */
+    // 最近过期 ID 队列。
+    // 存储最近被清除或超时的检查点 ID，用于在接收到延迟的 ACK 或 Decline 消息时，判断消息是否针对一个已知的过期检查点，而非完全无效的 ID。
     private final ArrayDeque<Long> recentExpiredCheckpoints;
 
     /**
      * Checkpoint ID counter to ensure ascending IDs. In case of job manager failures, these need to
      * be ascending across job managers.
      */
+    // 检查点 ID 计数器。
+    // 负责生成严格递增且全局唯一的检查点 ID，在 JobMaster 故障恢复时也需要保证 ID 的连续性。
     private final CheckpointIDCounter checkpointIdCounter;
 
     /**
      * The checkpoint interval when there is no source reporting isProcessingBacklog=true. Actual
      * trigger time may be affected by the max concurrent checkpoints, minimum-pause values and
-     * checkpoint interval during backlog.基础的检查点触发间隔时间。当没有源操作符报告 backlog 时，这个时间间隔会作为触发检查点的周期
+     * checkpoint interval during backlog.
      */
+    // 基础检查点间隔。
+    // 当没有任务报告数据积压时，定时检查点使用的触发间隔（毫秒）。
     private final long baseInterval;
 
     /**
      * The checkpoint interval when any source reports isProcessingBacklog=true. Actual trigger time
-     * may be affected by the max concurrent checkpoints and minimum-pause values.当源操作符报告正在处理 backlog（积压数据）时，使用的检查点间隔时间
+     * may be affected by the max concurrent checkpoints and minimum-pause values.
      */
+    // 积压数据时的检查点间隔。
+    // 当有任务报告正在处理积压数据时，使用的触发间隔（毫秒）
     private final long baseIntervalDuringBacklog;
 
-    /** The max time (in ms) that a checkpoint may take. 单个检查点的最大执行时间。如果一个检查点超时未完成，将触发失败*/
+    /** The max time (in ms) that a checkpoint may take.*/
+    // 检查点最大超时时间。
+    // 单个检查点从触发到完成的最大允许时间。
     private final long checkpointTimeout;
 
     /**
      * The min time(in ms) to delay after a checkpoint could be triggered. Allows to enforce minimum
-     * processing time between checkpoint attempts 两个检查点之间的最小暂停时间，用于防止过于频繁的检查点触发
+     * processing time between checkpoint attempts
      */
+    // 检查点最小暂停时间。
+    // 两个连续检查点触发之间必须等待的最短时间间隔，用于防止系统过载。
     private final long minPauseBetweenCheckpoints;
 
     /**
      * The timer that handles the checkpoint timeouts and triggers periodic checkpoints. It must be
-     * single-threaded. Eventually it will be replaced by main thread executor.一个定时器，用于处理检查点超时并触发周期性检查点。该定时器应该是单线程的，保证不会并发地触发多个检查点
+     * single-threaded. Eventually it will be replaced by main thread executor.
      */
+    // 定时器执行器。
+    // 单线程定时器，用于调度周期性检查点触发和超时检查。
     private final ScheduledExecutor timer;
 
-    /** The master checkpoint hooks executed by this checkpoint coordinator. 一个包含主触发恢复钩子的映射，用于在检查点触发或恢复时执行特定的操作（如清理工作、恢复状态等）*/
+    /** The master checkpoint hooks executed by this checkpoint coordinator. */
+    // 主触发恢复钩子。
+    // 允许外部组件在检查点/恢复过程中执行自定义逻辑（如清理、状态处理）。
     private final HashMap<String, MasterTriggerRestoreHook<?>> masterHooks;
-    //标记是否启用了非对齐检查点。非对齐检查点允许某些算子未完成时就可以提交检查点，适用于低延迟要求的场景
+    // 非对齐检查点启用标志。
+    // 标记是否启用了非对齐检查点。
     private final boolean unalignedCheckpointsEnabled;
-   //对齐检查点的超时时间，指对齐检查点需要的最大时间
+    // 对齐检查点超时时间。
+    // 启用了非对齐检查点时，允许任务在转换为非对齐之前等待对齐的最长时间。
     private final long alignedCheckpointTimeout;
 
-    /** Actor that receives status updates from the execution graph this coordinator works for. 作业状态监听器，用于接收来自执行图（Execution Graph）的状态更新*/
+    /** Actor that receives status updates from the execution graph this coordinator works for. */
+    // 作业状态监听器，用于接收来自执行图（Execution Graph）的状态更新
     private JobStatusListener jobStatusListener;
 
-    /**当前周期性触发器对象。周期性触发器用于去重同时调度的检查点
+    /**
      * The current periodic trigger. Used to deduplicate concurrently scheduled checkpoints if any.
      */
+    // 当前的周期触发器。
+    // 封装了下一个周期性检查点的触发逻辑。
     @GuardedBy("lock")
     private ScheduledTrigger currentPeriodicTrigger;
 
     /** A handle to the current periodic trigger, to cancel it when necessary. */
+    // 当前触发器 Future。
+    // timer 调度的未来任务句柄，用于取消或管理当前的周期性触发任务。
     @GuardedBy("lock")
     private ScheduledFuture<?> currentPeriodicTriggerFuture;
 
     /**
      * The timestamp (via {@link Clock#relativeTimeMillis()}) when the next checkpoint will be
      * triggered.
-     *下一个检查点触发的时间戳。如果没有计划的检查点，值为 Long.MAX_VALUE
      * <p>If it's value is {@link Long#MAX_VALUE}, it means there is not a next checkpoint
      * scheduled.
      */
+    // 下一次触发相对时间。
+    // 下一个检查点计划触发的相对时间戳（基于 Clock），如果为 Long.MAX_VALUE 则表示没有调度下一个检查点。
     @GuardedBy("lock")
     private long nextCheckpointTriggeringRelativeTime;
 
-    /**上一个检查点完成的时间戳
+    /**
      * The timestamp (via {@link Clock#relativeTimeMillis()}) when the last checkpoint completed.
      */
+    // 上一次完成时间。
+    // 上一个检查点完成的相对时间戳。
     private long lastCheckpointCompletionRelativeTime;
 
-    /**标记触发的检查点是否会立即调度下一个检查点。这个属性仅在同步范围内访问
+    /**
      * Flag whether a triggered checkpoint should immediately schedule the next checkpoint.
      * Non-volatile, because only accessed in synchronized scope
      */
+    // 周期性调度标志。
+    // 标记是否应该在当前检查点完成后立即调度下一个检查点。
     private boolean periodicScheduling;
 
-    /** Flag marking the coordinator as shut down (not accepting any messages any more). 标记协调器是否已关闭，关闭后不再接受任何消息或操作*/
+    /** Flag marking the coordinator as shut down (not accepting any messages any more). */
+    // 标记协调器是否已关闭，关闭后不再接受任何消息或操作
     private volatile boolean shutdown;
 
     /** Optional tracker for checkpoint statistics. */
+    // 检查点统计追踪器。
+    // 用于收集、聚合和报告检查点的性能和状态统计信息。
     private final CheckpointStatsTracker statsTracker;
-
+    // 顶点完成状态检查器工厂。
+    // 用于创建 VertexFinishedStateChecker，用于验证部分完成任务在状态类型上的兼容性（例如，是否使用了 UnionListState）。
     private final BiFunction<
                     Set<ExecutionJobVertex>,
                     Map<OperatorID, OperatorState>,
@@ -233,27 +293,39 @@ public class CheckpointCoordinator {
             vertexFinishedStateCheckerFactory;
 
     /** Id of checkpoint for which in-flight data should be ignored on recovery. */
+    // 忽略在途数据检查点 ID。
+    // 仅用于恢复场景，如果 Job 从某个特殊的检查点恢复，则该检查点之后的在途数据会被忽略。
     private final long checkpointIdOfIgnoredInFlightData;
-
+    // 检查点失败管理器。
+    // 负责管理检查点失败后的行为，例如触发重试。
     private final CheckpointFailureManager failureManager;
     //提供当前时间的时钟接口，通常用于获取相对时间
     private final Clock clock;
-    //标记当前是否是“精确一次”（exactly-once）语义模式，在此模式下，检查点保证精确一次的语义，避免数据丢失或重复处理
+    // 精确一次模式标志。
+    // 标记当前 Job 是否以精确一次 (Exactly-Once) 语义运行。
     private final boolean isExactlyOnceMode;
 
-    /** Flag represents there is an in-flight trigger request.标记是否正在触发检查点请求 */
+    /** Flag represents there is an in-flight trigger request.*/
+    // 正在触发请求标志。
+    // 标记当前是否正在处理一个检查点触发请求，用于防止并发触发。
     private boolean isTriggering = false;
-    //用于决定是否可以触发检查点请求的逻辑
+    // 检查点请求决策器。
+    // 封装了检查点触发的决策逻辑，根据并发限制和最小暂停时间来决定是否允许触发新的检查点。
     private final CheckpointRequestDecider requestDecider;
-   //计算检查点计划的逻辑，用于确定哪些操作符需要在某个检查点中进行处理
+    // 检查点计划计算器。
+    // 负责根据执行图的当前状态，计算下一个检查点的参与任务列表。
     private final CheckpointPlanCalculator checkpointPlanCalculator;
 
-    /** IDs of the source operators that are currently processing backlog. 一个集合，包含当前正在处理积压数据的源操作符 ID。积压数据的处理可能会影响检查点的触发策略*/
+    /** IDs of the source operators that are currently processing backlog. */
+    // 积压数据算子 ID 集合。
+    // 存储当前正在处理积压数据（Backlog）的 Source 算子 ID。这会影响检查点的触发间隔。
     @GuardedBy("lock")
     private final Set<OperatorID> backlogOperators = new HashSet<>();
-    //标记基础位置是否已为检查点初始化。通常用于存储恢复的检查点信息
+    // 基础位置初始化标志。
+    // 标记检查点存储的基础位置是否已成功初始化。
     private boolean baseLocationsForCheckpointInitialized = false;
-    //标记是否强制进行全量快照（而不是增量快照）
+    // 强制全量快照标志。
+    // 如果为 true，则检查点将强制执行全量快照，而非增量快照。
     private boolean forceFullSnapshot;
 
     // --------------------------------------------------------------------------------------------
@@ -472,6 +544,10 @@ public class CheckpointCoordinator {
      * @param operatorID the operator ID of the source operator.
      * @param isProcessingBacklog whether the source operator is processing backlog.
      */
+
+    // 用于动态调整检查点（Checkpoint）的触发间隔，以应对 Source 算子（Source Operator）是否正在处理积压数据（Backlog）的情况。
+    // operatorID (OperatorID): 传入的参数，表示报告当前状态的 Source 算子的唯一标识符。
+    // isProcessingBacklog (boolean): 传入的参数，表示该 Source 算子当前是否正在处理积压数据（如果为 true 则表示正在处理）。
     public void setIsProcessingBacklog(OperatorID operatorID, boolean isProcessingBacklog) {
         synchronized (lock) {
             if (isProcessingBacklog) {
@@ -479,13 +555,19 @@ public class CheckpointCoordinator {
             } else {
                 backlogOperators.remove(operatorID);
             }
-
+            // 获取当前生效的检查点间隔
+            // 根据 backlogOperators 集合的状态来决定使用哪个配置值：
             long currentCheckpointInterval = getCurrentCheckpointInterval();
+            // 检查检查点功能是否被禁用。
             if (currentCheckpointInterval
                     != CheckpointCoordinatorConfiguration.DISABLED_CHECKPOINT_INTERVAL) {
                 long currentRelativeTime = clock.relativeTimeMillis();
+                // 如果现在就按照新的间隔立即设置下一次触发时间，新的触发时间点。
+                // 新的触发时间点（新的、更短的间隔）早于当前计划的旧触发时间点时，条件才成立。
+                // 这通常发生在检查点间隔从长变短时（例如，从正常间隔切换到积压间隔）
                 if (currentRelativeTime + currentCheckpointInterval
                         < nextCheckpointTriggeringRelativeTime) {
+                    // 重调度检查点触发器
                     rescheduleTrigger(currentRelativeTime, currentCheckpointInterval);
                 }
             }
@@ -542,7 +624,11 @@ public class CheckpointCoordinator {
 
         return triggerCheckpointFromCheckpointThread(checkpointProperties, targetLocation, false);
     }
-
+    // 这个方法是实际触发检查点的核心逻辑的包装器，它确保了检查点触发操作在一个专用的线程（通常是 CheckpointCoordinator 的 定时器线程）中执行，以维护线程安全和操作的顺序性。
+    // 主要目的是将检查点触发的操作提交到 timer 执行器上执行，并将执行结果通过一个 CompletableFuture 返回给调用者。
+    // 1. checkpointProperties: 检查点的属性，如是否是保存点 (isSavepoint)、是否外部持久化等。
+    // 2. targetLocation: 可选的目标存储路径。如果非空，通常用于用户指定的保存点路径。
+    // 3. isPeriodic: 指示此次触发是否为周期性检查点。
     private CompletableFuture<CompletedCheckpoint> triggerCheckpointFromCheckpointThread(
             CheckpointProperties checkpointProperties, String targetLocation, boolean isPeriodic) {
         // TODO, call triggerCheckpoint directly after removing timer thread
@@ -570,6 +656,9 @@ public class CheckpointCoordinator {
      * @param isPeriodic Flag indicating whether this triggered checkpoint is periodic.
      * @return a future to the completed checkpoint.
      */
+    // 核心作用是作为外部调用（比如定时器、用户请求）触发标准检查点的入口，并将工作转发给一个更通用的内部方法。
+    // 承诺返回一个已完成的检查点对象，允许调用者异步等待结果。
+    // 参数 isPeriodic： 一个布尔标志，指示此次触发是否为周期性的检查点（例如，由配置的间隔时间触发），而不是用户或故障恢复等原因触发的单次检查点。
     public CompletableFuture<CompletedCheckpoint> triggerCheckpoint(boolean isPeriodic) {
         return triggerCheckpointFromCheckpointThread(checkpointProperties, null, isPeriodic);
     }
@@ -614,7 +703,8 @@ public class CheckpointCoordinator {
                         checkpointProperties.isUnclaimed());
         return triggerCheckpointFromCheckpointThread(properties, null, false);
     }
-
+    // 用于**触发检查点（或保存点）**的核心方法
+    // 将检查点触发逻辑分为三个步骤：封装请求、选择执行请求、返回结果承诺。
     @VisibleForTesting
     CompletableFuture<CompletedCheckpoint> triggerCheckpoint(
             CheckpointProperties props,
@@ -626,19 +716,22 @@ public class CheckpointCoordinator {
         chooseRequestToExecute(request).ifPresent(this::startTriggeringCheckpoint);
         return request.onCompletionPromise;
     }
-
+    // 负责启动检查点或保存点触发流程的关键方法
     private void startTriggeringCheckpoint(CheckpointTriggerRequest request) {
         try {
             synchronized (lock) {
+                // 确保在触发检查点时 JobMaster 处于合法状态（例如，作业正在运行），并且如果请求是周期性检查点，
+                // 它会检查是否违反了最小检查点间隔等约束。如果预检查失败，将抛出异常。
                 preCheckGlobalState(request.isPeriodic);
             }
 
             // we will actually trigger this checkpoint!
+            // 断言当前没有其他检查点正在被触发
             Preconditions.checkState(!isTriggering);
             isTriggering = true;
 
             final long timestamp = System.currentTimeMillis();
-
+            // 计算本次检查点需要涉及的所有任务（Source、Operator、Sink 等）
             CompletableFuture<CheckpointPlan> checkpointPlanFuture =
                     checkpointPlanCalculator.calculateCheckpointPlan();
 
@@ -646,7 +739,7 @@ public class CheckpointCoordinator {
             baseLocationsForCheckpointInitialized = true;
 
             CompletableFuture<Void> masterTriggerCompletionPromise = new CompletableFuture<>();
-
+            // 创建 PendingCheckpoint 和分配 ID
             final CompletableFuture<PendingCheckpoint> pendingCheckpointCompletableFuture =
                     checkpointPlanFuture
                             .thenApplyAsync(
@@ -674,7 +767,7 @@ public class CheckpointCoordinator {
                                                     request.getOnCompletionFuture(),
                                                     masterTriggerCompletionPromise),
                                     timer);
-
+            // 初始化存储位置和协调者状态 (Master/Coordinator State)
             final CompletableFuture<?> coordinatorCheckpointsComplete =
                     pendingCheckpointCompletableFuture
                             .thenApplyAsync(
@@ -705,6 +798,7 @@ public class CheckpointCoordinator {
                                             pendingCheckpoint.setCheckpointTargetLocation(
                                                     checkpointInfo.f1);
                                         }
+                                        // 触发并等待所有 OperatorCoordinator（如 Source Coordinator）的状态快照完成
                                         return OperatorCoordinatorCheckpoints
                                                 .triggerAndAcknowledgeAllCoordinatorCheckpointsWithCompletion(
                                                         coordinatorsToCheckpoint,
@@ -733,10 +827,12 @@ public class CheckpointCoordinator {
                                     // skip snapshotting the master states.
                                     return null;
                                 }
+                                // 触发对JobMaster 自身的 Master Hook 状态（例如，一些框架级的状态）进行快照。
+                                // 顺序非常重要： 先协调者状态，后 Master 状态，以保证数据流的正确性（特别是对 ExternallyInducedSource）。
                                 return snapshotMasterState(checkpoint);
                             },
                             timer);
-
+            // 创建一个 Future，表示协调者状态 (coordinatorCheckpointsComplete) 和 Master 状态 (masterStatesComplete) 两者都已成功完成。
             FutureUtils.forward(
                     CompletableFuture.allOf(masterStatesComplete, coordinatorCheckpointsComplete),
                     masterTriggerCompletionPromise);
@@ -761,6 +857,8 @@ public class CheckpointCoordinator {
                                                 onTriggerFailure(checkpoint, throwable);
                                             }
                                         } else {
+                                            // 如果所有协调者端的准备工作（计划、ID、定位、Master/Coordinator 状态快照）都成功完成，则调用 triggerCheckpointRequest。
+                                            // 这是真正向所有 Source TaskManager 发送检查点屏障（Checkpoint Barrier）的调用，标志着分布式检查点过程开始。
                                             triggerCheckpointRequest(
                                                     request, timestamp, checkpoint);
                                         }
@@ -784,9 +882,13 @@ public class CheckpointCoordinator {
             onTriggerFailure(request, throwable);
         }
     }
-
+    // 在协调者（Master）端准备工作完成后，正式向 Task 发起检查点请求
+    // request: 原始的检查点触发请求对象，包含属性和完成 Future。
+    // timestamp: 检查点开始触发的时间戳。
+    // checkpoint: 已经创建好的 PendingCheckpoint 对象，代表本次正在进行的检查点实例。
     private void triggerCheckpointRequest(
             CheckpointTriggerRequest request, long timestamp, PendingCheckpoint checkpoint) {
+        // 检查 PendingCheckpoint 是否在协调者准备期间（例如，计算计划、定位存储或快照 Coordinator 状态时）已经被取消或丢弃。
         if (checkpoint.isDisposed()) {
             onTriggerFailure(
                     checkpoint,
@@ -794,6 +896,7 @@ public class CheckpointCoordinator {
                             CheckpointFailureReason.TRIGGER_CHECKPOINT_FAILURE,
                             checkpoint.getFailureCause()));
         } else {
+            // 向任务发送检查点屏障 (Trigger Tasks)
             triggerTasks(request, timestamp, checkpoint)
                     .exceptionally(
                             failure -> {
@@ -827,24 +930,28 @@ public class CheckpointCoordinator {
             // It is possible that the tasks has finished
             // checkpointing at this point.
             // So we need to complete this pending checkpoint.
+            // 完成检查点 (Complete Checkpoint)
             if (maybeCompleteCheckpoint(checkpoint)) {
                 onTriggerSuccess();
             }
         }
     }
-
+    // 负责向 Source Task 发送检查点屏障以启动分布式快照的核心方法
+    // 将协调者端的准备工作转化为对实际任务的远程调用，以启动数据快照。
     private CompletableFuture<Void> triggerTasks(
             CheckpointTriggerRequest request, long timestamp, PendingCheckpoint checkpoint) {
         // no exception, no discarding, everything is OK
         final long checkpointId = checkpoint.getCheckpointID();
 
         final SnapshotType type;
+        // 检查是否配置了强制全量快照 (forceFullSnapshot) 且本次请求不是保存点 (!isSavepoint())。
         if (this.forceFullSnapshot && !request.props.isSavepoint()) {
             type = FULL_CHECKPOINT;
         } else {
             type = request.props.getCheckpointType();
         }
-
+        // 创建一个 CheckpointOptions 对象。
+        // 这个对象将与检查点屏障一起发送给任务，指导任务如何执行快照操作。
         final CheckpointOptions checkpointOptions =
                 CheckpointOptions.forConfig(
                         type,
@@ -854,16 +961,22 @@ public class CheckpointCoordinator {
                         alignedCheckpointTimeout);
 
         // send messages to the tasks to trigger their checkpoints
+        // 初始化一个列表，用于存储所有任务触发请求返回的 Future。
+        // 每个 Future 在任务成功接收到触发消息并开始处理时完成。
         List<CompletableFuture<Acknowledge>> acks = new ArrayList<>();
+        // 遍历检查点计划中所有需要发送屏障的任务（通常是 Source 任务）
         for (Execution execution : checkpoint.getCheckpointPlan().getTasksToTrigger()) {
+            // 检查本次请求是否是同步保存点
             if (request.props.isSynchronous()) {
                 acks.add(
                         execution.triggerSynchronousSavepoint(
                                 checkpointId, timestamp, checkpointOptions));
             } else {
+                // 如果是普通检查点（异步），则调用标准的 execution.triggerCheckpoint(...) 方法。
                 acks.add(execution.triggerCheckpoint(checkpointId, timestamp, checkpointOptions));
             }
         }
+        // 返回等待所有任务触发完成的 Future
         return FutureUtils.waitForAll(acks);
     }
 
@@ -897,7 +1010,7 @@ public class CheckpointCoordinator {
 
         return checkpointStorageLocation;
     }
-
+    // 用于实例化和注册一个新的 PendingCheckpoint 对象的关键方法。
     private PendingCheckpoint createPendingCheckpoint(
             long timestamp,
             CheckpointProperties props,
@@ -1010,6 +1123,9 @@ public class CheckpointCoordinator {
     /** Trigger request is successful. NOTE, it must be invoked if trigger request is successful. */
     private void onTriggerSuccess() {
         isTriggering = false;
+        // 调度下一个请求
+        // 如果在当前检查点触发期间，有其他周期性检查点或手动保存点请求被拦截并排队，
+        // 此方法将尝试将队列中的第一个请求取出并启动其触发流程（调用 startTriggeringCheckpoint）。
         executeQueuedRequest();
     }
 
@@ -1085,7 +1201,7 @@ public class CheckpointCoordinator {
                     isTriggering, lastCheckpointCompletionRelativeTime);
         }
     }
-
+    // 检查点请求决策
     private Optional<CheckpointTriggerRequest> chooseRequestToExecute(
             CheckpointTriggerRequest request) {
         synchronized (lock) {
@@ -1097,8 +1213,11 @@ public class CheckpointCoordinator {
     }
 
     // Returns true if the checkpoint is successfully completed, false otherwise.
+    // 主要在任务（Task）向协调者发送检查点确认（ACK）后，或者在所有屏障发送完成后，被调用以检查检查点是否已准备好进入完成阶段。
     private boolean maybeCompleteCheckpoint(PendingCheckpoint checkpoint) {
+        // 在 Flink 中，所有对检查点状态（包括 PendingCheckpoint 列表）的修改都必须在持有这个锁的情况下进行，以确保线程安全。
         synchronized (lock) {
+            // 检查当前 PendingCheckpoint 是否已获得所有任务的确认（ACK）。
             if (checkpoint.isFullyAcknowledged()) {
                 try {
                     // we need to check inside the lock for being shutdown as well,
@@ -1106,6 +1225,7 @@ public class CheckpointCoordinator {
                     if (shutdown) {
                         return false;
                     }
+                    // 将 CompletedCheckpoint 写入 JobManager 的状态后端（如果配置了）；更新最新完成的检查点 ID；并通知等待该结果的 Future。
                     completePendingCheckpoint(checkpoint);
                 } catch (CheckpointException ce) {
                     onTriggerFailure(checkpoint, ce);
@@ -1362,22 +1482,26 @@ public class CheckpointCoordinator {
      * @param pendingCheckpoint to complete
      * @throws CheckpointException if the completion failed
      */
+    // 用于正式完成一个已确认的检查点 PendingCheckpoint
+    // 接收一个 PendingCheckpoint 对象作为参数，表示这个检查点已收到所有任务的确认，可以进入完成阶段。
     private void completePendingCheckpoint(PendingCheckpoint pendingCheckpoint)
             throws CheckpointException {
         final long checkpointId = pendingCheckpoint.getCheckpointID();
         final CompletedCheckpoint completedCheckpoint;
         final CompletedCheckpoint lastSubsumed;
         final CheckpointProperties props = pendingCheckpoint.getProps();
-
+        // 通知共享状态注册中心 (SharedStateRegistry)，本次检查点 ID 已成功完成。
         completedCheckpointStore.getSharedStateRegistry().checkpointCompleted(checkpointId);
 
         try {
+            // 将 PendingCheckpoint 中收集到的所有状态句柄和元数据整合，创建一个不可变的 CompletedCheckpoint 对象
             completedCheckpoint = finalizeCheckpoint(pendingCheckpoint);
 
             // the pending checkpoint must be discarded after the finalization
             Preconditions.checkState(pendingCheckpoint.isDisposed() && completedCheckpoint != null);
 
             if (!props.isSavepoint()) {
+                // 将新完成的 completedCheckpoint 写入 CompletedCheckpointStore（JobManager 持久化存储），并根据保留策略（如配置的最大检查点数量）淘汰（subsume）最旧的检查点
                 lastSubsumed =
                         addCompletedCheckpointToStoreAndSubsumeOldest(
                                 checkpointId, completedCheckpoint, pendingCheckpoint);
@@ -1386,6 +1510,7 @@ public class CheckpointCoordinator {
             }
 
             pendingCheckpoint.getCompletionFuture().complete(completedCheckpoint);
+            // 向外部系统（如度量系统、HA 存储或日志）报告本次检查点的成功信息。
             reportCompletedCheckpoint(completedCheckpoint);
         } catch (Exception exception) {
             // For robustness reasons, we need catch exception and try marking the checkpoint
@@ -1393,10 +1518,13 @@ public class CheckpointCoordinator {
             pendingCheckpoint.getCompletionFuture().completeExceptionally(exception);
             throw exception;
         } finally {
+            // 将本次检查点从 CheckpointCoordinator 维护的正在进行的检查点列表中移除，因为其生命周期已经结束。
             pendingCheckpoints.remove(checkpointId);
+            // 重新调度周期性检查点触发器。由于本次检查点已完成，协调者可以尝试立即触发下一个周期性检查点（如果配置了最小间隔，则会等待到期）。
             scheduleTriggerRequest();
         }
-
+        // 事后清理工作。
+        // 清理被淘汰的旧检查点 (lastSubsumed) 的外部文件/句柄，释放资源，并清理与本次检查点相关的其他临时资源。
         cleanupAfterCompletedCheckpoint(
                 pendingCheckpoint, checkpointId, completedCheckpoint, lastSubsumed, props);
     }
@@ -1664,6 +1792,9 @@ public class CheckpointCoordinator {
      * @throws IllegalStateException If the parallelism changed for an operator that restores
      *     <i>non-partitioned</i> state from this checkpoint.
      */
+    // 作用是将最近一次成功的检查点状态恢复到一个特定的任务子集（通常是一个故障区域）。它代表了一种“局部”或“区域性”的故障恢复机制。
+    // 从最近一次完成的检查点或保存点中，将状态加载并映射到传入的 tasks 集合中指定的任务实例。
+    // tasks: 需要恢复状态并重新启动的 ExecutionJobVertex 集合。这些任务通常是导致故障或受到故障影响的区域中的一部分。
     public OptionalLong restoreLatestCheckpointedStateToSubtasks(
             final Set<ExecutionJobVertex> tasks) throws Exception {
         // when restoring subtasks only we accept potentially unmatched state for the
@@ -1673,11 +1804,15 @@ public class CheckpointCoordinator {
         //   - because what we might end up restoring from an original savepoint with unmatched
         //     state, if there is was no checkpoint yet.
         return restoreLatestCheckpointedStateInternal(
-                tasks,
+                tasks, // 明确指定了需要恢复状态的 JobVertex 集合。
+                // 对于局部/区域性恢复，我们只关心数据流任务的状态，不重置或恢复 OperatorCoordinator 的状态。
                 OperatorCoordinatorRestoreBehavior
                         .SKIP, // local/regional recovery does not reset coordinators
+                // 表示即使找不到可用的检查点或保存点状态，也不要抛出异常。任务将以无状态方式启动。这是因为区域恢复可能在作业第一次检查点成功前发生。
                 false, // recovery might come before first successful checkpoint
+                // 表示如果检查点中包含未映射到当前 tasks 集合的状态，也允许恢复继续
                 true,
+                // 表示在本次恢复中，不严格检查状态对应的最大并行度是否发生了变化。
                 false); // see explanation above
     }
 
@@ -1748,6 +1883,12 @@ public class CheckpointCoordinator {
      * <p>This method returns the restored checkpoint ID (as an optional) or an empty optional, if
      * no checkpoint was restored.
      */
+    // 负责从最近一次成功的检查点中获取状态，将其分配给需要重启的任务，并处理 JobMaster 和 OperatorCoordinator 的状态恢复。
+    // tasks: 需要恢复状态的 JobVertex 集合。
+    // operatorCoordinatorRestoreBehavior: 协调者状态的恢复策略（跳过、重置或恢复）。
+    // errorIfNoCheckpoint: 如果没有检查点状态，是否抛出异常。
+    // allowNonRestoredState: 是否允许检查点中存在未分配给当前 tasks 的状态。
+    // checkForPartiallyFinishedOperators: 是否检查那些已标记为“已完成”的 Operator 是否存在不该有的状态。
     private OptionalLong restoreLatestCheckpointedStateInternal(
             final Set<ExecutionJobVertex> tasks,
             final OperatorCoordinatorRestoreBehavior operatorCoordinatorRestoreBehavior,
@@ -1755,7 +1896,7 @@ public class CheckpointCoordinator {
             final boolean allowNonRestoredState,
             final boolean checkForPartiallyFinishedOperators)
             throws Exception {
-
+        // 初始化和前置检查
         synchronized (lock) {
             if (shutdown) {
                 throw new IllegalStateException("CheckpointCoordinator is shut down");
@@ -1771,18 +1912,19 @@ public class CheckpointCoordinator {
                     restoreTimestamp);
 
             // Restore from the latest checkpoint
+            // 查找最近检查点与无检查点处理
             CompletedCheckpoint latest = completedCheckpointStore.getLatestCheckpoint();
-
+            // 无可用检查点
             if (latest == null) {
                 LOG.info("No checkpoint found during restore.");
 
                 if (errorIfNoCheckpoint) {
                     throw new IllegalStateException("No completed checkpoint available");
                 }
-
+                // 重置 JobMaster 注册的所有 Master Hook。这些 Hook（用于 JobMaster 存储状态）会被告知本次重启是无状态重启。
                 LOG.debug("Resetting the master hooks.");
                 MasterHooks.reset(masterHooks.values(), LOG);
-
+                // 如果协调者恢复策略是 RESTORE_OR_RESET（即在无状态时重置），则调用 restoreStateToCoordinators
                 if (operatorCoordinatorRestoreBehavior
                         == OperatorCoordinatorRestoreBehavior.RESTORE_OR_RESET) {
                     // we let the JobManager-side components know that there was a recovery,
@@ -1794,7 +1936,7 @@ public class CheckpointCoordinator {
 
                 return OptionalLong.empty();
             }
-
+            // 向统计跟踪器报告本次恢复所使用的检查点信息。
             statsTracker.reportRestoredCheckpoint(
                     latest.getCheckpointID(),
                     latest.getProperties(),
@@ -1802,47 +1944,53 @@ public class CheckpointCoordinator {
                     latest.getStateSize());
 
             LOG.info("Restoring job {} from {}.", job, latest);
-
+            // 如果本次恢复使用的检查点是一个未被声明的 Savepoint，那么在下一次检查点触发时，
+            // 需要强制进行全量快照 (forceFullSnapshot = true)，以确保状态链正确。
             this.forceFullSnapshot = latest.getProperties().isUnclaimed();
 
             // re-assign the task states
+            // 从 CompletedCheckpoint 中提取所有 Operator 的状态信息，按 OperatorID 映射。
             final Map<OperatorID, OperatorState> operatorStates = extractOperatorStates(latest);
-
+            // 如果调用方要求检查已完成 Operator 的状态：
             if (checkForPartiallyFinishedOperators) {
                 VertexFinishedStateChecker vertexFinishedStateChecker =
                         vertexFinishedStateCheckerFactory.apply(tasks, operatorStates);
                 vertexFinishedStateChecker.validateOperatorsFinishedState();
             }
-
+            // 分配状态给任务 (Task State Assignment)
+            // 负责将检查点中的状态数据结构，映射和分割给 Job 图中的具体任务实例。
+            // 接收检查点 ID、目标任务 (tasks)、提取的 Operator 状态 (operatorStates) 和是否允许不匹配状态的标志 (allowNonRestoredState)
             StateAssignmentOperation stateAssignmentOperation =
                     new StateAssignmentOperation(
                             latest.getCheckpointID(), tasks, operatorStates, allowNonRestoredState);
-
+            // 执行状态分配逻辑。
             stateAssignmentOperation.assignStates();
 
             // call master hooks for restore. we currently call them also on "regional restore"
             // because
             // there is no other failure notification mechanism in the master hooks
             // ultimately these should get removed anyways in favor of the operator coordinators
-
+            // 调用所有注册的 JobMaster Hook 来恢复它们的状态。
             MasterHooks.restoreMasterHooks(
                     masterHooks,
                     latest.getMasterHookStates(),
                     latest.getCheckpointID(),
                     allowNonRestoredState,
                     LOG);
-
+            // 如果协调者恢复策略不是跳过
             if (operatorCoordinatorRestoreBehavior != OperatorCoordinatorRestoreBehavior.SKIP) {
+                // 调用方法恢复所有 OperatorCoordinator 的状态。
                 restoreStateToCoordinators(latest.getCheckpointID(), operatorStates);
             }
 
             return OptionalLong.of(latest.getCheckpointID());
         }
     }
-
+    // Flink CheckpointCoordinator 中用于从已完成检查点中提取 Operator 状态的方法。
+    // 核心职责是处理一个特殊情况：从启用了非对齐检查点（Unaligned Checkpoints）的检查点恢复时，需要移除检查点中包含的传输中数据（In-Flight Data）状态。
     private Map<OperatorID, OperatorState> extractOperatorStates(CompletedCheckpoint checkpoint) {
         Map<OperatorID, OperatorState> originalOperatorStates = checkpoint.getOperatorStates();
-
+        // 检查当前要恢复的检查点 ID (checkpoint.getCheckpointID()) 是否不等于协调器内部存储的一个特殊 ID (checkpointIdOfIgnoredInFlightData)
         if (checkpoint.getCheckpointID() != checkpointIdOfIgnoredInFlightData) {
             // Don't do any changes if it is not required.
             return originalOperatorStates;
@@ -1850,6 +1998,7 @@ public class CheckpointCoordinator {
 
         HashMap<OperatorID, OperatorState> newStates = new HashMap<>();
         // Create the new operator states without in-flight data.
+        // 移除传输中数据状态（仅针对非对齐恢复）
         for (OperatorState originalOperatorState : originalOperatorStates.values()) {
             newStates.put(
                     originalOperatorState.getOperatorID(),
@@ -2094,12 +2243,15 @@ public class CheckpointCoordinator {
             abortPendingCheckpoint(pendingCheckpoint, exception);
         }
     }
-
+    // currentTimeMillis (long): 传入的参数，表示当前的相对时间（通常是 Job 启动以来的毫秒数）。
+    // tillNextMillis (long): 传入的参数，表示距离下一次检查点触发应该等待的新间隔/延迟时间（以毫秒为单位）。
     private void rescheduleTrigger(long currentTimeMillis, long tillNextMillis) {
+        // 取消当前正在运行的、用于定期触发检查点的计时器或调度任务
         cancelPeriodicTrigger();
+        // 安排一个新的检查点触发任务
         scheduleTriggerWithDelay(currentTimeMillis, tillNextMillis);
     }
-
+    // 取消当前正在运行的、用于定期触发检查点的计时器或调度任务
     private void cancelPeriodicTrigger() {
         if (currentPeriodicTrigger != null) {
             nextCheckpointTriggeringRelativeTime = Long.MAX_VALUE;
@@ -2112,22 +2264,28 @@ public class CheckpointCoordinator {
     private long getRandomInitDelay() {
         return ThreadLocalRandom.current().nextLong(minPauseBetweenCheckpoints, baseInterval + 1L);
     }
-
+    // 安排一个新的检查点触发任务
+    // currentTimeMillis：通常用于计算新的触发时间点 (currentTimeMillis + tillNextMillis)
     private void scheduleTriggerWithDelay(long currentRelativeTime, long initDelay) {
         nextCheckpointTriggeringRelativeTime = currentRelativeTime + initDelay;
         currentPeriodicTrigger = new ScheduledTrigger();
         currentPeriodicTriggerFuture =
                 timer.schedule(currentPeriodicTrigger, initDelay, TimeUnit.MILLISECONDS);
     }
-
+    // 用于将状态恢复给所有的 OperatorCoordinator 实例
+    // checkpointId: 本次恢复所使用的检查点 ID。
+    // operatorStates: 从检查点中提取出的，按 OperatorID 映射的所有 Operator 的状态 (OperatorState 结构)。
     private void restoreStateToCoordinators(
             final long checkpointId, final Map<OperatorID, OperatorState> operatorStates)
             throws Exception {
 
         for (OperatorCoordinatorCheckpointContext coordContext : coordinatorsToCheckpoint) {
+            // 从 operatorStates 映射表中获取该 Operator 对应的完整状态 (OperatorState)。
             final OperatorState state = operatorStates.get(coordContext.operatorId());
+            // 则尝试从其中提取 ByteStreamStateHandle。这是 OperatorCoordinator 自己在检查点时存储的二进制状态句柄。
             final ByteStreamStateHandle coordinatorState =
                     state == null ? null : state.getCoordinatorState();
+            // 将协调者状态从句柄中反序列化成原始的字节数组 (byte[])。
             final byte[] bytes = coordinatorState == null ? null : coordinatorState.getData();
             coordContext.resetToCheckpoint(checkpointId, bytes);
         }
@@ -2294,6 +2452,7 @@ public class CheckpointCoordinator {
         }
     }
 
+    // 用于在全局状态层面对检查点触发请求进行前置检查
     private void preCheckGlobalState(boolean isPeriodic) throws CheckpointException {
         // abort if the coordinator has been shutdown in the meantime
         if (shutdown) {
@@ -2357,12 +2516,22 @@ public class CheckpointCoordinator {
                     () -> new CheckpointException(defaultReason, throwable));
         }
     }
-
+    // 封装并跟踪 JobMaster 中一次检查点（或保存点 Savepoint）的触发请求的完整信息和状态。
+    // 当 Flink 决定要进行一次检查点操作时（无论是定时触发还是用户手动触发），它会创建一个 CheckpointTriggerRequest 实例，并将该实例提交给负责协调检查点流程的组件（如 CheckpointCoordinator）。
     static class CheckpointTriggerRequest {
+        // 请求触发时间戳。
+        // 记录创建此请求实例时的系统时间（毫秒），用于追踪和调试
         final long timestamp;
+        // 封装了本次检查点或保存点的具体属性，例如是否是保存点 (Savepoint)、是否是强制检查点 (forceCheckpoint)、以及检查点的类型和持久性等。
         final CheckpointProperties props;
+        // 如果本次请求是保存点 (Savepoint)，
+        // 此字段指定保存点文件的外部目标存储路径。如果是一般检查点，则为 null。
         final @Nullable String externalSavepointLocation;
+        // 是否为周期性触发。
+        // 标识这次检查点请求是定时自动触发的（true）还是手动/一次性触发的（false）。
         final boolean isPeriodic;
+        // 完成承诺（结果 Future）。
+        // 请求的发送方可以通过获取这个 Future 来阻塞等待或异步回调检查点完成的结果。
         private final CompletableFuture<CompletedCheckpoint> onCompletionPromise =
                 new CompletableFuture<>();
 

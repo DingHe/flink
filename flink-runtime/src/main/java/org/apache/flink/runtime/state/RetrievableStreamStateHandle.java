@@ -36,23 +36,34 @@ import java.util.Optional;
  *
  * @param <T> type of the retrievable object which is stored under the wrapped stream handle
  */
+// 统一接口： 它将任何底层的 StreamStateHandle（如 FileStateHandle、S3StateHandle 等，这些句柄只知道如何打开流）的功能增强，
+// 使其实现 RetrievableStateHandle 接口。
+// 这意味着它可以直接通过 retrieveState() 方法从流中读取并反序列化出原始的 Java 对象 T。
+// 封装读取逻辑： 它封装了从底层流读取数据并使用 Flink 的工具类 InstantiationUtil 进行反序列化的通用逻辑。
+// 状态传输： 这种句柄通常用于在检查点元数据中引用需要在 JobMaster (或 TaskManager) 上恢复的单例对象（Master State 或 Operator Coordinator State）
 public class RetrievableStreamStateHandle<T extends Serializable>
         implements StreamStateHandle, RetrievableStateHandle<T>, Closeable {
 
     private static final long serialVersionUID = 314567453677355L;
 
     /** wrapped inner stream state handle from which we deserialize on retrieval */
+    // 被包装的内部流状态句柄。
+    // 这是实际负责与底层存储交互、打开输入流的句柄实例（例如 FileStateHandle 或 S3StateHandle）。
+    // RetrievableStreamStateHandle 的所有底层流操作都是委托给它完成的。
     private final StreamStateHandle wrappedStreamStateHandle;
 
+    // 通用构造函数。
+    // 接受一个已经存在的 StreamStateHandle 并将其包装起来
     public RetrievableStreamStateHandle(StreamStateHandle streamStateHandle) {
         this.wrappedStreamStateHandle = Preconditions.checkNotNull(streamStateHandle);
     }
-
+    // 方便构造函数。
+    // 接受文件路径和大小，并在内部自动创建一个 FileStateHandle（一种常见的 StreamStateHandle 实现）作为被包装的对象。
     public RetrievableStreamStateHandle(Path filePath, long stateSize) {
         Preconditions.checkNotNull(filePath);
         this.wrappedStreamStateHandle = new FileStateHandle(filePath, stateSize);
     }
-
+    // 状态检索核心
     @Override
     public T retrieveState() throws IOException, ClassNotFoundException {
         try (FSDataInputStream in = openInputStream()) {

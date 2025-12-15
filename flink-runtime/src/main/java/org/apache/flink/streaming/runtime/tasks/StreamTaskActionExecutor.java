@@ -30,7 +30,8 @@ import java.util.concurrent.Callable;
  * SourceStreamTask}.
  */
 // Flink 流处理任务（StreamTask）内部用于抽象和定制代码执行方式的关键组件，特别关注于并发控制和同步。
-// 核心作用是装饰 (Decorate) 任务内部的逻辑执行。它不直接执行业务逻辑，而是提供一个执行框架，允许任务的子类（如 SourceStreamTask）定制这些逻辑（Runnable 或 Callable）的执行上下文
+// 核心作用是装饰 (Decorate) 任务内部的逻辑执行。
+// 它不直接执行业务逻辑，而是提供一个执行框架，允许任务的子类（如 SourceStreamTask）定制这些逻辑（Runnable 或 Callable）的执行上下文
 //
 @Internal
 public interface StreamTaskActionExecutor {

@@ -43,7 +43,9 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public final class StreamOneInputProcessor<IN> implements StreamInputProcessor {
 
     private static final Logger LOG = LoggerFactory.getLogger(StreamOneInputProcessor.class);
-    // 任务输入抽象。这是实际负责从底层 I/O 层（如网络 InputGate）读取数据的核心组件。对于单输入任务，它只有一个。
+    // 任务输入抽象。
+    // 这是实际负责从底层 I/O 层（如网络 InputGate）读取数据的核心组件。
+    // 对于单输入任务，它只有一个。
     private StreamTaskInput<IN> input;
     // 数据输出目标。
     // 这是接收输入记录的组件，通常是任务的算子链中的第一个算子实例。

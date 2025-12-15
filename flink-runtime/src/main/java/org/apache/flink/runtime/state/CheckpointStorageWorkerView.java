@@ -31,6 +31,10 @@ import java.io.IOException;
  *
  * <p>Methods of this interface act as a worker role in task manager.
  */
+// 定义了 Flink **任务管理器（TaskManager）上的工作者（Worker）**角色在处理检查点状态存储时所需的全部功能。
+// 抽象了任务在执行检查点过程中，与底层存储系统交互，用于写入检查点数据流的操作。
+// 定位存储： 负责将检查点协调器发送的存储引用解析成实际可写的流工厂。
+// 数据流操作： 提供了打开数据流的方法，用于任务将它的状态数据持久化到检查点存储位置。
 @Internal
 public interface CheckpointStorageWorkerView {
 
@@ -46,6 +50,11 @@ public interface CheckpointStorageWorkerView {
      * @return A checkpoint storage location reflecting the reference and checkpoint ID.
      * @throws IOException Thrown, if the storage location cannot be initialized from the reference.
      */
+    // 解析检查点存储位置。
+    // 将检查点协调器 (CheckpointCoordinator) 提供的存储位置引用 (reference) 解析为一个检查点流工厂 (CheckpointStreamFactory)。
+    // 任务通过这个工厂来创建实际的输出流，写入它的状态
+    // checkpointId: 当前检查点的 ID
+    // reference: 存储位置的抽象引用（可能是一个路径或 ID）。如果它是默认引用，方法应返回配置的默认位置
     CheckpointStreamFactory resolveCheckpointStorageLocation(
             long checkpointId, CheckpointStorageLocationReference reference) throws IOException;
 
@@ -68,6 +77,9 @@ public interface CheckpointStorageWorkerView {
      * @return A checkpoint state stream to the location for state owned by tasks.
      * @throws IOException Thrown, if the stream cannot be opened.
      */
+    // 创建任务自有状态流
+    // 用于持久化生命周期不严格绑定到特定检查点的状态数据，即任务自有状态（Task-Owned State）
+    // 种状态的清理由任务自身负责，而不是由 JobManager 统一管理。常见的例子是 **RocksDB 的写前日志（WAL）数据。
     CheckpointStateOutputStream createTaskOwnedStateStream() throws IOException;
 
     /**
@@ -76,6 +88,9 @@ public interface CheckpointStorageWorkerView {
      *
      * @return A toolset for additional operations for state owned by tasks.
      */
+    // 创建任务自有状态工具集。
+    // 返回一个工具集 (CheckpointStateToolset)，用于访问和执行与任务自有状态存储位置**相关的额外操作。
+    // 例如，可能包括清理旧的、不再需要的任务自有状态的工具。
     CheckpointStateToolset createTaskOwnedCheckpointStateToolset();
 
     /**
@@ -83,6 +98,8 @@ public interface CheckpointStorageWorkerView {
      * file merging is enabled. Otherwise, return itself. File merging is supported by subclasses of
      * {@link org.apache.flink.runtime.state.filesystem.AbstractFsCheckpointStorageAccess}.
      */
+    // 文件合并存储转换（默认方法）。
+    // 这是一个默认方法，用于在启用了文件合并优化功能时，返回一个支持文件合并的存储访问实例
     default CheckpointStorageWorkerView toFileMergingStorage(
             FileMergingSnapshotManager mergingSnapshotManager, Environment environment)
             throws IOException {

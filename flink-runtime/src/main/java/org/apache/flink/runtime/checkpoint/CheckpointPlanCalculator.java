@@ -24,6 +24,8 @@ import java.util.concurrent.CompletableFuture;
  * Calculates the plan of the next checkpoint, including the tasks to trigger, wait or commit for
  * each checkpoint.
  */
+// 在 Flink 的检查点触发流程中，JobManager 需要确定哪些任务需要参与到本次检查点中（哪些任务处于运行状态，哪些任务已完成）。
+// 由于计算这个计划可能涉及到遍历执行图和检查任务状态，这个过程被设计为异步操作，以避免阻塞主调度线程。
 public interface CheckpointPlanCalculator {
 
     /**
@@ -31,5 +33,6 @@ public interface CheckpointPlanCalculator {
      *
      * @return The result plan.
      */
+    // 计算检查点计划。
     CompletableFuture<CheckpointPlan> calculateCheckpointPlan();
 }

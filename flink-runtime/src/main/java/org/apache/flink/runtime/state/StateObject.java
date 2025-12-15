@@ -49,9 +49,9 @@ public interface StateObject extends Serializable {
      */
     // 释放该状态占用的资源（如删除文件、释放缓存、关闭流等）
     // 调用场景：
-    //当一个 Checkpoint 被废弃或过期；
-    //或 Job 被取消；
-    //或 Flink 清理旧状态 时。
+    // 当一个 Checkpoint 被废弃或过期；
+    // 或 Job 被取消；
+    // 或 Flink 清理旧状态 时。
     void discardState() throws Exception;
 
     /**

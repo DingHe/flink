@@ -64,23 +64,38 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * This class encapsulates the operation of assigning restored state when restoring from a
  * checkpoint.
  */
+// StateAssignmentOperation 类封装了 Flink 从检查点（Checkpoint）或保存点（Savepoint）恢复状态到新启动的 Job 拓扑时的整个过程。
+// 当 Flink 作业由于故障重启或进行扩缩容（Rescaling）时，任务的并行度（Parallelism）可能发生变化。该类的主要职责就是：
+// 收集和验证：获取来自检查点的旧状态元数据 (OperatorState) 和当前 Job 的执行图 (ExecutionJobVertex)。
+// 状态重分配（Repartitioning）：根据新的并行度（Parallelism）和最大并行度（Max Parallelism），将旧状态（包括 Keyed State、Operator State 和 Channel State）按正确的逻辑重新分配给新 Job 的每个并行子任务。
+// 状态分配：将重分配后的状态句柄封装成 TaskStateSnapshot，并设置给新的任务执行尝试 (Execution 实例)，以便 TaskManager 上的任务可以正确地加载和恢复状态。
+// 它是实现 Flink 无缝故障恢复和并行度伸缩的关键桥梁。
 @Internal
 public class StateAssignmentOperation {
 
     private static final Logger LOG = LoggerFactory.getLogger(StateAssignmentOperation.class);
-
+    // 当前 Job 拓扑中所有任务顶点（Job Vertex）的集合。
+    // 这些是需要被分配状态的目标任务。
     private final Set<ExecutionJobVertex> tasks;
+    // 从检查点加载的原始 Operator 状态。
+    // 键是 OperatorID，值是该 Operator 的完整状态元数据。
     private final Map<OperatorID, OperatorState> operatorStates;
-
+    // 用于恢复的检查点/保存点 ID。
     private final long restoreCheckpointId;
+    // 指示是否允许检查点中存在无法映射到当前 Job 拓扑中的状态（即未恢复的状态）。
     private final boolean allowNonRestoredState;
 
     /** The state assignments for each ExecutionJobVertex that will be filled in multiple passes. */
+    // 主要的内部状态映射。
+    // 存储了每个任务顶点 (ExecutionJobVertex) 最终计算出的状态分配结果 (TaskStateAssignment)
     private final Map<ExecutionJobVertex, TaskStateAssignment> vertexAssignments;
     /**
      * Stores the assignment of a consumer. {@link IntermediateResult} only allows to traverse
      * producer.
      */
+    // 消费者分配映射。
+    // 用于通过一个中间数据集 ID (IntermediateDataSetID) 快速查找其消费者任务 (TaskStateAssignment) 的状态分配信息。
+    // 这有助于处理 Input/Output Channel State 的重分配。
     private final Map<IntermediateDataSetID, TaskStateAssignment> consumerAssignment =
             new HashMap<>();
 
@@ -96,26 +111,36 @@ public class StateAssignmentOperation {
         this.allowNonRestoredState = allowNonRestoredState;
         this.vertexAssignments = CollectionUtil.newHashMapWithExpectedSize(tasks.size());
     }
-
+    // Flink 状态分配和恢复操作的核心驱动逻辑。它将从检查点加载的 Operator 状态（旧状态）映射、重分区并分配给当前新启动的 Job 拓扑中的任务（新任务）
+    // 整个方法分为三个主要阶段：检查与初始化、状态重分区和最终状态分配。
     public void assignStates() {
+        // 检查从检查点加载的所有状态 (operatorStates) 是否都能被当前 Job 拓扑 (tasks) 中的 Operator 找到对应的位置。
         checkStateMappingCompleteness(allowNonRestoredState, operatorStates, tasks);
 
         Map<OperatorID, OperatorState> localOperators = new HashMap<>(operatorStates);
 
         // find the states of all operators belonging to this task and compute additional
         // information in first pass
+        // 第一遍遍历：任务状态分配初始化
+        // 此阶段遍历 JobGraph 中的每个任务顶点 (ExecutionJobVertex)，确定它所需的所有 Operator 状态，并初始化 TaskStateAssignment 对象。
         for (ExecutionJobVertex executionJobVertex : tasks) {
+            // 获取当前任务顶点（Task Vertex）中包含的所有 Operator ID 对（包含用户定义的 ID 和 Flink 生成的 ID）。
             List<OperatorIDPair> operatorIDPairs = executionJobVertex.getOperatorIDs();
             Map<OperatorID, OperatorState> operatorStates =
                     CollectionUtil.newHashMapWithExpectedSize(operatorIDPairs.size());
             for (OperatorIDPair operatorIDPair : operatorIDPairs) {
+                // 首先尝试使用用户定义的 Operator ID 去 localOperators 中查找状态。
+                // 如果找不到或者用户没有定义 ID，则使用 Flink 生成的 Operator ID。
                 OperatorID operatorID =
                         operatorIDPair
                                 .getUserDefinedOperatorID()
                                 .filter(localOperators::containsKey)
                                 .orElse(operatorIDPair.getGeneratedOperatorID());
-
+                // 从本地 Map 中取出并移除找到的 Operator 状态。
+                // 一旦取出，它就不会被其他任务（如果存在 Operator State 共享的 bug，可以防止重复分配）再次使用。
                 OperatorState operatorState = localOperators.remove(operatorID);
+                // 处理无状态 Operator。如果检查点中没有为这个 Operator 存储状态（即 operatorState 为空），
+                // 则为其创建一个新的、空的 OperatorState 对象，但仍包含正确的 ID、并行度和最大并行度元数据。
                 if (operatorState == null) {
                     operatorState =
                             new OperatorState(
@@ -123,9 +148,13 @@ public class StateAssignmentOperation {
                                     executionJobVertex.getParallelism(),
                                     executionJobVertex.getMaxParallelism());
                 }
+                // 将找到的（或新建的）Operator 状态，使用 Flink 生成的 Operator ID 作为键，存入当前任务的 Map 中。
                 operatorStates.put(operatorIDPair.getGeneratedOperatorID(), operatorState);
             }
-
+            // 创建任务状态分配对象。
+            // 将任务顶点、它包含的 Operator 状态，以及全局的 consumerAssignment 和 vertexAssignments 映射传入，
+            // 构建一个 TaskStateAssignment 实例。
+            // 这个对象封装了处理一个任务所需的所有状态和元数据。
             final TaskStateAssignment stateAssignment =
                     new TaskStateAssignment(
                             executionJobVertex,
@@ -133,31 +162,51 @@ public class StateAssignmentOperation {
                             consumerAssignment,
                             vertexAssignments);
             vertexAssignments.put(executionJobVertex, stateAssignment);
+            // 遍历当前任务上游产生的所有数据结果集 (IntermediateResult)。
+            // 将上游结果集 ID 映射到当前任务的 stateAssignment。
+            // 这主要用于在重分配 Channel State 时，能够快速定位消费该数据的下游任务的分配对象。
             for (final IntermediateResult producedDataSet : executionJobVertex.getInputs()) {
                 consumerAssignment.put(producedDataSet.getId(), stateAssignment);
             }
         }
 
         // repartition state
+        // 3. 状态重分区阶段（Rescaling）
+        // 遍历所有已初始化的任务状态分配对象。
         for (TaskStateAssignment stateAssignment : vertexAssignments.values()) {
+            // 重分区条件判断
+            // 当前任务包含非完全结束（Fully Finished）的 Operator 状态（即有 Keyed State 或 Operator State 需要恢复或重分区）
+            // 上游任务有输出通道状态（Result Subpartition State），这可能影响当前任务的恢复。
+            // 下游任务有输入通道状态（Input Channel State），这可能影响当前任务的恢复。
             if (stateAssignment.hasNonFinishedState
                     // FLINK-31963: We need to run repartitioning for stateless operators that have
                     // upstream output or downstream input states.
                     || stateAssignment.hasUpstreamOutputStates()
                     || stateAssignment.hasDownstreamInputStates()) {
+                // 执行实际的状态重分配逻辑
+                // 根据新旧并行度重新划分 Keyed State 的 Key Group 范围，并重新分配 Operator State 和 Channel State。
                 assignAttemptState(stateAssignment);
             }
         }
 
         // actually assign the state
+        // 4. 最终状态分配阶段
+        // 将重分区后的状态封装成 TaskStateSnapshot，并分配给 Job Master 上的 Execution 对象。
         for (TaskStateAssignment stateAssignment : vertexAssignments.values()) {
             // If upstream has output states or downstream has input states, even the empty task
             // state should be assigned for the current task in order to notify this task that the
             // old states will send to it which likely should be filtered.
+            // 最终分配条件判断
+            // 任务有正常的非结束状态需要恢复。
+            // 任务已完全结束。虽然没有状态需要恢复，但必须通知任务调度器该任务应被标记为已完成恢复状态。
+            // 即使任务本身无状态，但如果它的上游或下游涉及 Channel State，它也必须接收一个（可能是空的）状态快照，以便在 Task 启动时执行相关的网络/通道初始化和状态过滤逻辑。
             if (stateAssignment.hasNonFinishedState
                     || stateAssignment.isFullyFinished
                     || stateAssignment.hasUpstreamOutputStates()
                     || stateAssignment.hasDownstreamInputStates()) {
+                // 执行最终分配
+                // 为当前任务顶点下的每个并行子任务（Execution Attempt）构建最终的 JobManagerTaskRestore 对象，
+                // 并调用 Execution.setInitialState(...) 将状态元数据发送给 Task Manager，启动任务恢复过程。
                 assignTaskStateToExecutionJobVertices(stateAssignment);
             }
         }

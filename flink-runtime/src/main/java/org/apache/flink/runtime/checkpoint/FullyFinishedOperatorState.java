@@ -27,6 +27,11 @@ import javax.annotation.Nullable;
  * A special operator state implementation representing the operators whose instances are all
  * finished.
  */
+// FullyFinishedOperatorState 是 OperatorState 的一个特殊子类，
+// 专门用于表示一个逻辑 Operator (操作符) 在检查点发生时，其所有并行子任务都已完成执行并退出。
+// 在 Flink 批处理作业（Batch Jobs）中，当一个 Operator 的所有实例都处理完所有输入数据并正常结束时，它被称为“已完成”（Finished）。
+// 标记 Operator 终止状态: 它作为元数据存储在检查点中，明确地告诉系统：“这个 Operator 已经结束了，它不应该再有运行时状态。”
+// 阻止状态写入: 它通过重写 putState 和 setCoordinatorState 方法并抛出 UnsupportedOperationException，强制确保已完成的 Operator 不能再接收任何子任务或协调者状态。
 public class FullyFinishedOperatorState extends OperatorState {
 
     private static final long serialVersionUID = 1L;

@@ -50,6 +50,13 @@ import java.util.concurrent.Executor;
  * @param <T> The type of the data produced by the hook and stored as part of the checkpoint
  *     metadata. If the hook never stores any data, this can be typed to {@code Void}.
  */
+// Flink 检查点机制中的一个扩展点接口，允许用户在 CheckpointCoordinator (JobMaster) 层面介入检查点和恢复过程。
+// 主要用于协调 Flink 作业和外部系统的状态，确保外部系统（如持久化存储、事务协调器等）与 Flink 的状态快照保持同步或完成准备工作。
+// 触发阶段 (Trigger)： 在 Flink 向 Source 任务发送检查点障碍物之前，CheckpointCoordinator 会调用 Hook。
+// Hook 可以执行准备操作，并可选地返回一个主状态 (Master State) 数据 (T)，该数据将作为检查点元数据的一部分被存储。
+// 恢复阶段 (Restore)： 当 Job 从检查点恢复时，如果检查点中包含该 Hook 存储的数据，该数据会传递给 Hook，允许它对外部系统进行相应的恢复或同步操作。
+// 标识符 (Identifier)： 类似于算子 UID，用于唯一标识和匹配检查点元数据中的状态数据，即使 Job 结构或名称发生变化也能正确恢复。
+// 泛型 T 主状态数据类型。 是该 Hook 在 triggerCheckpoint 方法中生成并返回给 CheckpointCoordinator 存储的数据类型。
 public interface MasterTriggerRestoreHook<T> {
 
     /**
@@ -69,6 +76,8 @@ public interface MasterTriggerRestoreHook<T> {
      *
      * @return The identifier of the hook.
      */
+    // 获取标识符。 返回 Hook 的唯一且确定的字符串标识符。该 ID 用于：
+    // 区分作业中的多个 Hook。
     String getIdentifier();
 
     /**
@@ -77,6 +86,7 @@ public interface MasterTriggerRestoreHook<T> {
      *
      * @throws Exception Exceptions encountered when calling the hook will cause execution to fail.
      */
+    // 重置 Hook。 当 Job 启动或重启时，如果没有可用的检查点状态进行恢复，CheckpointCoordinator 会调用此方法
     default void reset() throws Exception {}
 
     /**
@@ -84,6 +94,8 @@ public interface MasterTriggerRestoreHook<T> {
      *
      * @throws Exception Exceptions encountered when calling close will be logged.
      */
+    // 关闭 Hook。
+    // 用于 Hook 的资源清理和拆卸。通常在 Job 结束或 CheckpointCoordinator 关闭时调用。
     default void close() throws Exception {}
 
     /**
@@ -115,6 +127,8 @@ public interface MasterTriggerRestoreHook<T> {
      * @throws Exception Exceptions encountered when calling the hook will cause the checkpoint to
      *     abort.
      */
+    // 触发检查点操作。
+    // 这是在 Flink 向 Source 任务发送 Barrier 之前调用的方法。
     @Nullable
     CompletableFuture<T> triggerCheckpoint(long checkpointId, long timestamp, Executor executor)
             throws Exception;
@@ -130,6 +144,8 @@ public interface MasterTriggerRestoreHook<T> {
      * @throws Exception Exceptions thrown while restoring the checkpoint will cause the restore
      *     operation to fail and to possibly fall back to another checkpoint.
      */
+    // 恢复检查点操作。
+    // 在 Flink 准备恢复 Job 状态之前调用。
     void restoreCheckpoint(long checkpointId, @Nullable T checkpointData) throws Exception;
 
     /**

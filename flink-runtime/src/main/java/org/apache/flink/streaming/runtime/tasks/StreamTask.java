@@ -195,6 +195,13 @@ import static org.apache.flink.util.concurrent.FutureUtils.assertNoException;
  * @param <OUT>
  * @param <OP>
  */
+// StreamTask 是 Flink 实时流处理中的最小执行单位，运行在 TaskManager 上。
+// 任务封装与执行： 封装了一个或多个串联（Chained）的 StreamOperator 组成的算子链。它负责整个算子链的生命周期管理，从初始化、运行、关闭到清理。
+// I/O 管理： 负责设置任务的输入（通过 StreamInputProcessor 消费来自上游的数据）和输出（通过 RecordWriter 将数据发送给下游）。
+// 统一调度模型（Mailbox）： 实现了基于邮箱（Mailbox）的调度模型。所有数据处理、计时器触发、检查点事件、用户事件等都被抽象为“信件”或“默认动作”，由单个 Task 线程依次处理，确保了状态访问的线程安全。
+// 容错与状态管理： 实现了 CheckpointableTask 接口，是 Flink 检查点和状态恢复逻辑的主要参与者。它负责初始化状态后端、协调子任务的快照（通过 SubtaskCheckpointCoordinator）以及通道状态的写入。
+// 时间服务： 集成了 Flink 的时间服务 (TimerService)，用于处理处理时间（Processing Time）和事件时间（Event Time）的计时器。
+
 @Internal
 public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
         implements TaskInvokable,
@@ -204,7 +211,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
                 ContainingTaskDetails {
 
     /** The thread group that holds all trigger timer threads.Thread thread = new Thread(group, () -> {})*/
-    // 用于将多个线程组织成组，以便统一管理和控制
+    // 计时器线程组。
+    // 用于将所有由 TimerService 创建的、用于触发计时器回调的线程组织在一起，便于统一管理和异常处理。
     public static final ThreadGroup TRIGGER_THREAD_GROUP = new ThreadGroup("Triggers");
 
     /** The logger used by the StreamTask and its subclasses. */
@@ -222,66 +230,99 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
      * StreamTaskActionExecutor.SynchronizedStreamTaskActionExecutor
      * SynchronizedStreamTaskActionExecutor} to provide lock to {@link SourceStreamTask}.
      */
-    //立即执行还是同步执行
+    // 任务动作执行器。
+    // 用于封装所有可能改变任务状态的操作。
+    // 在 MailboxProcessor 引入后，它通常是 IMMEDIATE 或用于提供同步锁 (SynchronizedStreamTaskActionExecutor)。
+    // 它确保了关键操作的原子性。
     private final StreamTaskActionExecutor actionExecutor;
 
     /** The input processor. Initialized in {@link #init()} method. */
-    // 负责拉取输入数据
+    // 输入处理器。
+    // 负责从 TaskManager 的输入通道 (InputGate) 中拉取数据、处理检查点屏障等事件，并将数据转发给 mainOperator。
     @Nullable protected StreamInputProcessor inputProcessor;
 
     /** the main operator that consumes the input streams of this task. */
+    // 主算子/头算子。
+    // 算子链中的第一个算子，它直接从 inputProcessor 接收数据。
     protected OP mainOperator;
 
     /** The chain of operators executed by this task. */
+    // 算子链。
+    // 封装了由该 StreamTask 执行的所有串联在一起的 StreamOperator 及其输出逻辑。
     protected OperatorChain<OUT, OP> operatorChain;
 
     /** The configuration of this streaming task. */
+    // 任务配置。
+    // 封装了该任务特有的配置信息，包括算子配置、类型信息等。
     protected final StreamConfig configuration;
 
     /** Our state backend. We use this to create a keyed state backend. */
-    protected final StateBackend stateBackend; //状态后端
+    // 状态后端。
+    // 用于管理和存储任务本地（keyed 或 operator）状态的机制，例如 RocksDB 或 Heap 状态后端。
+    protected final StateBackend stateBackend;
 
     /** Our checkpoint storage. We use this to create checkpoint streams. */
-    protected final CheckpointStorage checkpointStorage; // 检查点存储
-
-    private final SubtaskCheckpointCoordinator subtaskCheckpointCoordinator; //子任务检查点协调器
+    // 检查点存储。
+    // 提供了创建和管理检查点流的抽象层。
+    protected final CheckpointStorage checkpointStorage;
+    // 子任务检查点协调器。
+    // 负责协调和执行任务级别的检查点快照逻辑，包括状态的同步/异步写入，以及向 JobMaster 报告结果。
+    private final SubtaskCheckpointCoordinator subtaskCheckpointCoordinator;
 
     /**
      * The internal {@link TimerService} used to define the current processing time (default =
      * {@code System.currentTimeMillis()}) and register timers for tasks to be executed in the
      * future.
      */
+    // 用户时间服务。
+    // 用于注册和触发用户定义的处理时间/事件时间计时器。
     protected final TimerService timerService;
 
     /**
      * In contrast to {@link #timerService} we should not register any user timers here. It should
      * be used only for system level timers.
      */
+    // 系统时间服务。
+    // 专用于系统级别的计时器，例如用于邮箱延时测量、对齐超时等，不用于用户逻辑。
     protected final TimerService systemTimerService;
 
     /** The currently active background materialization threads. */
+    // 可取消资源注册表。
+    // 注册了任务运行时创建的、需要主动关闭（但无需等待）的资源（如异步快照线程）。用于在任务取消时进行清理。
     private final CloseableRegistry cancelables = new CloseableRegistry();
 
+    // 资源自动关闭注册表。
+    // 注册了所有必须在任务结束时安全关闭的资源（例如 mailboxProcessor、asyncOperationsThreadPool、operatorChain 等）。
     private final AutoCloseableRegistry resourceCloser;
 
+    // 异步异常处理器。
+    // 负责处理在任务主线程之外（如异步检查点线程）发生的异常，并将它们转发给 TaskManager 进行处理。
     private final StreamTaskAsyncExceptionHandler asyncExceptionHandler;
 
     /**
      * Flag to mark the task "in operation", in which case check needs to be initialized to true, so
      * that early cancel() before invoke() behaves correctly.
      */
+    // 运行标志。
+    // 标志任务是否处于运行状态（已初始化并进入主处理循环）。
     private volatile boolean isRunning;
 
     /** Flag to mark the task at restoring duration in {@link #restore()}. */
+    // 恢复标志。
+    // 标志任务是否处于从检查点或保存点恢复状态的过程中。
     private volatile boolean isRestoring;
 
     /** Flag to mark this task as canceled. */
+    // 取消标志。
+    // 标志任务是否已被外部请求取消。
     private volatile boolean canceled;
 
     /**
      * Flag to mark this task as failing, i.e. if an exception has occurred inside {@link
      * #invoke()}.
      */
+    // 失败标志。
+    // 标志任务是否因发生异常而正在进入失败状态。
     private volatile boolean failing;
 
     /** Flags indicating the finished method of all the operators are called. */
@@ -291,15 +332,22 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     private boolean closedOperators;
 
     /** Thread pool for async snapshot workers. */
-    private final ExecutorService asyncOperationsThreadPool;// 异步检查点线程池
-
-    protected final RecordWriterDelegate<SerializationDelegate<StreamRecord<OUT>>> recordWriter; // 记录输出
-
-    protected final MailboxProcessor mailboxProcessor; //消息处理器
-
+    // 异步操作线程池。
+    // 一个线程池，专门用于执行检查点状态写入等非阻塞的异步操作。
+    private final ExecutorService asyncOperationsThreadPool;
+    // 记录写入器委托。
+    // 负责将数据从算子链的末端发送到下游 Task 的输入通道。
+    protected final RecordWriterDelegate<SerializationDelegate<StreamRecord<OUT>>> recordWriter;
+    // 邮箱处理器。
+    // Flink Stream Task 的核心调度器，负责从 TaskMailbox 中取出信件（事件）或执行默认动作（数据处理）。
+    protected final MailboxProcessor mailboxProcessor;
+    // 主邮箱执行器。
+    // 用于将任务主线程之外的线程（如定时器线程、网络 I/O 线程）产生的事件安全地提交给任务主线程处理。
     final MailboxExecutor mainMailboxExecutor;
 
     /** TODO it might be replaced by the global IO executor on TaskManager level future. */
+    // 通道 I/O 执行器。
+    // 专门用于执行与通道状态恢复相关的 I/O 操作，例如将通道状态文件读入内存。
     private final ExecutorService channelIOExecutor;
 
     // ========================================================
@@ -312,18 +360,21 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     private long latestReportCheckpointId = -1;
 
     private long latestAsyncCheckpointStartDelayNanos;
-    //标志已经完成数据的接收
+    // 数据结束标志。
+    // 标志所有输入通道是否都已接收到 EndOfPartitionEvent，表明上游数据流已完全结束。
     private volatile boolean endOfDataReceived = false;
 
     private final long bufferDebloatPeriod;
-
+    // 任务环境。
+    // Flink TaskManager 提供的运行时环境，提供了访问配置、I/O 资源、指标组、任务状态管理器等的接口。
     private final Environment environment;
 
     private final Object shouldInterruptOnCancelLock = new Object();
 
     @GuardedBy("shouldInterruptOnCancelLock")
     private boolean shouldInterruptOnCancel = true;
-
+    // 状态更改日志写入器可用性提供者。
+    // 如果启用了状态更改日志 (State Changelog)，则提供其写入器的可用性信息。
     @Nullable private final AvailabilityProvider changelogWriterAvailabilityProvider;
 
     private long initializeStateEndTs;

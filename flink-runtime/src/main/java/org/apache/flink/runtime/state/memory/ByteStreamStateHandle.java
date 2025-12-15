@@ -27,11 +27,19 @@ import java.io.IOException;
 import java.util.Optional;
 
 /** A state handle that contains stream state in a byte array. */
+// ByteStreamStateHandle 是 StreamStateHandle 接口的一个具体实现，它的核心作用是将状态数据直接存储在内存中的一个字节数组 (byte[]) 中
+// 内存状态的封装： 用于处理那些体积非常小、适合直接存储在内存中并在 Flink 内部快速传输的状态数据。
+// 它是 Flink 的 MemoryStateBackend (内存状态后端) 或 FsStateBackend (文件系统状态后端) 在处理小型元数据或算子状态时的基本构建块。
+
+
 public class ByteStreamStateHandle implements StreamStateHandle {
 
     private static final long serialVersionUID = -5280226231202517594L;
 
     /** The state data. */
+    // 状态数据。
+    // 存储了实际的状态数据字节数组。
+    // 这是该句柄包含的核心状态内容。
     private final byte[] data;
 
     /**
@@ -39,6 +47,8 @@ public class ByteStreamStateHandle implements StreamStateHandle {
      * {@link ByteStreamStateHandle} with the exact same name must also have the exact same content
      * in data.
      */
+    // 句柄名称/唯一标识符。
+    // 一个唯一的字符串名称，用于标识和比较该状态句柄。
     private final String handleName;
 
     /** Creates a new ByteStreamStateHandle containing the given data. */

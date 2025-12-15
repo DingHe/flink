@@ -19,6 +19,10 @@
 package org.apache.flink.runtime.state;
 
 /** A {@link KeyGroupsStateHandle} that describes a savepoint in the unified format. */
+// 核心作用是明确标识和处理以统一格式 (Unified Format) 创建的 Savepoint 中的 Keyed State。
+// 标记 Savepoint： 该类的存在主要是一个标记作用，它实现了 SavepointKeyedStateHandle 接口。
+// 这向 Flink 运行时表明，这个 Keyed State 句柄来自一个 Savepoint，而不是一个普通的 Checkpoint。
+// 在状态恢复逻辑中，可以根据这个类型做特定的处理（尽管它的大部分核心逻辑继承自父类）。
 public class KeyGroupsSavepointStateHandle extends KeyGroupsStateHandle
         implements SavepointKeyedStateHandle {
 

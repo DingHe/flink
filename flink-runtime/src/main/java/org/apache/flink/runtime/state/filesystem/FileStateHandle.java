@@ -35,16 +35,25 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * {@link StreamStateHandle} for state that was written to a file stream. The written data is
  * identified by the file path. The state can be read again by calling {@link #openInputStream()}.
  */
+// FileStateHandle 是 StreamStateHandle 接口的一个具体实现，用于引用和管理存储在文件系统中的单个状态文件。
+// 文件引用： 它是指向 Flink 检查点（Checkpoint）或保存点（Savepoint）中一个物理文件（位于 HDFS, S3, 或本地文件系统等）的元数据引用。
+// 数据流访问： 它提供了打开输入流 (openInputStream()) 的能力，使得 TaskManager 在状态恢复时能够根据句柄中存储的路径准确地读取状态文件的数据。
+// 它是一个单一状态文件的路径、大小和 I/O 逻辑的封装器。
 public class FileStateHandle implements StreamStateHandle {
 
     private static final long serialVersionUID = 350284443258002355L;
-
+    // 用于判断一个 URI 方案（Scheme）是否不是本地文件系统（file://）
     private static final Pattern NOT_LOCAL_FILER = Pattern.compile("(?!file\\b)\\w+?://.*");
 
     /** The path to the file in the filesystem, fully describing the file system. */
+    // 文件路径。
+    // 存储了状态文件在文件系统中的完整路径。
+    // 该路径包含了文件系统的方案（如 hdfs:// 或 file:///）
     private final Path filePath;
 
     /** The size of the state in the file. */
+    // 状态大小。
+    // 存储了状态文件实际占用的字节大小。
     private final long stateSize;
 
     /**

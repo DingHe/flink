@@ -26,6 +26,11 @@ import org.apache.flink.runtime.state.StreamStateHandle;
  * {@link FileStateHandle} and {@link RelativeFileStateHandle} is that {@link
  * RelativeFileStateHandle} contains relativePath for the given handle.
  */
+// RelativeFileStateHandle 是 FileStateHandle 的一个子类，用于引用存储在文件系统中的状态文件，但它额外携带了一个相对路径信息。
+// 添加相对路径： 继承了 FileStateHandle 的所有功能（引用文件路径、大小、提供 I/O 和清理逻辑），但增加了 relativePath 属性。
+// 支持路径重定位： 相对路径在某些场景下非常重要，特别是在进行 Savepoint/Checkpoint 路径重写或状态重定位时。例如，当 Flink 状态后端将检查点写入一个公共基路径（Base Path）下时，relativePath 记录了文件相对于这个基路径的位置。
+
+
 public class RelativeFileStateHandle extends FileStateHandle {
     private static final long serialVersionUID = 1L;
 

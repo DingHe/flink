@@ -28,6 +28,12 @@ import java.io.IOException;
  *
  * <p>Methods of this interface act as an administration role in checkpoint coordinator.
  */
+// CheckpointStorageCoordinatorView 接口定义了 检查点协调器 (CheckpointCoordinator) 与检查点存储后端 (CheckpointStorage) 之间进行交互的视图或契约。
+// 抽象了所有与存储位置初始化、定位和解析相关的操作。
+// 它允许 CheckpointCoordinator 在不关心底层存储实现细节的情况下（例如是文件系统、RocksDB 还是其他服务），完成以下关键管理任务：
+// 初始化检查点或 Savepoint 的存储位置。
+// 解析外部存储指针（例如一个文件路径或 ID）到具体的存储句柄。
+// 查询存储能力（例如是否支持高可用）
 public interface CheckpointStorageCoordinatorView {
 
     /**
@@ -37,9 +43,13 @@ public interface CheckpointStorageCoordinatorView {
      * settings, which makes them suitable for zero-config prototyping, but not for actual
      * production setups.
      */
+    // 支持高可用存储检查。
+    // 检查当前存储后端是否支持高可用 (HA) 的持久化存储。
     boolean supportsHighlyAvailableStorage();
 
     /** Checks whether the storage has a default savepoint location configured. */
+    // 默认 Savepoint 位置检查。
+    // 检查存储后端是否已配置一个默认的 Savepoint 存储位置
     boolean hasDefaultSavepointLocation();
 
     /**
@@ -54,6 +64,8 @@ public interface CheckpointStorageCoordinatorView {
      * @throws IOException Thrown, if the state backend does not understand the pointer, or if the
      *     pointer could not be resolved due to an I/O error.
      */
+    // 解析外部指针。
+    // 将一个外部检查点/Savepoint 的指针（例如，一个路径或 ID）解析为一个具体的、已完成的检查点存储位置句柄 (CompletedCheckpointStorageLocation)
     CompletedCheckpointStorageLocation resolveCheckpoint(String externalPointer) throws IOException;
 
     /**
@@ -66,6 +78,9 @@ public interface CheckpointStorageCoordinatorView {
      * @throws IOException Thrown, if these base storage locations cannot be initialized due to an
      *     I/O exception.
      */
+    // 初始化基础存储位置。
+    // 在创建检查点之前，初始化存储后端所需的所有基础目录或资源。
+    // 对于基于文件的存储，这通常是创建 Job 的顶级检查点目录。
     void initializeBaseLocationsForCheckpoint() throws IOException;
 
     /**
@@ -79,6 +94,8 @@ public interface CheckpointStorageCoordinatorView {
      * @throws IOException Thrown if the storage location cannot be initialized due to an I/O
      *     exception.
      */
+    // 初始化检查点存储位置。
+    // 为一个新的检查点（由 checkpointId 标识）初始化一个专门的存储位置 (CheckpointStorageLocation)
     CheckpointStorageLocation initializeLocationForCheckpoint(long checkpointId) throws IOException;
 
     /**
@@ -97,6 +114,9 @@ public interface CheckpointStorageCoordinatorView {
      * @throws IOException Thrown if the storage location cannot be initialized due to an I/O
      *     exception.
      */
+    // 初始化 Savepoint 存储位置。 为一个新的 Savepoint 初始化存储位置
+    // checkpointId: Savepoint 所基于的检查点 ID
+    // externalLocationPointer: 可选的外部路径，指定 Savepoint 的存储位置。
     CheckpointStorageLocation initializeLocationForSavepoint(
             long checkpointId, @Nullable String externalLocationPointer) throws IOException;
 }

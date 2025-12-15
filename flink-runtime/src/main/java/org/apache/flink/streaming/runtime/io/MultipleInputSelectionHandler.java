@@ -40,18 +40,23 @@ import static org.apache.flink.util.Preconditions.checkState;
 @Internal
 public class MultipleInputSelectionHandler {
     // if we directly use Long.SIZE, calculation of allSelectedMask will overflow
-    // 最大支持的输入通道数 (63)。 因为该类使用 Java 的 long 类型（64位）作为位掩码来跟踪输入状态，其中 1 位可能被保留，所以最多支持 63 个输入通道。
+    // 最大支持的输入通道数 (63)。
+    // 因为该类使用 Java 的 long 类型（64位）作为位掩码来跟踪输入状态，其中 1 位可能被保留，所以最多支持 63 个输入通道。
     public static final int MAX_SUPPORTED_INPUT_COUNT = Long.SIZE - 1;
     // 输入选择器接口。
     // 可选。如果 Task 实现了 InputSelectable，则使用它的 nextSelection() 方法来获取自定义的输入选择掩码。
     @Nullable private final InputSelectable inputSelectable;
-    // 当前选择的输入掩码。 表示 Task 逻辑（由 inputSelectable 决定或默认为 ALL）希望拉取数据的输入集合。
+    // 当前选择的输入掩码。
+    // 表示 Task 逻辑（由 inputSelectable 决定或默认为 ALL）希望拉取数据的输入集合。
     private long selectedInputsMask = InputSelection.ALL.getInputMask();
-    // 所有输入都被选中的掩码。 值为 (1L << inputCount) - 1，用于表示所有输入通道的集合。
+    // 所有输入都被选中的掩码。
+    // 值为 (1L << inputCount) - 1，用于表示所有输入通道的集合。
     private final long allSelectedMask;
-    // 当前可用的输入掩码。 表示哪些输入通道（即 StreamTaskInput）当前报告有数据可读（MORE_AVAILABLE）
+    // 当前可用的输入掩码。
+    // 表示哪些输入通道（即 StreamTaskInput）当前报告有数据可读（MORE_AVAILABLE）
     private long availableInputsMask;
-    // 尚未完成的输入掩码。 表示哪些输入通道还没有到达 END_OF_INPUT（即仍在运行）。
+    // 尚未完成的输入掩码。
+    // 表示哪些输入通道还没有到达 END_OF_INPUT（即仍在运行）。
     private long notFinishedInputsMask;
     // 数据结束但分区未结束的输入掩码
     private long dataFinishedButNotPartition;

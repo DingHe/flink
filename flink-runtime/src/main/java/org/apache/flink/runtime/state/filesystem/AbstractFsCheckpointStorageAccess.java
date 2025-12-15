@@ -64,6 +64,16 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>A completed checkpoint writes its metadata into a file '{@value
  * AbstractFsCheckpointStorageAccess#METADATA_FILE_NAME}'.
  */
+// Flink 基于文件系统 (File System, Fs) 的检查点存储访问的抽象基类。
+// 核心职责： 它为所有基于文件系统的存储后端（如 FsCheckpointStorageAccess，通常用于 FsStateBackend 或 ChangelogStateBackend 配合持久化存储时）提供了一套标准的目录布局、Savepoint 路径生成、以及检查点指针解析的通用实现。
+// 它主要实现了 CheckpointStorageAccess 接口中与路径管理、解析和 Savepoint 初始化相关的逻辑，而将底层的 I/O 流操作留给子类实现。
+// 定义了 Flink 检查点和 Savepoint 在文件系统上的标准目录结构：
+// Job 根目录: base_path/flink-checkpoints/job_id/
+// 单个 Checkpoint 目录: .../job_id/chk-N/ (其中 N 是检查点 ID)
+// 单个 Savepoint 目录: savepoint_base_path/savepoint-jobId(0, 6)-randomDigits/
+// 元数据文件: 在每个检查点/Savepoint 目录中，元数据文件固定命名为 _metadata。
+
+
 public abstract class AbstractFsCheckpointStorageAccess implements CheckpointStorageAccess {
 
     // ------------------------------------------------------------------------
@@ -71,21 +81,30 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
     // ------------------------------------------------------------------------
 
     /** The prefix of the directory containing the data exclusive to a checkpoint. */
+    // 检查点目录前缀。 用于生成单个检查点目录，例如 chk-17。
     public static final String CHECKPOINT_DIR_PREFIX = "chk-";
 
     /** The name of the directory for shared checkpoint state. */
+    // 共享状态目录名。
+    // 检查点中共享状态数据存储的目录名。
     public static final String CHECKPOINT_SHARED_STATE_DIR = "shared";
 
     /**
      * The name of the directory for state not owned/released by the master, but by the
      * TaskManagers.
      */
+    // 任务自有状态目录名。
+    // 由 TaskManager 拥有生命周期（非 JobManager 释放）的状态存储目录名。
     public static final String CHECKPOINT_TASK_OWNED_STATE_DIR = "taskowned";
 
     /** The name of the metadata files in checkpoints / savepoints. */
+    // 元数据文件名。
+    // 存储检查点/Savepoint 元数据的固定文件名。
     public static final String METADATA_FILE_NAME = "_metadata";
 
     /** The magic number that is put in front of any reference. */
+    // 引用魔术数字。
+    // 用于编码检查点存储位置引用时，作为路径字节流的前缀，以快速验证引用的有效性。
     private static final byte[] REFERENCE_MAGIC_NUMBER = new byte[] {0x05, 0x5F, 0x3F, 0x18};
 
     // ------------------------------------------------------------------------
@@ -93,9 +112,13 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
     // ------------------------------------------------------------------------
 
     /** The jobId, written into the generated savepoint directories. */
+    // 作业 ID。
+    // 当前 Job 的唯一标识符。它用于创建 Job 特定的检查点目录和生成 Savepoint 目录前缀。
     private final JobID jobId;
 
     /** The default location for savepoints. Null, if none is configured. */
+    // 默认 Savepoint 目录。
+    // 可选配置，如果用户未指定 Savepoint 目标路径，则使用此路径作为默认位置。如果未配置，则为 null。
     @Nullable private final Path defaultSavepointDirectory;
 
     /**
@@ -116,6 +139,8 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
      * Gets the default directory for savepoints. Returns null, if no default savepoint directory is
      * configured.
      */
+    // 获取默认 Savepoint 目录。
+    // 返回配置的默认 Savepoint 目录路径，如果未配置则返回 null。
     @Nullable
     public Path getDefaultSavepointDirectory() {
         return defaultSavepointDirectory;
@@ -130,6 +155,8 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
         return defaultSavepointDirectory != null;
     }
 
+    // 解析检查点指针。
+    // 调用静态方法 resolveCheckpointPointer 来将外部指针（路径字符串）解析为已完成检查点存储位置 (CompletedCheckpointStorageLocation) 的句柄。
     @Override
     public CompletedCheckpointStorageLocation resolveCheckpoint(String checkpointPointer)
             throws IOException {
@@ -149,13 +176,16 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
      * @return The checkpoint storage location for the savepoint.
      * @throws IOException Thrown if the target directory could not be created.
      */
+    // 初始化 Savepoint 存储位置。
+    // 负责决定 Savepoint 的最终写入路径并创建目录。
     @Override
     public CheckpointStorageLocation initializeLocationForSavepoint(
             @SuppressWarnings("unused") long checkpointId, @Nullable String externalLocationPointer)
             throws IOException {
 
         // determine where to write the savepoint to
-
+        // 1. 确定基础路径： 优先使用传入的 externalLocationPointer；
+        // 如果没有，则使用 defaultSavepointDirectory；如果两者都没有，则抛出异常。
         final Path savepointBasePath;
         if (externalLocationPointer != null) {
             savepointBasePath = new Path(externalLocationPointer);
@@ -167,7 +197,7 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
         }
 
         // generate the savepoint directory
-
+        // 2. 生成目录名： 目录名格式为 savepoint-jobId(前6位)-randomDigits，使用随机后缀避免冲突。
         final FileSystem fs = savepointBasePath.getFileSystem();
         final String prefix = "savepoint-" + jobId.toString().substring(0, 6) + '-';
 
@@ -176,6 +206,8 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
             final Path path = new Path(savepointBasePath, FileUtils.getRandomFilename(prefix));
 
             try {
+                // 创建目录： 尝试创建目录（最多 10 次），成功后将路径合格化 (makeQualified)，
+                // 最后调用抽象方法 createSavepointLocation 创建最终的存储位置对象。
                 if (fs.mkdirs(path)) {
                     // we make the path qualified, to make it independent of default schemes and
                     // authorities
@@ -191,7 +223,8 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
         throw new IOException(
                 "Failed to create savepoint directory at " + savepointBasePath, latestException);
     }
-
+    // 创建 Savepoint 位置对象。
+    // 这是一个抽象方法，由子类实现。
     protected abstract CheckpointStorageLocation createSavepointLocation(
             FileSystem fs, Path location) throws IOException;
 
@@ -210,6 +243,8 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
      * @return The job's checkpoint directory, re
      * @throws UnsupportedOperationException Thrown, if no base checkpoint directory has been set.
      */
+    // 获取 Job 检查点根目录。
+    // 拼接 Job 的检查点基础路径和 Job ID，生成 Job 特有的检查点根目录路径。
     protected static Path getCheckpointDirectoryForJob(Path baseCheckpointPath, JobID jobId) {
         return new Path(baseCheckpointPath, jobId.toString());
     }
@@ -220,6 +255,9 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
      * @param baseDirectory The base directory into which the job checkpoints.
      * @param checkpointId The ID (logical timestamp) of the checkpoint.
      */
+
+    // 创建单个检查点目录路径。
+    // 拼接 Job 检查点根目录和检查点 ID，生成单个检查点的数据存储目录路径，使用 CHECKPOINT_DIR_PREFIX。
     protected static Path createCheckpointDirectory(Path baseDirectory, long checkpointId) {
         return new Path(baseDirectory, CHECKPOINT_DIR_PREFIX + checkpointId);
     }
@@ -233,6 +271,8 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
      * @throws IOException Thrown, if the pointer cannot be resolved, the file system not accessed,
      *     or the pointer points to a location that does not seem to be a checkpoint/savepoint.
      */
+    // 解析检查点指针。
+    // 将外部字符串指针解析为文件系统中的路径，并验证其有效性。
     @Internal
     public static FsCompletedCheckpointStorageLocation resolveCheckpointPointer(
             String checkpointPointer) throws IOException {
@@ -322,6 +362,9 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
      * @param path The path to encode.
      * @return The location reference.
      */
+    // 路径编码为引用。
+    // 将文件路径 (Path) 编码为字节数组形式的 CheckpointStorageLocationReference。
+    // 编码时会以 REFERENCE_MAGIC_NUMBER 为前缀，路径本身以 UTF-8 编码。
     public static CheckpointStorageLocationReference encodePathAsReference(Path path) {
         byte[] refBytes = path.toString().getBytes(StandardCharsets.UTF_8);
         byte[] bytes = new byte[REFERENCE_MAGIC_NUMBER.length + refBytes.length];
@@ -341,6 +384,9 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
      * @return The path decoded from the reference.
      * @throws IllegalArgumentException Thrown, if the bytes do not represent a proper reference.
      */
+    // 引用解码为路径。
+    // 将字节数组形式的引用解码回文件路径 (Path)。
+    // 它会先检查引用是否以正确的 REFERENCE_MAGIC_NUMBER 开头以验证格式，然后将剩余的字节解码为 UTF-8 字符串路径。
     public static Path decodePathFromReference(CheckpointStorageLocationReference reference) {
         if (reference.isDefaultReference()) {
             throw new IllegalArgumentException("Cannot decode default reference");

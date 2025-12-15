@@ -85,43 +85,54 @@ public class CompletedCheckpoint implements Serializable, Checkpoint {
 
     // ------------------------------------------------------------------------
 
-    /** The ID of the job that the checkpoint belongs to. 表示该检查点所属的作业的唯一标识符*/
+    /** The ID of the job that the checkpoint belongs to. */
+    // 表示该检查点所属的作业的唯一标识符
     private final JobID job;
 
-    /** The ID (logical timestamp) of the checkpoint. 检查点的逻辑时间戳（唯一标识符）*/
+    /** The ID (logical timestamp) of the checkpoint. */
+    // 检查点的id
     private final long checkpointID;
 
-    /** The timestamp when the checkpoint was triggered.检查点触发的时间戳 */
+    /** The timestamp when the checkpoint was triggered. */
+    // 检查点触发的时间戳
     private final long timestamp;
 
-    /** The timestamp when the checkpoint was completed. 检查点完成的时间戳*/
+    /** The timestamp when the checkpoint was completed. */
+    // 检查点完成的时间戳
     private final long completionTimestamp;
 
-    /** States of the different operator groups belonging to this checkpoint. 存储与该检查点相关的每个算子（Operator）的状态*/
+    /** States of the different operator groups belonging to this checkpoint. */
+    // 存储与该检查点相关的每个算子（Operator）的状态
     private final Map<OperatorID, OperatorState> operatorStates;
 
-    /** Properties of this checkpoint. Might change during recovery. 定义检查点的行为和存储策略*/
+    /** Properties of this checkpoint. Might change during recovery. */
+    // 定义检查点的行为和存储策略
     private final CheckpointProperties props;
 
     /**
      * Properties of this checkpoint as they were during checkpoint creation. Might be null for
-     * older versions.在恢复时可能会改变一些检查点的行为属性
+     * older versions.
      */
+    // 在恢复时可能会改变一些检查点的行为属性
     @Nullable private final CheckpointProperties restoredProps;
 
     /** States that were created by a hook on the master (in the checkpoint coordinator). */
     private final Collection<MasterState> masterHookStates;
 
-    /** The location where the checkpoint is stored.管理检查点的存储路径或外部存储信息 */
+    /** The location where the checkpoint is stored. */
+    // 管理检查点的存储路径或外部存储信息
     private final CompletedCheckpointStorageLocation storageLocation;
 
-    /** The state handle to the externalized meta data. 用于访问存储中的检查点元数据*/
+    /** The state handle to the externalized meta data. */
+    // 用于访问存储中的检查点元数据
     private final StreamStateHandle metadataHandle;
 
-    /** External pointer to the completed checkpoint (for example file path). 外部指针，通常是文件路径或其他存储标识符*/
+    /** External pointer to the completed checkpoint (for example file path). */
+    // 外部指针，通常是文件路径或其他存储标识符
     private final String externalPointer;
 
-    /** Completed statistic for managing discard marker. 帮助收集检查点的性能数据（如大小、时间等）*/
+    /** Completed statistic for managing discard marker. */
+    // 帮助收集检查点的性能数据（如大小、时间等）
     @Nullable private final transient CompletedCheckpointStats completedCheckpointStats;
 
     // ------------------------------------------------------------------------

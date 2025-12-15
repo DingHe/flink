@@ -48,18 +48,28 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * directly marks all the sources as tasks to trigger, otherwise it would try to find the running
  * tasks without running processors as tasks to trigger.
  */
+// 它负责在 Flink JobMaster 端，根据作业当前的执行图（ExecutionGraph）状态，异步地计算出下一次检查点 (Checkpoint) 的完整执行计划 (CheckpointPlan)。
+// 这个计划详细列出了哪些任务需要接收检查点障碍 (Barrier)、哪些任务需要返回确认 (ACK)，以及哪些任务已完成。
+// 该计算器能够区分两种主要的运行状态：
+// 所有任务都在运行中： 此时，只需将所有 Source 任务标记为触发点。
+// 部分任务已完成： 此时，计算器会遍历拓扑结构，精确识别出那些仍在运行中但上游已无正在运行任务的 Job Vertex，将它们标记为新的检查点触发点，以确保检查点流程能够从这些“新的起点”开始。
 public class DefaultCheckpointPlanCalculator implements CheckpointPlanCalculator {
-
+    // 作业 ID。
+    // 当前 Job 的唯一标识符，用于日志和异常报告。
     private final JobID jobId;
-
+    // 计算器上下文。
+    // 提供了计算计划所需的外部依赖和执行器，例如获取 JobMaster 的主执行器 (MainExecutor) 和判断是否有已完成任务 (hasFinishedTasks())。
     private final CheckpointPlanCalculatorContext context;
-
+    // 拓扑顺序的 Job 顶点列表。
+    // 存储 ExecutionGraph 中所有 Job Vertex，并按照拓扑顺序排列（从 Source 到 Sink），方便遍历图结构进行检查点计划计算。
     private final List<ExecutionJobVertex> jobVerticesInTopologyOrder = new ArrayList<>();
-
+    // 所有任务列表。
+    // 存储 ExecutionGraph 中所有子任务 (ExecutionVertex) 的集合。
     private final List<ExecutionVertex> allTasks = new ArrayList<>();
-
+    // 所有 Source 任务列表。
+    // 存储 Job 中所有作为 Source 的子任务集合，它们是全运行状态下检查点的默认触发起点。
     private final List<ExecutionVertex> sourceTasks = new ArrayList<>();
-
+    // 允许部分完成检查点标志
     private final boolean allowCheckpointsAfterTasksFinished;
 
     public DefaultCheckpointPlanCalculator(
@@ -83,7 +93,8 @@ public class DefaultCheckpointPlanCalculator implements CheckpointPlanCalculator
                     }
                 });
     }
-
+    // 负责异步地计算并返回下一个检查点的完整执行计划 (CheckpointPlan)。
+    // 它在专用的执行器上运行，避免阻塞 JobMaster 的主线程，并包含检查点启动前的状态验证和核心计划计算逻辑。
     @Override
     public CompletableFuture<CheckpointPlan> calculateCheckpointPlan() {
         return CompletableFuture.supplyAsync(
@@ -94,14 +105,16 @@ public class DefaultCheckpointPlanCalculator implements CheckpointPlanCalculator
                                     "Some tasks of the job have already finished and checkpointing with finished tasks is not enabled.",
                                     CheckpointFailureReason.NOT_ALL_REQUIRED_TASKS_RUNNING);
                         }
-
+                        // 检查 JobGraph 中所有任务是否都已经附加了当前的执行尝试 (Execution)。如果任何任务尚未准备好，将抛出 CheckpointException。
                         checkAllTasksInitiated();
 
                         CheckpointPlan result =
                                 context.hasFinishedTasks()
+                                        // 模式 A (部分完成)： 如果存在已完成任务，调用 calculateAfterTasksFinished()，该方法会复杂地计算新的触发点。
                                         ? calculateAfterTasksFinished()
+                                        // 模式 B (全运行)： 如果所有任务都在运行，调用 calculateWithAllTasksRunning()，将所有 Source 任务作为触发点。
                                         : calculateWithAllTasksRunning();
-
+                        // 检查计算出的所有需要等待确认的任务是否都处于 RUNNING 状态
                         checkTasksStarted(result.getTasksToWaitFor());
 
                         return result;
@@ -118,6 +131,9 @@ public class DefaultCheckpointPlanCalculator implements CheckpointPlanCalculator
      *
      * @throws CheckpointException if some tasks do not have attached Execution.
      */
+    // 确保 JobGraph 中所有的子任务 (ExecutionVertex) 都有一个当前活跃的执行尝试 (Execution) 实例。
+    // 如果一个 ExecutionVertex 还没有对应的 Execution 实例，意味着该任务尚未被调度或仍在等待初始化，JobMaster 无法对其进行操作（例如发送检查点障碍物）。
+    // 检查强制要求检查点只能在整个执行图的所有任务都已启动或至少被初始化时才能进行。
     private void checkAllTasksInitiated() throws CheckpointException {
         for (ExecutionVertex task : allTasks) {
             if (task.getCurrentExecutionAttempt() == null) {
@@ -155,12 +171,18 @@ public class DefaultCheckpointPlanCalculator implements CheckpointPlanCalculator
      *
      * @return The plan of this checkpoint.
      */
+    // 在作业处于完全运行状态时，创建一个基础的、覆盖所有任务的检查点计划 (CheckpointPlan)。
+    // 在这种理想状态下，检查点流程遵循最简单的模式：
+    // 触发点： 仅有 Source 任务接收检查点障碍 (Barrier)。
+    // 等待点/提交点： 所有任务都必须参与并确认检查点。
     private CheckpointPlan calculateWithAllTasksRunning() {
+        // 获取 Source 任务流
+        // 获取当前执行尝试： 将每个 Source 任务 (ExecutionVertex) 映射到其当前的执行尝试 (Execution) 实例。实际的检查点障碍是发送给这个 Execution 实例的。
         List<Execution> executionsToTrigger =
                 sourceTasks.stream()
                         .map(ExecutionVertex::getCurrentExecutionAttempt)
                         .collect(Collectors.toList());
-
+        // 将 Job 中的所有任务 (allTasks) 转换为对应的 Execution 实例列表。这些是必须发送确认 (ACK) 才能使检查点成功的任务。
         List<Execution> tasksToWaitFor = createTaskToWaitFor(allTasks);
 
         return new DefaultCheckpointPlan(

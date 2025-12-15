@@ -38,20 +38,27 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /** The default implementation of he {@link CheckpointPlan}. */
+// 封装了 JobManager 在触发特定检查点时，根据执行图当前状态（特别是考虑到部分完成/退出的任务）所计算出的所有必要的任务集合。
+// 它不仅提供这些任务列表，还负责在检查点协调过程中，管理和验证已完成任务的状态，确保检查点元数据正确反映 Job 的真实完成状态。
+// 单个检查点执行计划的静态快照，包含要触发、等待、提交的任务列表，以及已完成任务的状态填充和验证逻辑，尤其针对 UnionListState 在部分完成场景下的限制进行了严格检查。
 public class DefaultCheckpointPlan implements CheckpointPlan {
-
+    // 需要触发的任务列表。
+    // 接收检查点 Barrier 的起始任务集合。
     private final List<Execution> tasksToTrigger;
-
+    // 需要等待确认的任务列表。
+    // 必须发送 ACK 才能使检查点成功的任务集合。
     private final List<Execution> tasksToWaitFor;
-
+    // 需要提交的任务列表。
+    // 检查点成功后需要接收 Commit 消息的任务集合。
     private final List<ExecutionVertex> tasksToCommitTo;
-
+    // 已完成任务列表。
+    // 在触发检查点时已经完成其工作的 Execution 实例列表。
     private final List<Execution> finishedTasks;
-
+    // 存在已完成任务的可能性标志。
     private final boolean mayHaveFinishedTasks;
-
+    // 完全完成的 Job 顶点集合。
     private final Map<JobVertexID, ExecutionJobVertex> fullyFinishedOrFinishedOnRestoreVertices;
-
+    // 算子完成任务计数。 存储每个 ExecutionJobVertex 中已报告其内部算子已完成的子任务数量
     private final IdentityHashMap<ExecutionJobVertex, Integer> vertexOperatorsFinishedTasksCount;
 
     DefaultCheckpointPlan(

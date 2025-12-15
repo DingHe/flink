@@ -28,9 +28,11 @@ import java.util.Optional;
  * back via {@link #openInputStream()}.
  */
 // 抽象地表示持久化到流（Stream）或文件系统（File System）中的状态数据
-// 当算子状态被持久化（Checkpointing）时，数据通常会被写入一个输出流（如 HDFS、S3 或本地文件系统的文件）。StreamStateHandle 就是对这个写入操作的结果和引用的封装
+// 当算子状态被持久化（Checkpointing）时，数据通常会被写入一个输出流（如 HDFS、S3 或本地文件系统的文件）。
+// StreamStateHandle 就是对这个写入操作的结果和引用的封装
 // 数据引用： 不直接存储数据，而是持有读取持久化状态所需的信息或引用（例如文件路径、对象存储键等）。
 // 数据访问： 提供统一的接口，允许 Flink 在恢复（Recovery）时，重新打开输入流来读取被保存的状态数据。
+
 public interface StreamStateHandle extends StateObject {
 
     /**

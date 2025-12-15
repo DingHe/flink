@@ -70,6 +70,15 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <p>Note that the pending checkpoint, as well as the successful checkpoint keep the state handles
  * always as serialized values, never as actual values.
  */
+// PendingCheckpoint 类代表一个正在进行中（Pending）的检查点。
+// CheckpointCoordinator 的内部状态容器，负责在检查点从触发到完成的过程中，追踪所有必需任务的进度、收集它们报告的子任务状态，并最终将所有信息整合成一个完整的、可持久化的检查点元数据。
+// 一旦所有任务、算子协调器和 Master 状态都已确认，PendingCheckpoint 就会被终结（finalize），转换为一个不可变的 CompletedCheckpoint 对象，并存储起来。
+// 生命周期总结：
+// 创建： 当 CheckpointCoordinator 触发检查点时创建。
+// 追踪： 记录哪些任务（ExecutionAttemptID）、算子协调器（OperatorID）和 Master 状态（Identifier）尚未确认。
+// 收集： 接收任务的 AcknowledgeCheckpoint 消息，收集 TaskStateSnapshot 并聚合到 OperatorState 中。
+// 完成： 当所有部分都确认后，调用 finalizeCheckpoint()，将自身转换为 CompletedCheckpoint。
+// 清理/丢弃： 如果超时或被新的检查点取代 (Subsumed)，则被 abort() 或 dispose()，并释放状态资源。
 @NotThreadSafe
 public class PendingCheckpoint implements Checkpoint {
 
@@ -85,54 +94,81 @@ public class PendingCheckpoint implements Checkpoint {
 
     /** The PendingCheckpoint logs to the same logger as the CheckpointCoordinator. */
     private static final Logger LOG = LoggerFactory.getLogger(CheckpointCoordinator.class);
-
+    // 同步锁。
+    // 用于保护对内部状态（如 notYetAcknowledgedTasks 和 operatorStates）的并发访问。
     private final Object lock = new Object();
-
+    // 作业 ID。
+    // 当前检查点所属 Job 的唯一标识符。
     private final JobID jobId;
-
+    // 检查点 ID。
+    // 当前检查点的唯一、递增 ID。
     private final long checkpointId;
-
+    // 检查点触发时间戳。
+    // 检查点在 JobMaster 上被触发时的系统时间。
     private final long checkpointTimestamp;
-
+    // 算子状态集合。
+    // 存储已收集到的所有算子状态（由子任务报告）。
+    // Key 是 OperatorID，Value 是聚合后的 OperatorState。
     private final Map<OperatorID, OperatorState> operatorStates;
-
+    // 检查点计划。
+    // 包含哪些任务需要参与此检查点的触发、等待和提交。
     private final CheckpointPlan checkpointPlan;
-
+    // 未确认任务列表。
+    // 存储尚未确认此检查点的任务执行尝试 ID (ExecutionAttemptID) 及其对应的顶点 (ExecutionVertex)。
     private final Map<ExecutionAttemptID, ExecutionVertex> notYetAcknowledgedTasks;
-
+    // 未确认协调器集合。
+    // 存储尚未提交状态的算子协调器 ID。
     private final Set<OperatorID> notYetAcknowledgedOperatorCoordinators;
-
+    // Master 状态列表。
+    // 存储由 Master Hook 或其他 Master 组件报告的状态数据。
     private final List<MasterState> masterStates;
-
+    // 未确认 Master 状态集合。
+    // 存储尚未提交状态的 Master Hook 标识符。
     private final Set<String> notYetAcknowledgedMasterStates;
 
     /** Set of acknowledged tasks. */
+    // 已确认任务集合。
+    // 存储已确认此检查点的任务执行尝试 ID，用于处理重复的 ACK 消息。
     private final Set<ExecutionAttemptID> acknowledgedTasks;
 
     /** The checkpoint properties. */
+    // 检查点属性。
+    // 包含检查点的配置信息，如是否是保存点 (isSavepoint)、是否是增量检查点等。
     private final CheckpointProperties props;
 
     /**
      * The promise to fulfill once the checkpoint has been completed. Note that it will be completed
      * only after the checkpoint is successfully added to CompletedCheckpointStore.
      */
+    // 完成承诺。
+    // 当检查点成功完成后，此 Future 会带着 CompletedCheckpoint 结果完成。
+    // 这是 CheckpointCoordinator 等待检查点完成的机制。
     private final CompletableFuture<CompletedCheckpoint> onCompletionPromise;
-
+    // 挂起检查点统计。
+    // 用于收集并保存检查点过程中子任务的统计数据（如耗时、状态大小）。
     @Nullable private final PendingCheckpointStats pendingCheckpointStats;
-
+    // Master 触发完成承诺。
+    // 用于等待所有 Master 状态的触发和收集操作完成。
     private final CompletableFuture<Void> masterTriggerCompletionPromise;
 
     /** Target storage location to persist the checkpoint metadata to. */
+    // 目标存储位置。
+    // 检查点元数据（Metadata）将要存储的位置信息。
     @Nullable private CheckpointStorageLocation targetLocation;
-
+    // 已确认任务数量。
+    // 已确认检查点的任务计数器。
     private int numAcknowledgedTasks;
-
+    // 已处理标志。
+    // 标记此 PendingCheckpoint 实例是否已经被处理（无论是成功完成还是失败/取消），不再接受新的 ACK 消息。
     private boolean disposed;
-
+    // 已丢弃标志。
+    // 标记检查点是否已经释放了其关联的所有状态资源（即调用了 discard() 方法）。
     private boolean discarded;
-
+    // 取消句柄。
+    // 由定时器调度的任务句柄，用于在检查点超时时取消检查点。
     private volatile ScheduledFuture<?> cancellerHandle;
-
+    // 失败原因。
+    // 如果检查点失败，存储导致失败的异常信息。
     private CheckpointException failureCause;
 
     // --------------------------------------------------------------------------------------------

@@ -52,7 +52,8 @@ public interface PushingAsyncDataInput<T> extends AvailabilityProvider {
      *
      * @param <T> The type encapsulated with the stream record.
      */
-    // 定义了 Task 线程用来接收和处理推入数据的具体方法。这些方法通常将数据和事件转发到 Task 的运行时逻辑中（如 StreamTask）
+    // 定义了 Task 线程用来接收和处理推入数据的具体方法。
+    // 这些方法通常将数据和事件转发到 Task 的运行时逻辑中（如 StreamTask）
     interface DataOutput<T> {
         // 发出数据记录。
         // 用于处理和向下游算子发送包含实际用户数据的 StreamRecord

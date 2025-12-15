@@ -41,7 +41,8 @@ public interface StreamTaskInput<T> extends PushingAsyncDataInput<T>, Closeable 
 
     /** Prepares to spill the in-flight input buffers as checkpoint snapshot. */
     // 准备 Checkpoint 快照。
-    // 功能： 这是 Task I/O Checkpoint 的核心方法。它启动将当前 I/O 通道中所有正在传输中但尚未被 Task 处理的数据（即飞行中数据）写入状态存储的过程
+    // 功能： 这是 Task I/O Checkpoint 的核心方法。
+    // 它启动将当前 I/O 通道中所有正在传输中但尚未被 Task 处理的数据（即飞行中数据）写入状态存储的过程
     CompletableFuture<Void> prepareSnapshot(
             ChannelStateWriter channelStateWriter, long checkpointId) throws CheckpointException;
 }
