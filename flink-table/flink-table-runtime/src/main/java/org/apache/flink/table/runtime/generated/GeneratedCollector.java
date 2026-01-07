@@ -28,6 +28,13 @@ import org.apache.flink.util.Collector;
  *
  * @param <C> type of collector
  */
+// 在 Flink 的 DataStream API 中，Collector（收集器）负责将计算结果（如 collect(T record)）发送到下游算子。
+// 在 Flink SQL/Table API 中，由于处理的数据结构（如 RowData）和处理逻辑（如聚合后的结果拼装、Join 后的结果输出）是动态变化的，Flink 不会使用一个通用的 Collector，而是会：
+// 动态生成定制化的 Collector 代码：针对特定的 Schema 生成最优化的输出逻辑。
+// 封装与传输：GeneratedCollector 类充当这些动态生成的代码的“容器”。它将 Java 源码字符串、类名和关联引用封装起来，以便从 JobManager 发送到 TaskManager。
+// 运行时实例化：在 TaskManager 的算子初始化阶段，通过它持有的源码动态编译并创建出真正的 Collector 对象。
+
+
 public class GeneratedCollector<C extends Collector<?>> extends GeneratedClass<C> {
 
     private static final long serialVersionUID = 2L;

@@ -27,8 +27,16 @@ import java.util.Optional;
 /**
  * A listenable collector for lookup join that can be called when an original record was collected.
  */
+// ListenableCollector 是一个专门为 Lookup Join（维表关联） 场景设计的工具类。它继承自 TableFunctionCollector，并引入了“监听者”机制。
+// 在 Flink SQL 的 Lookup Join 操作中，当算子去外部系统（如 Redis、MySQL）查询到匹配的数据后，需要通过 Collector（收集器）将结果发送到下游。
+// 核心作用是允许在数据被收集（Collect）的那一刻触发一个回调动作。
+// 解耦： 它将“收集数据”这一动作与“收集后的副作用处理”解耦。
+// 状态同步与统计： 主要用于在 Lookup Join 过程中，当某条记录成功匹配并输出时，通知相关的组件（比如用于异步查找的缓存更新或特定的指标统计）。
 @Internal
 public abstract class ListenableCollector<T> extends TableFunctionCollector<T> {
+    // 持有对监听器接口实现的引用
+    // 实现“监听”功能的核心。使用了 @Nullable 注解，表示这个监听器是可选的。
+    // 如果没有设置监听器，Collector 依然可以正常工作，只是不会触发回调。
     @Nullable private CollectListener<T> collectListener;
 
     public void setCollectListener(@Nullable CollectListener<T> collectListener) {

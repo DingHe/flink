@@ -29,5 +29,6 @@ import org.apache.flink.api.dag.Transformation;
  *
  * @param <T> The type of the elements that result from this translator.
  */
+// 单并发节点
 @Internal
 public interface SingleTransformationTranslator<T> extends ExecNodeTranslator<T> {}

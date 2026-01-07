@@ -58,6 +58,18 @@ import java.util.function.Supplier;
  * @param <SplitT> The type of the splits processed by the source.
  * @param <SplitStateT> The type of the mutable state per split.
  */
+// 这个类的核心作用是：定义了一种“单线程多路复用”的读取模式。
+// 在 Flink 的新 Source 架构中，数据读取通常分为“主线程（处理数据）”和“Fetcher 线程（拉取数据）”。
+//单线程 (Single Thread)：意味着无论该 Reader 被分配了多少个分片（Splits），在后台只会运行一个 Fetcher 线程。
+//多路复用 (Multiplex)：意味着这唯一的一个 Fetcher 线程能够同时处理或轮询多个分片的数据。
+// 适用场景：
+//Kafka Source：一个 KafkaConsumer 实例（在一个线程内）可以同时消费多个 Topic Partition。
+//MySQL CDC：增量阶段通常只有一个 Binlog 读取线程，但它需要处理来自多个表（在分片算法中体现）的变更。
+//文件系统：虽然文件通常一个接一个读，但也可以通过这个类来统一管理多个文件的读取序列。
+// 如果你直接使用 SourceReaderBase，你需要自己决定是用一个线程还是多个线程去读。而通过继承 SingleThreadMultiplexSourceReaderBase，Flink 为你做好了以下封装：
+//线程安全保证：它内部使用的 SingleThreadFetcherManager 确保了所有对外部系统的访问（如 Kafka Consumer 调用）都发生在同一个后台线程中，避免了多线程并发访问非线程安全客户端的问题。
+//降低开销：对于很多数据源，开启大量线程并没有意义（如磁盘 I/O 或单连接网络），单线程多路复用能显著降低 TaskManager 的线程上下文切换开销。
+//统一状态转换：它强制你通过继承来处理 SplitT（不可变分片）和 SplitStateT（可变状态）的转换，确保 Checkpoint 机制的正确性。
 @PublicEvolving
 public abstract class SingleThreadMultiplexSourceReaderBase<
                 E, T, SplitT extends SourceSplit, SplitStateT>

@@ -382,6 +382,7 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
      *
      * @param maxParallelism Maximum degree of parallelism to be used for the program.
      */
+    // 设置最大并行度，影响动态扩展并行度的上限以及key group的数量
     @PublicEvolving
     public void setMaxParallelism(int maxParallelism) {
         checkArgument(maxParallelism > 0, "The maximum parallelism must be greater than 0.");
@@ -391,6 +392,7 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
     /**
      * Gets the interval (in milliseconds) between consecutive attempts to cancel a running task.
      */
+    // 返回 Flink 在尝试取消一个正在运行的 Task 期间，两次连续取消尝试之间的等待间隔时间（毫秒）。
     public long getTaskCancellationInterval() {
         return configuration.get(TaskManagerOptions.TASK_CANCELLATION_INTERVAL).toMillis();
     }
@@ -401,6 +403,7 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
      *
      * @param interval the interval (in milliseconds).
      */
+    // 用于设置 Flink 尝试取消一个正在运行的任务时，两次连续尝试之间的等待间隔时间（毫秒）。这个设置影响到 Flink 强制终止一个 Task 的过程。
     public ExecutionConfig setTaskCancellationInterval(long interval) {
         configuration.set(
                 TaskManagerOptions.TASK_CANCELLATION_INTERVAL, Duration.ofMillis(interval));
@@ -414,6 +417,8 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
      * <p>The value <code>0</code> means that the timeout is disabled. In this case a stuck
      * cancellation will not lead to a fatal error.
      */
+    // 返回一个超时时间（毫秒），如果一个正在进行的任务取消操作（通常是 TaskManager 尝试优雅地或强制地终止一个 Task）超过这个时间仍未完成，
+    // 则会被认为是致命错误（Fatal Error），通常会导致 TaskManager 进程崩溃或重启。
     @PublicEvolving
     public long getTaskCancellationTimeout() {
         return configuration.get(TaskManagerOptions.TASK_CANCELLATION_TIMEOUT).toMillis();
@@ -431,6 +436,7 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
      *
      * @param timeout The task cancellation timeout (in milliseconds).
      */
+    // 设置取消任务超时时间
     @PublicEvolving
     public ExecutionConfig setTaskCancellationTimeout(long timeout) {
         checkArgument(timeout >= 0, "Timeout needs to be >= 0.");
@@ -457,6 +463,8 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
      *     restart strategies.
      * @param restartStrategyConfiguration Configuration defining the restart strategy to use
      */
+    // 用于配置 Flink 作业的重启策略（Restart Strategy）。
+    // 重启策略定义了 JobManager 在 Task 失败时应该采取的恢复行动，例如是否重启、重启的最大次数、以及两次重启之间的等待间隔。
     @Deprecated
     @PublicEvolving
     public void setRestartStrategy(

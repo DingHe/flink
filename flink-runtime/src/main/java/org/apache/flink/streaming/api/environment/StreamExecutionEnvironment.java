@@ -148,9 +148,14 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * @see org.apache.flink.streaming.api.environment.LocalStreamEnvironment
  * @see org.apache.flink.streaming.api.environment.RemoteStreamEnvironment
  */
+// StreamExecutionEnvironment 是 Flink 流处理程序执行的上下文环境。它是用户编写 Flink 应用程序时首先需要获取或创建的对象。
+// 环境配置： 提供设置作业级别配置的方法，如并行度、最大并行度、检查点设置、重启策略、时间特性等。
+// 数据源入口： 提供方法来创建初始的 DataStreamSource，用于从外部系统（如文件、Socket、集合）读取数据，是构建数据流图的起点。
+// 作业提交： 提供 execute() 或 executeAsync() 方法，用于将构建好的数据流图提交给 Flink 运行时进行实际执行。
+// 资源管理： 允许注册分布式缓存文件、设置 Slot 共享组的资源规格等。
 @Public
 public class StreamExecutionEnvironment implements AutoCloseable {
-
+    // 客户端结果迭代器
     private final List<CollectResultIterator<?>> collectIterators = new ArrayList<>();
 
     @Internal
@@ -163,10 +168,13 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *
      * @deprecated This constant does not fit well to batch runtime mode.
      */
+    // 默认的作业名称
     @Deprecated
     public static final String DEFAULT_JOB_NAME = StreamGraphGenerator.DEFAULT_STREAMING_JOB_NAME;
 
     /** The time characteristic that is used if none other is set. */
+    // 时间特性。
+    // 定义了数据流程序处理时间的方式（ProcessingTime、IngestionTime 或 EventTime）。默认是 EventTime。
     private static final TimeCharacteristic DEFAULT_TIME_CHARACTERISTIC =
             TimeCharacteristic.EventTime;
 
@@ -176,20 +184,29 @@ public class StreamExecutionEnvironment implements AutoCloseable {
     private static StreamExecutionEnvironmentFactory contextEnvironmentFactory = null;
 
     /** The ThreadLocal used to store {@link StreamExecutionEnvironmentFactory}. */
+    // 存储流执行环境的线程本地变量
     private static final ThreadLocal<StreamExecutionEnvironmentFactory>
             threadLocalContextEnvironmentFactory = new ThreadLocal<>();
 
-    /** The default parallelism used when creating a local environment. 等效于linux的nproc命令*/
+    /** The default parallelism used when creating a local environment. */
+    // 默认本地并行度。
+    // 用于在本地模式下运行时，根据机器的 CPU 核心数 (Runtime.getRuntime().availableProcessors()) 确定的默认并行度。
     private static int defaultLocalParallelism = Runtime.getRuntime().availableProcessors();
 
     // ------------------------------------------------------------------------
 
-    /** The execution configuration for this environment. 环境配置信息 */
+    /** The execution configuration for this environment. */
+    // 执行配置。
+    // 包含了运行时配置，如默认并行度、序列化器配置、链式操作设置等。它是这个环境中许多通用配置的存储地。
     protected final ExecutionConfig config;
 
     /** Settings that control the checkpointing behavior. */
+    // 检查点配置。
+    // 包含了所有与容错和检查点相关的设置，如检查点间隔、超时时间、最大并发检查点数、状态保存路径等。
     protected final CheckpointConfig checkpointCfg;
-
+    // 数据流转换列表。
+    // Flink 作业的数据流图（DAG）是以一系列 Transformation 对象表示的。
+    // 用户通过 map(), filter(), keyBy() 等操作创建的所有转换都会被添加到这个列表中，直到调用 execute() 时被转换为 StreamGraph
     protected final List<Transformation<?>> transformations = new ArrayList<>();
 
     private final Map<AbstractID, CacheTransformation<?>> cachedTransformations = new HashMap<>();
@@ -205,6 +222,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
     @Deprecated private StateBackend defaultStateBackend;
 
     /** The time characteristic used by the data streams. */
+    // 默认为事件时间
     private TimeCharacteristic timeCharacteristic = DEFAULT_TIME_CHARACTERISTIC;
 
     /**
@@ -212,9 +230,12 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * directly accessible and modifiable as it is exposed through a getter to users, allowing
      * external modifications.
      */
+    // 分布式缓存文件列表。
+    // 存储用户通过 registerCachedFile 注册到分布式缓存中的文件信息。
     protected final List<Tuple2<String, DistributedCache.DistributedCacheEntry>> cacheFile =
             new ArrayList<>();
 
+    // 加载Pipeline执行器
     private final PipelineExecutorServiceLoader executorServiceLoader;
 
     /**
@@ -226,13 +247,20 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * newly added {@link ConfigOption}s that are relevant for DataStream API. Make sure to also
      * update {@link #configure(ReadableConfig, ClassLoader)}.
      */
+    // 底层通用配置。
+    // 存储来自 Flink 配置文件或程序化设置的原始键值对配置。
+    // 许多新配置项的来源，并最终用于配置 PipelineExecutor。
     protected final Configuration configuration;
-
+    // 用户类加载器。
+    // 用于加载用户代码中定义的函数、序列化器和自定义类。
     private final ClassLoader userClassloader;
-
+    // 作业监听器列表。
+    // 允许用户注册回调接口，以便在作业提交和完成后接收通知。
     private final List<JobListener> jobListeners = new ArrayList<>();
 
     // Records the slot sharing groups and their corresponding fine-grained ResourceProfile
+    // Slot 共享组资源。
+    // 记录了每个 Slot 共享组所需的细粒度资源配置。
     private final Map<String, ResourceProfile> slotSharingGroupResources = new HashMap<>();
 
     // --------------------------------------------------------------------------------------------
@@ -332,6 +360,8 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *
      * @param parallelism The parallelism
      */
+    // 设置默认并行度
+    // 所有的执行算子都按照这个并行度执行
     public StreamExecutionEnvironment setParallelism(int parallelism) {
         config.setParallelism(parallelism);
         return this;
@@ -350,6 +380,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @param executionMode the desired execution mode.
      * @return The execution environment of your application.
      */
+    // 设置运行模式，批处理、流处理还是自动判断
     @PublicEvolving
     public StreamExecutionEnvironment setRuntimeMode(final RuntimeExecutionMode executionMode) {
         checkNotNull(executionMode);
@@ -367,6 +398,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @param maxParallelism Maximum degree of parallelism to be used for the program., with {@code
      *     0 < maxParallelism <= 2^15}.
      */
+    // 设置最大并行度
     public StreamExecutionEnvironment setMaxParallelism(int maxParallelism) {
         Preconditions.checkArgument(
                 maxParallelism > 0
@@ -390,6 +422,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *
      * @param slotSharingGroup which contains name and its resource spec.
      */
+    // 以编程方式定义一组可以共享 Flink Task Slot 的操作符（Operator），并指定这个共享组所需的总资源。
     @PublicEvolving
     public StreamExecutionEnvironment registerSlotSharingGroup(SlotSharingGroup slotSharingGroup) {
         final ResourceSpec resourceSpec =
@@ -472,6 +505,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *
      * @return StreamExecutionEnvironment with chaining disabled.
      */
+    // 用于禁用操作符链（Operator Chaining）。
     @PublicEvolving
     public StreamExecutionEnvironment disableOperatorChaining() {
         this.configuration.set(PipelineOptions.OPERATOR_CHAINING, false);
@@ -483,6 +517,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *
      * @return {@code true} if chaining is enabled, false otherwise.
      */
+    // 是否启用了操作符链
     @PublicEvolving
     public boolean isChainingEnabled() {
         return this.configuration.get(PipelineOptions.OPERATOR_CHAINING);
@@ -522,6 +557,8 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *
      * @param interval Time interval between state checkpoints in milliseconds.
      */
+    // Flink 容错机制的入口。
+    // 启用检查点后，Flink 作业将具备在发生故障时自动恢复的能力，并且能够保障数据处理的**精确一次（Exactly-Once）**语义。
     public StreamExecutionEnvironment enableCheckpointing(long interval) {
         checkpointCfg.setCheckpointInterval(interval);
         return this;
@@ -544,6 +581,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *     guaranteed.
      * @deprecated use {@link #enableCheckpointing(long, CheckpointingMode)} instead.
      */
+    // 用于启用流作业的检查点（Checkpointing）功能，并允许用户显式指定一致性模式。
     @Deprecated
     public StreamExecutionEnvironment enableCheckpointing(
             long interval, org.apache.flink.streaming.api.CheckpointingMode mode) {
@@ -568,6 +606,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @param mode The checkpointing mode, selecting between "exactly once" and "at least once"
      *     guaranteed.
      */
+    // 启用检查点并设置间隔和模式。
     public StreamExecutionEnvironment enableCheckpointing(long interval, CheckpointingMode mode) {
         checkpointCfg.setCheckpointingConsistencyMode(mode);
         checkpointCfg.setCheckpointInterval(interval);
@@ -592,6 +631,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @deprecated Use {@link #enableCheckpointing(long, CheckpointingMode)} instead. Forcing
      *     checkpoints will be removed in the future.
      */
+    // 启用检查点功能，同时允许用户指定一致性模式和是否强制启用检查点（即使是对迭代作业）。
     @Deprecated
     @SuppressWarnings("deprecation")
     @PublicEvolving
@@ -617,6 +657,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *
      * @deprecated Use {@link #enableCheckpointing(long)} instead.
      */
+    // 启用 Flink 容错机制的最简单形式，它使用固定的默认时间间隔来触发检查点。
     @Deprecated
     @PublicEvolving
     public StreamExecutionEnvironment enableCheckpointing() {
@@ -640,6 +681,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *
      * @deprecated Forcing checkpoints will be removed in future version.
      */
+    // 是否是强制检查点
     @Deprecated
     @SuppressWarnings("deprecation")
     @PublicEvolving
@@ -648,12 +690,14 @@ public class StreamExecutionEnvironment implements AutoCloseable {
     }
 
     /** Returns whether unaligned checkpoints are enabled. */
+    // 是否启用非对齐检查点
     @PublicEvolving
     public boolean isUnalignedCheckpointsEnabled() {
         return checkpointCfg.isUnalignedCheckpointsEnabled();
     }
 
     /** Returns whether unaligned checkpoints are force-enabled. */
+    // 是否强制启用非对齐检查点
     @PublicEvolving
     public boolean isForceUnalignedCheckpoints() {
         return checkpointCfg.isForceUnalignedCheckpoints();
@@ -722,6 +766,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @see #getStateBackend()
      * @see CheckpointConfig#setCheckpointStorage( org.apache.flink.runtime.state.CheckpointStorage)
      */
+    // 设置状态后端工厂
     @Deprecated
     @PublicEvolving
     public StreamExecutionEnvironment setStateBackend(StateBackend backend) {
@@ -741,6 +786,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *     href="https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/state_backends">state-backends</a>
      * @see #setStateBackend(StateBackend)
      */
+    // 返回状态后端工厂
     @Deprecated
     @PublicEvolving
     public StateBackend getStateBackend() {
@@ -777,6 +823,8 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @return This StreamExecutionEnvironment itself, to allow chaining of function calls.
      * @see #isChangelogStateBackendEnabled()
      */
+    // 用于启用或禁用 状态变更日志（Changelog State Backend） 功能。
+    // 这个方法是 Flink 为实现异步、更快的检查点而引入的一个重要功能配置开关。
     @PublicEvolving
     public StreamExecutionEnvironment enableChangelogStateBackend(boolean enabled) {
         configuration.set(StateChangelogOptions.ENABLE_STATE_CHANGE_LOG, enabled);
@@ -791,6 +839,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *     #enableChangelogStateBackend(boolean)}.
      * @see #enableChangelogStateBackend(boolean)
      */
+    // 获取状态变更日志的启用状态。
     @PublicEvolving
     public TernaryBoolean isChangelogStateBackendEnabled() {
         return this.configuration
@@ -806,6 +855,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @return This StreamExecutionEnvironment itself, to allow chaining of function calls.
      * @see #getDefaultSavepointDirectory()
      */
+    // 允许用户为当前的流作业配置一个默认的持久化快照存储位置，即 Savepoint 目录。
     @PublicEvolving
     public StreamExecutionEnvironment setDefaultSavepointDirectory(String savepointDirectory) {
         this.configuration.set(
@@ -821,6 +871,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @return This StreamExecutionEnvironment itself, to allow chaining of function calls.
      * @see #getDefaultSavepointDirectory()
      */
+    // 允许用户为当前的流作业配置一个默认的持久化快照存储位置，即 Savepoint 目录。
     @PublicEvolving
     public StreamExecutionEnvironment setDefaultSavepointDirectory(URI savepointDirectory) {
         Preconditions.checkNotNull(savepointDirectory);
@@ -834,6 +885,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @return This StreamExecutionEnvironment itself, to allow chaining of function calls.
      * @see #getDefaultSavepointDirectory()
      */
+    // 允许用户为当前的流作业配置一个默认的持久化快照存储位置，即 Savepoint 目录。
     @PublicEvolving
     public StreamExecutionEnvironment setDefaultSavepointDirectory(Path savepointDirectory) {
         Preconditions.checkNotNull(savepointDirectory);
@@ -846,6 +898,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *
      * @see #setDefaultSavepointDirectory(Path)
      */
+    // 返回SavePoint的持久化目录
     @Nullable
     @PublicEvolving
     public Path getDefaultSavepointDirectory() {
@@ -865,6 +918,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *     restart strategies.
      * @param restartStrategyConfiguration Restart strategy configuration to be set
      */
+    // 设置重启策略
     @Deprecated
     @PublicEvolving
     public void setRestartStrategy(
@@ -900,6 +954,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *     RestartStrategies#fixedDelayRestart(int, Duration)} contains the number of execution
      *     retries.
      */
+    // 允许用户配置 Flink 在单个任务（Task）失败时，系统应尝试重新执行该任务的次数。这是 Flink 容错机制的一个基本参数。
     @Deprecated
     @PublicEvolving
     public void setNumberOfExecutionRetries(int numberOfExecutionRetries) {
@@ -943,6 +998,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *     href="https://cwiki.apache.org/confluence/display/FLINK/FLIP-398:+Improve+Serialization+Configuration+And+Usage+In+Flink">
      *     FLIP-398: Improve Serialization Configuration And Usage In Flink</a>
      */
+    // 允许用户为特定的数据类型注册一个自定义的 Kryo 序列化器实例，以便 Flink 在内部处理和传输数据时使用，但请注意，该方法已被弃用。
     @Deprecated
     public <T extends Serializer<?> & Serializable> void addDefaultKryoSerializer(
             Class<?> type, T serializer) {
@@ -1027,6 +1083,8 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *     href="https://cwiki.apache.org/confluence/display/FLINK/FLIP-398:+Improve+Serialization+Configuration+And+Usage+In+Flink">
      *     FLIP-398: Improve Serialization Configuration And Usage In Flink</a>
      */
+    // 允许用户强制 Flink 的序列化系统（包括 POJO 和 Kryo 序列化器）提前知道特定数据类型的存在，以优化序列化性能或确保正确性。
+    // 用于向 Flink 的运行时环境注册一个特定的 Java 类 (type)。注册的目的是提高序列化效率和减少运行时开销。具体行为取决于 Flink 对该类型的推断：
     @Deprecated
     public void registerType(Class<?> type) {
         if (type == null) {
@@ -1067,6 +1125,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      *     behaviour based on the time characteristic, please use equivalent operations that
      *     explicitly specify processing time or event time.
      */
+    // 允许用户定义 Flink 应该以哪种时间概念来处理数据流中的时间语义：处理时间 (Processing Time)、事件时间 (Event Time) 还是摄入时间 (Ingestion Time)。
     @PublicEvolving
     @Deprecated
     public void setStreamTimeCharacteristic(TimeCharacteristic characteristic) {
@@ -1116,6 +1175,8 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @param configuration a configuration to read the values from
      * @param classLoader a class loader to use when loading classes
      */
+    // Flink 在启动作业时，将用户提供的配置（通常来自 flink-conf.yaml 或程序代码）应用到执行环境的关键机制。
+    // 它确保了配置的集中管理和应用。
     @PublicEvolving
     public void configure(ReadableConfig configuration, ClassLoader classLoader) {
         this.configuration.addAll(Configuration.fromMap(configuration.toMap()));
@@ -1141,7 +1202,8 @@ public class StreamExecutionEnvironment implements AutoCloseable {
                 .getOptional(StateBackendOptions.STATE_BACKEND)
                 .ifPresent(ignored -> this.defaultStateBackend = null);
     }
-
+    // 注册自定义作业监听器。
+    // 用于解析配置中提供的作业监听器类名列表（listeners），并通过反射实例化这些类，并将实例添加到环境的作业监听器集合 (jobListeners) 中。
     private void registerCustomListeners(
             final ClassLoader classLoader, final List<String> listeners) {
         for (String listener : listeners) {
@@ -1174,6 +1236,8 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @param <OUT> The type of the returned data stream
      * @return The data stream representing the given array of elements
      */
+    // 用于从 Java 数组中的元素创建一个新的数据流（DataStream）。
+    // Flink 提供的最简单的数据源之一，常用于测试、原型开发或处理小规模的静态数据集。它通过可变参数 (OUT... data) 接收一组元素，并自动尝试推断其类型。
     @SafeVarargs
     public final <OUT> DataStreamSource<OUT> fromData(OUT... data) {
         if (data.length == 0) {
@@ -1207,6 +1271,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @param <OUT> The type of the returned data stream
      * @return The data stream representing the given array of elements
      */
+    // 用于从 Java 数组中的元素创建一个新的数据流（DataStream），并允许用户手动指定类型信息。
     @SafeVarargs
     public final <OUT> DataStreamSource<OUT> fromData(TypeInformation<OUT> typeInfo, OUT... data) {
         if (data.length == 0) {

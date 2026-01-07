@@ -45,6 +45,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /** A fetcher which fetches query results from sink and provides exactly-once semantics. */
+// 是 Flink Table/SQL API 在本地或客户端执行时，将作业结果从 Flink 集群拉取回客户端的关键组件。
+// 通常用于 Flink SQL 的 SELECT 查询或 DataStream API 的 collect() 方法，允许以同步、迭代的方式获取数据。
+// 核心作用是作为客户端与 Flink 集群中特定 Sink Operator 之间的数据拉取代理。
+// 结果获取： 循环地向 Flink 集群（通过 JobClient/CoordinationRequestGateway）发送请求，拉取 Sink Operator (CollectSinkOperator) 收集到的最新结果数据块。
+// Exactly-Once 语义保障： 通过在请求中携带偏移量 (offset)，确保即使在网络重试或故障情况下，客户端也不会重复或遗漏数据，从而提供精确一次的语义保障。
+// 作业状态管理： 监控 Flink 作业的状态。如果作业仍在运行，通过协调请求拉取数据；如果作业终止（完成或失败），则从 Flink 的累加器 (Accumulator) 中读取最后的批次结果。
+
 public class CollectResultFetcher<T> {
 
     private static final int DEFAULT_RETRY_MILLIS = 100;

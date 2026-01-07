@@ -35,10 +35,16 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /** Describe the name and the different resource components of a slot sharing group. */
+// 于描述一组可以共享同一个 Task Slot 运行的 Task 的资源需求。
+// 主要作用是实现 Flink 任务的资源隔离和资源复用。
+// 定义共享关系： 属于同一个 SlotSharingGroup 的所有任务（Task 或 Operator 的并行实例）都将被调度到同一个 Task Slot 中执行。
+// 优点： 提高了集群资源的利用率，并允许任务链中的不同 Operator 在同一个 JVM 进程中高效地进行数据传输（通常通过方法调用，而不是网络传输）。
+// 资源聚合： 当多个任务共享一个 Slot 时，该 Slot 所需的总资源是组内所有共享任务的资源需求的叠加（尤其是非共享资源）。SlotSharingGroup 类存储了该组任务所需的总资源信息，如 CPU 核心数、堆内存、堆外内存和管理内存等。
 @PublicEvolving
 public class SlotSharingGroup implements Serializable {
     private static final long serialVersionUID = 1L;
-
+    // 共享组的唯一名称。
+    // 用于在 JobGraph 中标识和区分不同的槽位共享组。
     private final String name;
 
     /** How many cpu cores are needed. Can be null only if it is unknown. */

@@ -42,10 +42,24 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>The checkpoint barrier IDs are strictly monotonous increasing.
  */
-public class CheckpointBarrier extends RuntimeEvent {
+// CheckpointBarrier（检查点屏障）在 Flink 流式数据处理中扮演着 “水位线”或“信号” 的角色，是实现 分布式快照（即检查点）的核心机制。
+// 数据分隔： 屏障作为特殊事件，在数据流中流动，它将流数据清晰地分隔为**“屏障之前的数据”（Pre-checkpoint Data）和“屏障之后的数据”（Post-checkpoint Data）**。
+// 触发对齐（Exactly-Once）：
+// 当一个 Operator 接收到输入通道上的屏障时，它必须等待所有输入通道都收到相同 ID 的屏障。
+// 在等待过程中，它会阻塞（或缓存）屏障之后的数据（Post-checkpoint Data），直到所有输入都对齐。
+// 一旦对齐完成，Operator 知道它已经处理完所有属于上一个检查点的数据，可以安全地触发自身的状态快照（例如，将 Keyed State 写入存储），然后将屏障广播到下游所有输出通道，继续向下游传递。
+// 非对齐机制（Unaligned Checkpoint）： Flink 也支持非对齐检查点，在这种模式下，屏障不再阻塞数据，而是允许数据流继续通过，同时将在途数据（In-flight Data）的状态也作为检查点的一部分进行保存。
 
+public class CheckpointBarrier extends RuntimeEvent {
+    // 检查点 ID。
+    // 唯一且严格单调递增的标识符，用于标识是哪一次检查点。
+    // 这是屏障对齐的核心依据。
     private final long id;
+    // 检查点时间戳。
+    // JobManager 发起检查点时的系统时间，用于元数据记录和审计。
     private final long timestamp;
+    // 检查点选项。
+    // 封装了检查点的类型和行为配置（例如：是否是 Savepoint、是否为非对齐检查点 Unaligned Checkpoint 等）。
     private final CheckpointOptions checkpointOptions;
 
     public CheckpointBarrier(long id, long timestamp, CheckpointOptions checkpointOptions) {

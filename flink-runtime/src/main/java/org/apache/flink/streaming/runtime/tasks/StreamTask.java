@@ -353,7 +353,9 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     // ========================================================
     //  Final  checkpoint / savepoint
     // ========================================================
+    // 同步保存点的id
     private Long syncSavepoint = null;
+    // 最终的检查点ID
     private Long finalCheckpointMinId = null;
     private final CompletableFuture<Void> finalCheckpointCompleted = new CompletableFuture<>();
 
@@ -789,7 +791,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     protected void notifyEndOfData() {
         environment.getTaskManagerActions().notifyEndOfData(environment.getExecutionId());
     }
-
+    // 设置同步保存点的ID
     protected void setSynchronousSavepoint(long checkpointId) {
         checkState(
                 syncSavepoint == null || syncSavepoint == checkpointId,
@@ -1348,25 +1350,34 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     // ------------------------------------------------------------------------
     //  Checkpoint and Restore
     // ------------------------------------------------------------------------
+    // Flink StreamTask 类中用于异步触发检查点的方法
+    // 通常由 TaskManager 的 I/O 线程或其他系统线程调用，其核心作用是将检查点触发逻辑安全地提交到任务的主线程（Mailbox）中执行。
+    // checkpointMetaData (CheckpointMetaData): 包含检查点 ID、时间戳等元数据。
+    // checkpointOptions (CheckpointOptions): 包含检查点类型、存储位置和对齐方式等执行选项。
 
     @Override
     public CompletableFuture<Boolean> triggerCheckpointAsync(
             CheckpointMetaData checkpointMetaData, CheckpointOptions checkpointOptions) {
+        // 检查当前任务环境是否支持执行检查点选项中要求的强制完整快照（Forced Full Snapshot）。
         checkForcedFullSnapshotSupport(checkpointOptions);
 
         CompletableFuture<Boolean> result = new CompletableFuture<>();
+        // 通过任务的主邮箱执行器 (mainMailboxExecutor) 提交一个任务（一个 Runnable lambda 表达式）到任务的**主线程（Mailbox）**中排队执行。
         mainMailboxExecutor.execute(
                 () -> {
                     try {
+                        // 通过遍历任务环境中的所有输入网关，判断它们是否都已接收到上游的 EndOfPartitionEvent，表示上游数据已全部到达
                         boolean noUnfinishedInputGates =
                                 Arrays.stream(getEnvironment().getAllInputGates())
                                         .allMatch(InputGate::isFinished);
-
+                        // 如果所有输入通道都已完成 (noUnfinishedInputGates 为 true)。
                         if (noUnfinishedInputGates) {
+                            // 执行正常的检查点触发逻辑
                             result.complete(
                                     triggerCheckpointAsyncInMailbox(
                                             checkpointMetaData, checkpointOptions));
                         } else {
+                            // 情况 2： 如果存在未完成的输入通道（即任务仍在接收数据）。
                             result.complete(
                                     triggerUnfinishedChannelsCheckpoint(
                                             checkpointMetaData, checkpointOptions));
@@ -1382,12 +1393,16 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
                 checkpointOptions);
         return result;
     }
-
+    // 用于在任务主线程（Mailbox）内执行检查点触发逻辑的核心私有方法。
     private boolean triggerCheckpointAsyncInMailbox(
             CheckpointMetaData checkpointMetaData, CheckpointOptions checkpointOptions)
             throws Exception {
+        // 启用对当前线程（即任务主线程）中任何尝试调用 System.exit() 的行为进行监控。
+        // 如果用户代码在检查点过程中意外调用了 System.exit()，它会被 Flink 的安全管理器拦截，防止单个 Task 的故障导致整个 TaskManager 非正常退出。
         FlinkSecurityManager.monitorUserSystemExitForCurrentThread();
         try {
+            // 计算检查点启动延迟（Start Delay）
+            // 延迟时间 = (当前系统时间 - 检查点元数据中的触发时间戳)。
             latestAsyncCheckpointStartDelayNanos =
                     1_000_000
                             * Math.max(
@@ -1395,18 +1410,23 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
                                     System.currentTimeMillis() - checkpointMetaData.getTimestamp());
 
             // No alignment if we inject a checkpoint
+            // 尽管这个方法名包含 Async，但由于它是在输入数据流结束后（见上一方法的 noUnfinishedInputGates 判断）或者是在没有输入数据需要对齐的情况下调用的，
+            // 因此认为不需要传统的 Barrier 对齐过程。
+
+            // 初始化检查点性能指标构建器。
             CheckpointMetricsBuilder checkpointMetrics =
                     new CheckpointMetricsBuilder()
-                            .setAlignmentDurationNanos(0L)
+                            .setAlignmentDurationNanos(0L) // 对齐持续时间设为 0，因为假定没有进行传统的 Barrier 对齐。
                             .setBytesProcessedDuringAlignment(0L)
                             .setCheckpointStartDelayNanos(latestAsyncCheckpointStartDelayNanos);
-
+            // 通知子任务检查点协调器（SubtaskCheckpointCoordinator）开始初始化输入侧的检查点准备工作。
             subtaskCheckpointCoordinator.initInputsCheckpoint(
                     checkpointMetaData.getCheckpointId(), checkpointOptions);
-
+            // 执行实际的本地状态和操作符状态的快照。
             boolean success =
                     performCheckpoint(checkpointMetaData, checkpointOptions, checkpointMetrics);
             if (!success) {
+                // 拒绝该检查点，向 JobMaster 报告拒绝信息。
                 declineCheckpoint(checkpointMetaData.getCheckpointId());
             }
             return success;
@@ -1433,24 +1453,31 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
             FlinkSecurityManager.unmonitorUserSystemExitForCurrentThread();
         }
     }
-
+    // 用于处理在存在未完成输入通道时的检查点触发的逻辑
+    // 通常在任务准备停止（例如执行 STOP_WITH_SAVEPOINT）或者上游数据流已部分结束，但仍有活跃的输入通道时被调用。
+    // 不是等待所有数据处理完，而是模拟接收到检查点屏障（Checkpoint Barrier），并立即将其注入到所有未完成的输入通道中。
+    // 这对于保证最终状态的完整性至关重要。
     private boolean triggerUnfinishedChannelsCheckpoint(
             CheckpointMetaData checkpointMetaData, CheckpointOptions checkpointOptions)
             throws Exception {
+        // 获取当前 Task 的检查点屏障处理器（CheckpointBarrierHandler）。
+        // 这个处理器负责接收并处理来自输入通道的检查点屏障。
         Optional<CheckpointBarrierHandler> checkpointBarrierHandler = getCheckpointBarrierHandler();
         checkState(
                 checkpointBarrierHandler.isPresent(),
                 "CheckpointBarrier should exist for tasks with network inputs.");
-
+        // 基于传入的元数据和选项，创建一个新的检查点屏障对象。
         CheckpointBarrier barrier =
                 new CheckpointBarrier(
                         checkpointMetaData.getCheckpointId(),
                         checkpointMetaData.getTimestamp(),
                         checkpointOptions);
-
+        // 遍历 Task 的所有输入网关（InputGate）
         for (IndexedInputGate inputGate : getEnvironment().getAllInputGates()) {
             if (!inputGate.isFinished()) {
+                // 检查当前输入网关是否未完成。只有未完成的网关才需要注入屏障，因为已完成的网关（所有通道都已结束）不再有数据流经，不需要参与检查点。
                 for (InputChannelInfo channelInfo : inputGate.getUnfinishedChannels()) {
+                    // 创建的 CheckpointBarrier 注入到当前的输入通道中
                     checkpointBarrierHandler.get().processBarrier(barrier, channelInfo, true);
                 }
             }
@@ -1467,16 +1494,19 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
     protected Optional<CheckpointBarrierHandler> getCheckpointBarrierHandler() {
         return Optional.empty();
     }
-
+    // 用于在接收到检查点屏障后触发检查点快照的方法。
+    // 通常由 StreamInputProcessor 内部的 CheckpointBarrierHandler 在成功接收并处理完所有输入通道的检查点屏障（即完成屏障对齐，如果需要）后调用。
+    // 它是一个同步方法，意味着它在任务的主线程中执行，并阻塞直到 performCheckpoint 返回。
     @Override
     public void triggerCheckpointOnBarrier(
             CheckpointMetaData checkpointMetaData,
             CheckpointOptions checkpointOptions,
             CheckpointMetricsBuilder checkpointMetrics)
             throws IOException {
-
+        // 启用对当前线程（任务主线程）中任何尝试调用 System.exit() 的行为进行监控。
         FlinkSecurityManager.monitorUserSystemExitForCurrentThread();
         try {
+            // 调用 StreamTask 内部的核心方法，执行实际的检查点快照逻辑。
             performCheckpoint(checkpointMetaData, checkpointOptions, checkpointMetrics);
         } catch (CancelTaskException e) {
             LOG.info(
@@ -1506,12 +1536,15 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
         subtaskCheckpointCoordinator.abortCheckpointOnBarrier(checkpointId, cause, operatorChain);
     }
 
+    // 执行实际检查点快照的核心方法。
+    // 它负责在 TaskManager 上的 Task 级别协调和执行状态的持久化。
     private boolean performCheckpoint(
             CheckpointMetaData checkpointMetaData,
             CheckpointOptions checkpointOptions,
             CheckpointMetricsBuilder checkpointMetrics)
             throws Exception {
 
+        // 从检查点选项中提取快照类型（例如 CheckpointType.CHECKPOINT 或 SavepointType.SAVEPOINT）
         final SnapshotType checkpointType = checkpointOptions.getCheckpointType();
         LOG.debug(
                 "Starting checkpoint {} {} on task {}",
@@ -1522,21 +1555,24 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
         if (isRunning) {
             actionExecutor.runThrowing(
                     () -> {
+                        // 检查快照类型是否是同步保存点（通常用于 Stop-With-Savepoint）
                         if (isSynchronous(checkpointType)) {
                             setSynchronousSavepoint(checkpointMetaData.getCheckpointId());
                         }
-
-                        if (areCheckpointsWithFinishedTasksEnabled()
-                                && endOfDataReceived
-                                && this.finalCheckpointMinId == null) {
+                        // 处理数据结束后的最终检查点逻辑
+                        if (areCheckpointsWithFinishedTasksEnabled() // 配置允许任务在接收完所有数据后进行检查点。
+                                && endOfDataReceived // 任务已经接收到所有上游数据结束标记。
+                                && this.finalCheckpointMinId == null) { // 这是该任务接收到的第一个在数据结束后触发的检查点。
+                            // 将当前检查点 ID 记录为最小的最终检查点 ID。
+                            // 这标志着任务已经进入了最终检查点阶段。
                             this.finalCheckpointMinId = checkpointMetaData.getCheckpointId();
                         }
-
+                        // 将实际执行状态快照的职责委托给 SubtaskCheckpointCoordinator
                         subtaskCheckpointCoordinator.checkpointState(
                                 checkpointMetaData,
                                 checkpointOptions,
                                 checkpointMetrics,
-                                operatorChain,
+                                operatorChain, // 包含任务中所有算子的链，协调器将遍历并触发每个算子的状态快照。
                                 finishedOperators,
                                 this::isRunning);
                     });
@@ -1552,6 +1588,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
                         // we cannot broadcast the cancellation markers on the 'operator chain',
                         // because it may not
                         // yet be created
+                        // 创建一个取消检查点标记（CancelCheckpointMarker）
+                        // 由于当前 Task 不能执行检查点，它必须通知下游 Task 放弃这个检查点。
                         final CancelCheckpointMarker message =
                                 new CancelCheckpointMarker(checkpointMetaData.getCheckpointId());
                         recordWriter.broadcastEvent(message);

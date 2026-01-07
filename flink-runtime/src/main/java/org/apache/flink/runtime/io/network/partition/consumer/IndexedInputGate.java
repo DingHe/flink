@@ -24,7 +24,8 @@ import org.apache.flink.runtime.io.network.api.CheckpointBarrier;
 import java.io.IOException;
 import java.util.List;
 
-// 为 Flink 任务中具有唯一索引的输入网关提供一个统一的基础，集成数据拉取（InputGate 的能力）、检查点协调（CheckpointableInput 的能力）和管理多个输入通道
+// 为 Flink 任务中具有唯一索引的输入网关提供一个统一的基础，
+// 集成数据拉取（InputGate 的能力）、检查点协调（CheckpointableInput 的能力）和管理多个输入通道
 // 索引化： 它为输入网关引入了唯一的索引 (getGateIndex())，这在任务有多个输入（例如，处理来自不同算子的数据流或处理恢复状态的 InputGate 和新的数据流的 InputGate）时，是必不可少的身份标识。
 /** An {@link InputGate} with a specific index. */
 public abstract class IndexedInputGate extends InputGate implements CheckpointableInput {

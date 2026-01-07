@@ -48,7 +48,7 @@ public class SavepointRestoreSettings implements Serializable {
      * operator that is not part of the job.许恢复时忽略部分无法恢复的状态
      */
     private final boolean allowNonRestoredState;
-    //它定义了当Flink作业从保存点（savepoint）恢复时，JobManager如何声明对保存点的所有权
+    // 它定义了当Flink作业从保存点（savepoint）恢复时，JobManager如何声明对保存点的所有权
     private final @Nonnull RecoveryClaimMode recoveryClaimMode;
 
     /**

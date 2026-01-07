@@ -191,6 +191,7 @@ public class CheckpointConfig implements java.io.Serializable {
      * @param checkpointingMode The checkpointing mode.
      * @deprecated Use {@link #setCheckpointingConsistencyMode} instead.
      */
+    // 允许用户指定 Flink 容错机制提供的数据一致性保证级别
     @Deprecated
     public void setCheckpointingMode(
             org.apache.flink.streaming.api.CheckpointingMode checkpointingMode) {
@@ -202,6 +203,7 @@ public class CheckpointConfig implements java.io.Serializable {
      *
      * @return The checkpointing mode.
      */
+    // 返回检查点的一致性模型
     public CheckpointingMode getCheckpointingConsistencyMode() {
         return configuration.get(CheckpointingOptions.CHECKPOINTING_CONSISTENCY_MODE);
     }
@@ -211,6 +213,7 @@ public class CheckpointConfig implements java.io.Serializable {
      *
      * @param checkpointingMode The checkpointing mode.
      */
+
     public void setCheckpointingConsistencyMode(CheckpointingMode checkpointingMode) {
         configuration.set(CheckpointingOptions.CHECKPOINTING_CONSISTENCY_MODE, checkpointingMode);
     }

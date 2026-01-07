@@ -77,6 +77,13 @@ import java.util.Collection;
  * <p>State backend implementations have to be thread-safe. Multiple threads may be creating
  * keyed-/operator state backends concurrently.
  */
+// StateBackend 接口定义了 Flink 流处理应用程序中状态（State）如何被存储在 TaskManager 内部以及如何被检查点（Checkpoint）到远程持久存储的机制。
+// 状态存储定义： 它决定了 Flink 运行中的工作状态（Working State）使用哪种数据结构，以及存储在哪里。常见的实现有：
+// HashMapStateBackend：将工作状态存储在 TaskManager 的 JVM 堆内存中。
+// EmbeddedRocksDBStateBackend：将工作状态存储在 TaskManager 节点的本地磁盘上的 RocksDB 实例中。
+// 状态后端工厂： StateBackend 实例本身是一个工厂（Factory）。它不直接存储状态，而是用于在 Task 启动时，创建实际负责存储和检查点操作的后端实例：
+// 可序列化： StateBackend 必须是可序列化的 (java.io.Serializable)，因为它需要作为作业的一部分从 JobManager 分发到所有 TaskManager 实例上。
+
 @PublicEvolving
 public interface StateBackend extends java.io.Serializable {
 
@@ -85,6 +92,8 @@ public interface StateBackend extends java.io.Serializable {
      * org.apache.flink.runtime.state.delegate.DelegatingStateBackend} may return the simple class
      * name of the delegated backend.
      */
+    // 获取后端名称。
+    // 返回该状态后端的简单名称，用于日志记录和监控。默认实现返回类的简单名称。
     default String getName() {
         return this.getClass().getSimpleName();
     }
@@ -101,6 +110,10 @@ public interface StateBackend extends java.io.Serializable {
      * @throws Exception This method may forward all exceptions that occur while instantiating the
      *     backend.
      */
+    // 创建 Keyed State 后端。
+    // 这是核心方法之一。
+    // 用于创建并返回一个 CheckpointableKeyedStateBackend 实例，该实例负责管理键控状态（Keyed State，即每个 Key 独立维护的状态），并负责该状态的检查点操作。
+    // 它接收包含恢复信息和配置的参数包。
     <K> CheckpointableKeyedStateBackend<K> createKeyedStateBackend(
             KeyedStateBackendParameters<K> parameters) throws Exception;
 
@@ -116,6 +129,8 @@ public interface StateBackend extends java.io.Serializable {
      * @throws Exception This method may forward all exceptions that occur while instantiating the
      *     backend.
      */
+    // 创建异步 Keyed State 后端。
+    // 用于创建支持异步访问键控状态的后端。默认实现抛出 UnsupportedOperationException，意味着大多数后端默认不支持此功能。
     @Experimental
     default <K> AsyncKeyedStateBackend createAsyncKeyedStateBackend(
             KeyedStateBackendParameters<K> parameters) throws Exception {
@@ -132,6 +147,8 @@ public interface StateBackend extends java.io.Serializable {
      *
      * @return If the state backend supports {@link AsyncKeyedStateBackend}.
      */
+    // 检查是否支持异步 Keyed State。
+    // 标识该状态后端是否提供了 AsyncKeyedStateBackend 的实现。
     @Experimental
     default boolean supportsAsyncKeyedStateBackend() {
         return false;
@@ -148,10 +165,14 @@ public interface StateBackend extends java.io.Serializable {
      * @throws Exception This method may forward all exceptions that occur while instantiating the
      *     backend.
      */
+    // 创建 Operator State 后端。
+    // 另一个核心方法。用于创建并返回一个 OperatorStateBackend 实例，该实例负责管理操作符状态（Operator State，即与操作符的并行实例关联的状态，如 Source 中的偏移量）。它接收包含配置和恢复句柄的参数包。
     OperatorStateBackend createOperatorStateBackend(OperatorStateBackendParameters parameters)
             throws Exception;
 
     /** Whether the state backend uses Flink's managed memory. */
+    // 检查是否使用托管内存。
+    // 返回该状态后端是否使用 Flink 的托管内存（Managed Memory，即 Flink 自行管理和分配的堆外或堆上内存）。例如，RocksDBStateBackend 通常会使用托管内存。
     default boolean useManagedMemory() {
         return false;
     }
@@ -165,10 +186,13 @@ public interface StateBackend extends java.io.Serializable {
      *
      * @return If the state backend supports {@link RecoveryClaimMode#NO_CLAIM} mode.
      */
+    // 检查是否支持 NO_CLAIM 恢复模式。
+    // 如果返回 true，表示该后端在执行全量检查点 (FULL_CHECKPOINT) 时，会创建独立的快照，允许不声明所有权地恢复，支持更灵活的故障恢复和 Savepoint 流程。
     default boolean supportsNoClaimRestoreMode() {
         return false;
     }
-
+    // 检查是否支持指定的 Savepoint 格式。
+    // 默认只支持 CANONICAL（标准）格式。用于在进行 Savepoint 时，确认状态后端能够正确地序列化和恢复该格式的数据。
     default boolean supportsSavepointFormat(SavepointFormatType formatType) {
         return formatType == SavepointFormatType.CANONICAL;
     }

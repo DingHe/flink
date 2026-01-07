@@ -117,7 +117,8 @@ public interface SourceReader<T, SplitT extends SourceSplit>
     // 数据可用性信号。
     // 返回一个 CompletableFuture<Void>。
     // 当此 Future 完成时，表示读取器可能有新的记录可供 pollNext 读取。
-    // 运行时将等待此 Future 完成，然后再次调用 pollNext。这是实现非阻塞 I/O 的关键机制。
+    // 运行时将等待此 Future 完成，然后再次调用 pollNext。
+    // 这是实现非阻塞 I/O 的关键机制。
     CompletableFuture<Void> isAvailable();
 
     /**

@@ -47,6 +47,12 @@ import java.util.concurrent.CompletableFuture;
  * <p>NOTE: After using this iterator, the close method MUST be called in order to release job
  * related resources.
  */
+// Flink 用户获取查询结果（例如 Flink SQL 的 SELECT 语句或 DataStream API 的 collect() 操作）时，在客户端侧使用的最终迭代器。
+// 核心作用是将底层复杂的结果获取和容错机制（由 CollectResultFetcher 管理）封装成一个标准的、用户友好的 Java 迭代器 (Iterator) 接口。
+// 迭代器接口实现： 提供了标准的 hasNext() 和 next() 方法，允许用户像遍历本地集合一样，逐条获取 Flink 集群中计算出的结果数据。
+// 生命周期管理： 实现了 CloseableIterator，要求用户必须调用 close() 方法，以确保在数据消费完毕或提前退出时，底层的 Flink Job 资源能够被正确释放（通常是取消作业）
+// 结果获取委托： 将实际的数据拉取工作委托给 CollectResultFetcher。
+//
 public class CollectResultIterator<T> implements CloseableIterator<T> {
 
     private final CollectResultFetcher<T> fetcher;

@@ -42,7 +42,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public abstract class GeneratedClass<T> implements Serializable {
 
     private static final Logger LOG = LoggerFactory.getLogger(GeneratedClass.class);
-    // 生成的类的完整名称（包含包名）。用于编译和实例化。
+    // 生成的类的完整名称（包含包名）。
+    // 用于编译和实例化。
     private final String className;
     // 生成的 Java 源代码。这是原始、未分割的代码字符串。
     private final String code;

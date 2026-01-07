@@ -42,10 +42,12 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 // 在 Flink 的 Source Task 中，数据不是来自上游任务的网络传输，而是由本地的 SourceOperator 负责生成和拉取（例如从 Kafka、文件系统等）。
 // StreamTaskSourceInput 的作用就是将这个 Source Operator 适配到 Flink 统一的 StreamTaskInput 接口和 Checkpoint 机制中
 // Source 适配器： 它将 Flink 的新 Source API 中用于生成数据的 SourceOperator 封装成 Task 期望的 StreamTaskInput 形式。
+
 @Internal
 public class StreamTaskSourceInput<T> implements StreamTaskInput<T>, CheckpointableInput {
     // Source 算子实例（核心）。
-    // 持有底层的 SourceOperator 实例。所有实际的数据生成和 Checkpoint 逻辑都委托给它
+    // 持有底层的 SourceOperator 实例。
+    // 所有实际的数据生成和 Checkpoint 逻辑都委托给它
     private final SourceOperator<T, ?> operator;
     // 输入门索引。
     // Flink Task 内部标识该输入的索引。

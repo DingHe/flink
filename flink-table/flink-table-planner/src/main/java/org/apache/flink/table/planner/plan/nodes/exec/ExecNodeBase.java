@@ -55,6 +55,13 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @param <T> The type of the elements that result from this node.
  */
+// ExecNodeBase 是 Apache Flink Table Planner 中所有具体执行节点（如 StreamExecFilter、BatchExecJoin 等）的基类。
+// 它实现了 ExecNode 接口，并提供了大多数节点共有的通用逻辑。
+// 减少代码冗余：它统一处理了 ID 管理、类型定义、输入/输出属性、以及 JSON 序列化/反序列化的逻辑，让具体的算子只需关注核心的翻译逻辑。
+// 统一翻译模板：它定义了 translateToPlan 的公共流程（如配置合并、缓存结果），而将具体的算子生成逻辑留给子类通过 translateToPlanInternal 实现。
+// 支持持久化计划（JSON Plan）：它通过 Jackson 注解确保执行计划可以正确地在 JSON 格式和 Java 对象之间转换，这是 Flink SQL 实现 Compiled Plan 的基础。
+
+
 @JsonIgnoreProperties(ignoreUnknown = true)
 public abstract class ExecNodeBase<T> implements ExecNode<T> {
 
@@ -64,22 +71,25 @@ public abstract class ExecNodeBase<T> implements ExecNode<T> {
      * constructor overloading for all {@link ExecNode}s. However, during deserialization this flag
      * will always be set to true.
      */
+    // 标记该节点是否是通过已编译计划（JSON）加载而来的
+    // 如果是反序列化得到的，某些元数据（如 UID）需要严格保持不变以兼容旧状态。
     @JacksonInject("isDeserialize")
     private boolean isCompiled;
-
+    // 该节点的可读描述字符串
     private final String description;
-
+    // 节点的输出 LogicalType（逻辑类型）
     private final LogicalType outputType;
-
+    // 定义了输入端的属性约束（如：分布式要求、顺序要求）
     private final List<InputProperty> inputProperties;
-
+    // 存储了指向此节点的输入边列表，建立了物理图的连接。
     private List<ExecEdge> inputEdges;
-
+    // 缓存已翻译生成的 Transformation<T> 对象
     private transient Transformation<T> transformation;
 
     private @Nullable transient OpFusionCodegenSpecGenerator fusionCodegenSpecGenerator;
 
     /** Holds the context information (id, name, version) as deserialized from a JSON plan. */
+    // 类型为 ExecNodeContext，持有节点的 ID、版本和类型名称，主要用于 JSON 序列化。
     @JsonProperty(value = FIELD_NAME_TYPE, access = JsonProperty.Access.WRITE_ONLY)
     private final ExecNodeContext context;
 
@@ -91,7 +101,7 @@ public abstract class ExecNodeBase<T> implements ExecNode<T> {
     protected final ExecNodeContext getContextFromAnnotation() {
         return isCompiled ? context : ExecNodeContext.newContext(this.getClass()).withId(getId());
     }
-
+    // 持久化的配置信息，存储了特定于该节点的参数设置
     @JsonProperty(value = FIELD_NAME_CONFIGURATION, access = JsonProperty.Access.WRITE_ONLY)
     private final ReadableConfig persistedConfig;
 
@@ -160,6 +170,7 @@ public abstract class ExecNodeBase<T> implements ExecNode<T> {
         checkArgument(index >= 0 && index < edges.size());
         edges.set(index, newInputEdge);
     }
+    // 外部调用的核心接口
 
     @Override
     public final Transformation<T> translateToPlan(Planner planner) {
@@ -171,6 +182,7 @@ public abstract class ExecNodeBase<T> implements ExecNode<T> {
                                     ((PlannerBase) planner).getTableConfig(),
                                     persistedConfig,
                                     isCompiled));
+            // 如果输入要求是 SINGLETON（单并发），它会自动强制设置当前算子的并行度为 1。
             if (this instanceof SingleTransformationTranslator) {
                 if (inputsContainSingleton(transformation)) {
                     transformation.setParallelism(1);
@@ -200,6 +212,8 @@ public abstract class ExecNodeBase<T> implements ExecNode<T> {
      *     retrieving configuration from the {@code planner}. For more details check {@link
      *     ExecNodeConfig}.
      */
+    // 抽象方法
+    // 必须由具体的子类（如 Filter 或 Join）实现，负责编写具体的 Flink 算子创建代码。
     protected abstract Transformation<T> translateToPlanInternal(
             PlannerBase planner, ExecNodeConfig config);
 
@@ -239,7 +253,7 @@ public abstract class ExecNodeBase<T> implements ExecNode<T> {
     protected String createTransformationDescription(ReadableConfig config) {
         return createFormattedTransformationDescription(getDescription(), config);
     }
-
+    // 根据配置决定是否生成 UID，并返回包含 Name、UID 和 Description 的元数据包装类。
     protected TransformationMetadata createTransformationMeta(
             String operatorName, ExecNodeConfig config) {
         if (ExecNodeMetadataUtil.isUnsupported(this.getClass()) || !config.shouldSetUid()) {
@@ -287,11 +301,13 @@ public abstract class ExecNodeBase<T> implements ExecNode<T> {
         return this.transformation;
     }
 
+    // 默认返回 false。
+    // 支持融合的算子（如 Calc）需要重写此方法返回 true。
     @Override
     public boolean supportFusionCodegen() {
         return false;
     }
-
+    // 翻译成融合代码
     @Override
     public OpFusionCodegenSpecGenerator translateToFusionCodegenSpec(
             Planner planner, CodeGeneratorContext parentCtx) {

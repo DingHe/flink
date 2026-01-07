@@ -29,6 +29,15 @@ import org.apache.flink.connector.base.source.reader.splitreader.SplitReader;
  * @param <T> the type of records that are eventually emitted to the {@link SourceOutput}.
  * @param <SplitStateT> the mutable type of split state.
  */
+// 在 Flink 的新版 Source 架构中，数据读取被解耦为两个步骤：
+// 读取 (Fetch)：SplitReader 负责从外部系统（如 MySQL Binlog、Kafka）拉取原始数据块。
+// 发送 (Emit)：RecordEmitter 负责将拉取到的原始数据“发射”到 Flink 的下游。
+// 它的核心职责包括：
+// 类型转换 (Transformation)：将 SplitReader 读取到的中间格式（如 SourceRecords）转换为 Flink 框架需要的最终格式（如 RowData）。
+// 状态更新 (State Tracking)：在发送数据的同时，更新该分片（Split）的偏移量（Offset）或进度。这是实现 Exactly-once（精确一次） 语义的关键，因为它确保了“发送数据”和“更新位点”在同一个执行周期内完成。
+// <E> 由 SplitReader 读取到的中间元素类型。在 MySQL CDC 中，这通常是 SourceRecords（包含了一批从 Debezium 拿到的原始记录）。
+// <T> 最终发送到 Flink 下游算子的数据类型。
+// <SplitStateT> 分片状态的可变类型。对于 MySQL 来说，这可能是当前读取到的 Binlog 位点信息。它用于记录当前读到哪了，以便在 Checkpoint 时保存进度。
 @PublicEvolving
 public interface RecordEmitter<E, T, SplitStateT> {
 

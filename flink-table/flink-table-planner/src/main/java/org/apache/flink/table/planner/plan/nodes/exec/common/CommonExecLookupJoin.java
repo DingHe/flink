@@ -138,6 +138,14 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * 3) join left input record and lookup-ed records <br>
  * 4) only outputs the rows which match to the condition <br>
  */
+// Apache Flink Table Planner 中的一个核心抽象基类。它承载了 SQL 中 维表关联（Lookup Join / Temporal Table Join） 的物理执行逻辑。
+// 在 Flink SQL 中，当你执行类似 SELECT ... FROM T JOIN dim_table FOR SYSTEM_TIME AS OF T.proctime ON ... 的查询时，系统不会将维表全量加载到状态中，而是针对主流（左表）的每一条数据，实时去外部系统（如 MySQL, HBase, Redis）查询匹配的行。
+// 核心作用包括：
+// 统一逻辑架构：它封装了“查询维表 -> 处理查询结果（Calc/Filter）-> 与左表合并”的通用流程。
+// 支持多种执行模式：它同时支持**同步（Sync）和异步（Async）**两种查找方式。
+// 处理代码生成（Codegen）：它利用代码生成技术生成高效的 ProcessFunction 或 AsyncFunction，减少虚函数调用开销。
+// 处理容错与重试：它集成了查找重试（Retry）机制，以应对外部系统暂时的不可用或延迟。
+
 public abstract class CommonExecLookupJoin extends ExecNodeBase<RowData> {
 
     public static final String LOOKUP_JOIN_TRANSFORMATION = "lookup-join";
@@ -157,7 +165,7 @@ public abstract class CommonExecLookupJoin extends ExecNodeBase<RowData> {
 
     public static final String FIELD_NAME_ASYNC_OPTIONS = "asyncOptions";
     public static final String FIELD_NAME_RETRY_OPTIONS = "retryOptions";
-
+    // 定义 Join 类型。维表关联目前仅支持 INNER JOIN 和 LEFT JOIN
     @JsonProperty(FIELD_NAME_JOIN_TYPE)
     private final FlinkJoinType joinType;
 
@@ -165,34 +173,39 @@ public abstract class CommonExecLookupJoin extends ExecNodeBase<RowData> {
      * lookup keys: the key is index in dim table. the value is source of lookup key either constant
      * or field from right table.
      */
+    // Key 是维表列的索引，
+    // Value 是查找键（可能是常量或左表的字段引用）。
     @JsonProperty(FIELD_NAME_LOOKUP_KEYS)
     private final Map<Integer, LookupJoinUtil.LookupKey> lookupKeys;
-
+    // 维表的元数据说明，包含了如何获取维表数据源（TableSource）的信息。
     @JsonProperty(FIELD_NAME_TEMPORAL_TABLE)
     private final TemporalTableSourceSpec temporalTableSourceSpec;
-
+    // 如果 SQL 对维表进行了列裁剪，这里存储了对应的 RexNode 列表。
     @JsonProperty(FIELD_NAME_PROJECTION_ON_TEMPORAL_TABLE)
     private final @Nullable List<RexNode> projectionOnTemporalTable;
-
+    // 如果在关联维表时有针对维表字段的简单过滤（如 D.age > 18），会存放在此。
     @JsonProperty(FIELD_NAME_FILTER_ON_TEMPORAL_TABLE)
     private final @Nullable RexNode filterOnTemporalTable;
 
     /** pre-filter condition on left input except lookup keys. */
+    // 前置过滤条件。在发起外部查找之前，先对左表数据进行过滤，减少不必要的外部请求。
     @JsonProperty(FIELD_NAME_PRE_FILTER_CONDITION)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final @Nullable RexNode preFilterCondition;
 
     /** remaining join condition except pre-filter & equi-conditions except lookup keys. */
+    // 残留关联条件。
+    // 在外部查找返回结果后，进一步进行的条件判断（例如非等值 Join 条件）。
     @JsonProperty(FIELD_NAME_REMAINING_JOIN_CONDITION)
     private final @Nullable RexNode remainingJoinCondition;
-
+    // 输入流的数据变更模式（如是否包含 Update/Delete）
     @JsonProperty(FIELD_NAME_INPUT_CHANGELOG_MODE)
     private final ChangelogMode inputChangelogMode;
-
+    // 异步查找配置。如果用户启用了异步模式，该属性包含超时时间、缓冲容量（Capacity）和输出模式（Ordered/Unordered）
     @JsonProperty(FIELD_NAME_ASYNC_OPTIONS)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final @Nullable LookupJoinUtil.AsyncLookupOptions asyncLookupOptions;
-
+    // 重试配置。定义了查找失败时的重试策略（如最大次数、延迟等）
     @JsonProperty(FIELD_NAME_RETRY_OPTIONS)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final @Nullable LookupJoinUtil.RetryLookupOptions retryOptions;
@@ -232,7 +245,7 @@ public abstract class CommonExecLookupJoin extends ExecNodeBase<RowData> {
     public TemporalTableSourceSpec getTemporalTableSourceSpec() {
         return temporalTableSourceSpec;
     }
-
+    // 将逻辑上的 Lookup Join 转换为 Flink 算子树（Transformation）
     protected Transformation<RowData> createJoinTransformation(
             PlannerBase planner,
             ExecNodeConfig config,

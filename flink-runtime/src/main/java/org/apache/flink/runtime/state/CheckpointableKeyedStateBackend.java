@@ -50,7 +50,7 @@ public interface CheckpointableKeyedStateBackend<K>
      * write out a savepoint in the common/unified format.
      */
     // 创建 Savepoint 资源
-    //触发状态后端创建一个特殊的资源对象 (SavepointResources)，
+    // 触发状态后端创建一个特殊的资源对象 (SavepointResources)，
     // 该对象包含将当前状态作为 Savepoint 写入统一格式所需的一切信息（通常用于 Flink 升级或版本间兼容）
     @Nonnull
     SavepointResources<K> savepoint() throws Exception;

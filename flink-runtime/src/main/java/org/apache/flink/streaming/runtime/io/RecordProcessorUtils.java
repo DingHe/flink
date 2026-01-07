@@ -42,23 +42,33 @@ public class RecordProcessorUtils {
      * @param input the {@link Input}
      * @return the record processor
      */
+    // 核心目的是：根据下游算子的特性，返回最高效的数据处理函数，尽量避免不必要的 Key 上下文（Key Context）切换。
+    // 在 Flink 的 Keyed Stream 中，每处理一条数据前通常需要 setKeyContextElement 来切换当前算子的状态后端（State Backend）对应的 Key。
+    // 如果能判定某个算子不需要切换 Key，就能节省大量 CPU 开销。
+    // 接收一个下游输入端 input，返回一个函数式接口 ThrowingConsumer（接收 StreamRecord，可能抛出异常）
     public static <T> ThrowingConsumer<StreamRecord<T>, Exception> getRecordProcessor(
             Input<T> input) {
         boolean canOmitSetKeyContext;
+        // 检查输入端是否是 Flink 最常见的抽象算子基类。
         if (input instanceof AbstractStreamOperator) {
+            // 检查该算子是否定义了 Key 属性。如果是一个非 Keyed 算子（比如普通的 map），则返回 true
             canOmitSetKeyContext = canOmitSetKeyContext((AbstractStreamOperator<?>) input, 0);
         } else {
             canOmitSetKeyContext =
                     input instanceof KeyContextHandler
                             && !((KeyContextHandler) input).hasKeyContext();
         }
-
+        // 最快路径（无 Key 切换）
         if (canOmitSetKeyContext) {
+            // 如果判定可以省略 Key 切换
+            // 直接返回 input 的 processElement 方法引用。这是最高效的路径，数据直接进入处理逻辑，没有任何额外的方法包装或状态切换。
             return input::processElement;
+        // 异步状态处理路径
         } else if (input instanceof AsyncStateProcessing
                 && ((AsyncStateProcessing) input).isAsyncStateProcessingEnabled()) {
             return ((AsyncStateProcessing) input).getRecordProcessor(1);
         } else {
+            // 标准路径（有 Key 切换）
             return record -> {
                 input.setKeyContextElement(record);
                 input.processElement(record);
@@ -127,7 +137,7 @@ public class RecordProcessorUtils {
             };
         }
     }
-
+    // 检查该算子是否定义了 Key 属性。如果是一个非 Keyed 算子（比如普通的 map），则返回 true
     private static boolean canOmitSetKeyContext(
             AbstractStreamOperator<?> streamOperator, int input) {
         // Since AbstractStreamOperator is @PublicEvolving, we need to check whether the
@@ -137,7 +147,7 @@ public class RecordProcessorUtils {
         return !hasKeyContext(streamOperator, input)
                 && !methodSetKeyContextIsOverridden(streamOperator, input);
     }
-
+    // 检查该算子是否定义了 Key 属性。如果是一个非 Keyed 算子（比如普通的 map），则返回 true
     private static boolean hasKeyContext(AbstractStreamOperator<?> operator, int input) {
         if (input == 0) {
             return operator.hasKeyContext1();
