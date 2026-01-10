@@ -61,6 +61,10 @@ import java.util.Optional;
  * <p>Note: After partitions are pushed into the source, the runtime will not perform a subsequent
  * filter operation for partition keys.
  */
+// SupportsPartitionPushDown 的主要作用是实现分区下推（Partition Push-down）。
+// 在处理大数据时，外部系统（如 Hive、文件系统、Kafka 等）通常会将数据按照某些字段（如日期、地区）进行分区存储。
+// 默认行为：如果 Source 不实现此接口，Flink 会读取该表下的所有数据，然后在内存中通过 Filter 算子过滤掉不属于目标分区的数据。这会产生巨大的 I/O 浪费。
+// 下推优化：如果 Source 实现了此接口，Flink 优化器（Planner）会在解析 SQL 后，将查询所需的分区列表直接告诉 Source。Source 只需要读取对应目录或切片的数据。
 @PublicEvolving
 public interface SupportsPartitionPushDown {
 
@@ -72,6 +76,9 @@ public interface SupportsPartitionPushDown {
      * <p>If {@link Optional#empty()} is returned, the list of partitions is queried from the
      * catalog.
      */
+    // 告知优化器当前数据源中物理存在的所有分区列表。
+    // 外部 List 表示所有分区的集合。
+    // 内部 Map 表示单个分区的定义：Key 是分区字段名（如 "region"），Value 是具体分区值（如 "asia"）。
     Optional<List<Map<String, String>>> listPartitions();
 
     /**
@@ -80,5 +87,7 @@ public interface SupportsPartitionPushDown {
      *
      * <p>See the documentation of {@link SupportsPartitionPushDown} for more information.
      */
+    // remainingPartitions（剩余需要读取的分区列表）
+    // 将优化器计算后的“精简版”分区列表推送到物理 Source 中。
     void applyPartitions(List<Map<String, String>> remainingPartitions);
 }

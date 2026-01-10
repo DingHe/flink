@@ -49,10 +49,16 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *               └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
  * </pre>
  */
+// 专门用于描述 JobManager (Master) 进程内部的 Flink 内存组件。
+// 主要作用是持有并管理 JobManager 进程中由 Flink 掌控的内存配额信息。
+// JVM 堆内存 (JVM Heap)：用于运行 JobManager 核心逻辑、维护作业图 (JobGraph) 和元数据。
+// 堆外内存 (Off-heap Memory)：在 JobManager 场景下，这部分主要对应 JVM 直接内存 (JVM Direct Memory)，用于某些网络通信或框架开销。
 public class JobManagerFlinkMemory implements FlinkMemory {
     private static final long serialVersionUID = 1L;
-
+    // 存储经过计算后的 JVM 堆内存 实际大小。
     private final MemorySize jvmHeap;
+    // 存储经过计算后的 堆外内存 大小。
+    // 在 JobManager 中，这部分内存会被配置为 JVM 的直接内存（Direct Memory）。
     private final MemorySize offHeapMemory;
 
     @VisibleForTesting

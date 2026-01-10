@@ -68,14 +68,27 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *               └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
  * </pre>
  */
+// 详细定义了 TaskManager (TaskExecutor) 进程内部复杂的内存组成结构。
+// TaskExecutorFlinkMemory 的主要作用是精确描述和持有 TaskManager 内部各细粒度组件的内存配额。
+// 将内存划分为堆内（On-Heap）和堆外（Off-Heap），并进一步拆分为框架（Framework）、任务（Task）、网络（Network）和托管（Managed）内存
+// Flink 逻辑组件	                             JVM 物理归属	        对应 JVM 参数
+// Framework Heap + Task Heap	                 JVM Heap	            -Xmx / -Xms
+// Framework Off-Heap + Task Off-Heap + Network	 JVM Direct Memory	    -XX:MaxDirectMemorySize
+// Managed Memory	                             Off-Heap (Native)	    由 Flink 内部管理，不体现在 JVM 参数中
 public class TaskExecutorFlinkMemory implements FlinkMemory {
     private static final long serialVersionUID = 1L;
-
+    // 用于 Flink 框架自身运行所需的堆内存，不计入具体任务的资源消耗。
     private final MemorySize frameworkHeap;
+    // 用于 Flink 框架自身运行所需的堆外内存（直接内存）
     private final MemorySize frameworkOffHeap;
+    // 用于用户代码及算子运行时的堆内存。
     private final MemorySize taskHeap;
+    // 用于用户代码及算子运行时的堆外内存。
     private final MemorySize taskOffHeap;
+    // 用于网络传输中的 Buffer 缓冲（Data Shuffle 等）。这部分属于 JVM 直接内存。
     private final MemorySize network;
+    // 核心组件。
+    // 由 Flink 内存管理器直接管理的内存，主要用于 RocksDB 状态后端、批处理中的排序和聚合。通常配置为堆外内存。
     private final MemorySize managed;
 
     public TaskExecutorFlinkMemory(

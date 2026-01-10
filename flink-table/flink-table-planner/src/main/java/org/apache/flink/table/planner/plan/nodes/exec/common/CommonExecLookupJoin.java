@@ -251,15 +251,22 @@ public abstract class CommonExecLookupJoin extends ExecNodeBase<RowData> {
             ExecNodeConfig config,
             boolean upsertMaterialize,
             boolean lookupKeyContainsPrimaryKey) {
+        // 从规范说明（Spec）中获取维表的逻辑表对象 RelOptTable，并调用 validate 确保该表支持 Lookup 操作。
         RelOptTable temporalTable =
                 temporalTableSourceSpec.getTemporalTable(
                         planner.getFlinkContext(), unwrapTypeFactory(planner));
         // validate whether the node is valid and supported.
         validate(temporalTable);
+        // 获取输入流的行类型、维表的行类型以及 Join 后的结果行类型，
+        // 为后续的类型匹配和算子生成做准备
         final ExecEdge inputEdge = getInputEdges().get(0);
+        // 获取输入流的行类型
         RowType inputRowType = (RowType) inputEdge.getOutputType();
+        // 维表的行类型
         RowType tableSourceRowType = FlinkTypeFactory.toLogicalRowType(temporalTable.getRowType());
+        //  Join 后的结果行类型
         RowType resultRowType = (RowType) getOutputType();
+        // 校验关联键（Join Keys）在左表（输入流）和右表（维表）之间的类型是否匹配。
         validateLookupKeyType(lookupKeys, inputRowType, tableSourceRowType);
         boolean isAsyncEnabled = null != asyncLookupOptions;
         ResultRetryStrategy retryStrategy =

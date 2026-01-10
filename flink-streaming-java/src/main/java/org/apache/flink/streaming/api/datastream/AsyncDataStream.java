@@ -45,6 +45,8 @@ import static org.apache.flink.streaming.util.retryable.AsyncRetryStrategies.NO_
 public class AsyncDataStream {
 
     /** Output mode for asynchronous operations. */
+    // ORDERED（有序）：强制下游接收数据的顺序与上游流入顺序一致。这通常涉及内部缓存排序，延迟稍高。
+    // UNORDERED（无序）：哪个请求先完成，哪个结果就先发往下游。性能最高，但会改变数据流的顺序（仅在不影响语义的情况下使用）。
     public enum OutputMode {
         ORDERED,
         UNORDERED

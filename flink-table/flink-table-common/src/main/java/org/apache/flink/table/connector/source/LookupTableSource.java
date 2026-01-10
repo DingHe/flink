@@ -44,7 +44,8 @@ import java.io.Serializable;
  */
 // Flink 中用于描述按键查找外部存储系统行的能力的数据源接口。它扩展了 DynamicTableSource 接口，
 // 但与 ScanTableSource 的全量扫描不同，LookupTableSource 专门用于按需、懒惰地查询单个或少量数据
-//支持维表 Join：它主要用于实现维表 Join（DIM JOIN）。在流处理中，当一条主数据流的记录到达时，LookupTableSource 可以根据记录中的键，从外部维表（例如 HBase, MySQL, Redis）中高效地查询出对应的维表数据
+// 支持维表 Join：它主要用于实现维表 Join（DIM JOIN）。
+// 在流处理中，当一条主数据流的记录到达时，LookupTableSource 可以根据记录中的键，从外部维表（例如 HBase, MySQL, Redis）中高效地查询出对应的维表数据
 
 @PublicEvolving
 public interface LookupTableSource extends DynamicTableSource {

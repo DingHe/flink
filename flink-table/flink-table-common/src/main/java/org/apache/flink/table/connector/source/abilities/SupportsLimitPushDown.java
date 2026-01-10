@@ -34,6 +34,11 @@ import org.apache.flink.table.connector.source.ScanTableSource;
  * <p>Regardless if this interface is implemented or not, a limit is also applied in a subsequent
  * operation after the source.
  */
+// 主要作用是将数据读取的最大行数限制（Limit）告知数据源
+// 在 SQL 查询中，我们经常使用 LIMIT n（例如 SELECT * FROM users LIMIT 10）。
+// 默认行为（不实现此接口）：Flink 会从数据源读取所有匹配的数据，然后在内存中通过一个专门的算子来截断前 10 条数据，丢弃之后的所有数据。
+// 优化行为（实现此接口）：Flink 优化器会将 10 这个数值传给物理 Source。Source 在读取外部系统（如 MySQL, HBase 或文件系统）时，可以在读取到 10 条数据后立即停止读取并关闭连接/文件流。
+
 @PublicEvolving
 public interface SupportsLimitPushDown {
 

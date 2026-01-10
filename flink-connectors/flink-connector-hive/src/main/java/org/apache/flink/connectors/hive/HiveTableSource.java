@@ -89,6 +89,11 @@ import static org.apache.flink.connectors.hive.HiveOptions.TABLE_EXEC_HIVE_READ_
 import static org.apache.flink.connectors.hive.util.HivePartitionUtils.getAllPartitions;
 
 /** A TableSource implementation to read data from Hive tables. */
+// HiveTableSource 的主要作用是定义如何从 Hive 中读取数据并将其转化为 Flink 的 DataStream。
+// 多模式支持：既支持读取 Hive 历史数据的批模式，也支持通过监控新分区/新文件的流模式。
+// 优化下推：集成了分区剪枝、列裁剪、Limit 下推和动态过滤，极大减少了无效数据的 I/O。
+// 统计信息反馈：能够自动读取 Hive 元数据或文件（Parquet/Orc）脚注，为 Flink 优化器提供准确的行数和分布估算。
+// 版本兼容：通过 HiveShim 适配不同版本的 Hive（1.x, 2.x, 3.x）。
 public class HiveTableSource
         implements ScanTableSource,
                 SupportsPartitionPushDown,
@@ -99,20 +104,30 @@ public class HiveTableSource
 
     private static final Logger LOG = LoggerFactory.getLogger(HiveTableSource.class);
     private static final String HIVE_TRANSFORMATION = "hive";
-
+    // Hadoop 的作业配置，包含访问 HDFS 和 Hive 必须的配置项。
     protected final JobConf jobConf;
+    // Flink 的配置对象，用于获取如并行度、统计信息采集开关等设置。
     protected final ReadableConfig flinkConf;
+    // 包含数据库名和表名的完整路径。
     protected final ObjectPath tablePath;
+    // 经过解析后的 Catalog 表元数据（Schema、分区键、属性等）。
     protected final ResolvedCatalogTable catalogTable;
+    // 目标 Hive 的版本。
     protected final String hiveVersion;
+    // Hive 版本适配器，处理不同版本 Hive Metastore API 的差异。
     protected final HiveShim hiveShim;
 
     // Remaining partition specs after partition pruning is performed. Null if pruning is not pushed
     // down.
+    // 经过分区剪枝后，剩余需要读取的分区列表。
     @Nullable protected List<Map<String, String>> remainingPartitions = null;
+    // 选定的用于运行时动态过滤的分区键。
     @Nullable protected List<String> dynamicFilterPartitionKeys = null;
+    // 需要读取的字段索引数组（列裁剪的结果）
     protected int[] projectedFields;
+    // ource 最终输出的物理数据类型。
     protected DataType producedDataType;
+    // LIMIT 子句下推的限制行数。
     protected Long limit = null;
 
     public HiveTableSource(
@@ -131,7 +146,7 @@ public class HiveTableSource
         this.hiveShim = HiveShimLoader.loadHiveShim(hiveVersion);
         this.producedDataType = catalogTable.getResolvedSchema().toPhysicalRowDataType();
     }
-
+    // 返回 Flink 运行时的具体数据生成器。
     @Override
     public ScanRuntimeProvider getScanRuntimeProvider(ScanContext runtimeProviderContext) {
         return new DataStreamScanProvider() {
@@ -147,21 +162,25 @@ public class HiveTableSource
             }
         };
     }
-
+    // 作用是将逻辑上的 Hive 表定义转化为 Flink 运行时可执行的 DataStream<RowData>。该方法根据表配置自动切换“流读取”或“批读取”两种模式。
     @VisibleForTesting
     protected DataStream<RowData> getDataStream(
             ProviderContext providerContext, StreamExecutionEnvironment execEnv) {
+        // 创建一个 HiveSourceBuilder 实例
         HiveSourceBuilder sourceBuilder =
                 new HiveSourceBuilder(jobConf, flinkConf, tablePath, hiveVersion, catalogTable)
-                        .setProjectedFields(projectedFields)
-                        .setLimit(limit);
-
+                        .setProjectedFields(projectedFields) // 应用列裁剪（只读取 SQL 中需要的字段，减少 I/O）
+                        .setLimit(limit); // 应用 LIMIT 下推（如果 SQL 有 LIMIT，读取达到指定条数后停止）
+        // 流模式分支 (Streaming Mode)
         if (isStreamingSource()) {
+            // 将 HiveSource 注册到 Flink 的流执行环境中，生成真正的 DataStreamSource
             DataStreamSource<RowData> sourceStream =
                     toDataStreamSource(execEnv, sourceBuilder.buildWithDefaultBulkFormat());
             providerContext.generateUid(HIVE_TRANSFORMATION).ifPresent(sourceStream::uid);
             return sourceStream;
         } else {
+            // 如果不是流模式，则进入批处理逻辑，这里涉及更复杂的分区过滤和并行度推断。
+            // 确定待读取分区
             List<HiveTablePartition> hivePartitionsToRead =
                     getAllPartitions(
                             jobConf,
@@ -169,19 +188,20 @@ public class HiveTableSource
                             tablePath,
                             catalogTable.getPartitionKeys(),
                             remainingPartitions);
-
+            // 在作业启动前，根据数据量自动计算 Source 算子的并行度。
             int parallelism =
                     new HiveStaticParallelismInferenceFactory(tablePath, flinkConf)
                             .create()
                             .infer(
                                     () ->
                                             HiveSourceFileEnumerator.getNumFiles(
-                                                    hivePartitionsToRead, jobConf),
+                                                    hivePartitionsToRead, jobConf), // 计算待读取的文件总数。
                                     () ->
                                             HiveSourceFileEnumerator.createInputSplits(
                                                             0, hivePartitionsToRead, jobConf, true)
-                                                    .size())
+                                                    .size()) // 计算预估的 InputSplits（数据切片）总数。
                             .limit(limit);
+            // 构建批模式 DataStream
             return toDataStreamSource(
                             execEnv,
                             sourceBuilder
@@ -191,7 +211,7 @@ public class HiveTableSource
                     .setParallelism(parallelism);
         }
     }
-
+    // 核心作用是调用 Flink 的底层 API，将配置好的 HiveSource 真正注册到执行环境中，从而生成一个数据流（DataStream）。
     private DataStreamSource<RowData> toDataStreamSource(
             StreamExecutionEnvironment execEnv, HiveSource<RowData> hiveSource) {
         return execEnv.fromSource(

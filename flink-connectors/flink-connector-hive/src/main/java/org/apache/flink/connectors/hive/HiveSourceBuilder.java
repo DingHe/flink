@@ -74,25 +74,40 @@ import static org.apache.flink.table.catalog.hive.util.HiveTableUtil.checkAcidTa
 import static org.apache.flink.util.Preconditions.checkArgument;
 
 /** Builder to build {@link HiveSource} instances. */
+// HiveSource 是 Flink 基于新一代 Source 架构（Source API）连接 Hive 的入口。这个 builder 负责处理 Hive Metastore 的元数据读取、配置合并（Hive、Hadoop 与 Flink 配置）、分区解析以及流/批模式的判定。
+// HiveSourceBuilder 的主要职责是：
+// 配置集成：整合 HiveConf、Hadoop JobConf 和 Flink 的 ReadableConfig。
+// 元数据提取：从 Hive Metastore 中提取表结构、分区键、表属性等信息。
+// 执行模式判定：根据配置决定是作为批处理（全量扫描）还是流处理（持续监控新分区/文件）运行。
+// 优化与裁剪：支持列裁剪（Projection Pushdown）和分区裁剪，优化读取性能。
+
 @PublicEvolving
 public class HiveSourceBuilder {
 
     private static final Duration DEFAULT_SCAN_MONITOR_INTERVAL = Duration.ofMinutes(1L);
-
+    // 存储 Hadoop 和 Hive 的核心配置（如 HDFS 地址、序列化参数）。
     private final JobConf jobConf;
+    // Flink 侧的配置（如并发推断、文件块大小等参数）。
     private final ReadableConfig flinkConf;
+    // 是否回退到使用 MapReduce 的 Reader，通常用于处理某些特殊格式。
     private final boolean fallbackMappedReader;
-
+    // 封装了 Hive 表的数据库名和表名。
     private final ObjectPath tablePath;
+    // 最终生效的表属性配置（Hive 建表属性 + Flink 动态配置）。
     private final Map<String, String> tableOptions;
+    // 该表定义的分区字段名列表。
     private final List<String> partitionKeys;
+    // 当前使用的 Hive 版本号。
     private final String hiveVersion;
-
+    // 表的完整物理结构（包含所有字段）。
     private final DataType physicalDataType;
+    // 需要读取的字段索引数组（用于列裁剪）。
     @Nullable private int[] projectedFields;
-
+    // 最大读取记录数。
     private Long limit;
+    // 批模式下需要读取的具体分区列表。
     private List<HiveTablePartition> partitions;
+    // 动态分区过滤字段（用于 Join 优化）。
     private List<String> dynamicFilterPartitionKeys;
 
     /**
@@ -107,6 +122,7 @@ public class HiveSourceBuilder {
      * @param tableOptions additional options needed to read the table, which take precedence over
      *     table properties stored in metastore
      */
+    // 直接通过字符串指定库名和表名来初始化。
     public HiveSourceBuilder(
             @Nonnull JobConf jobConf,
             @Nonnull ReadableConfig flinkConf,
@@ -147,6 +163,7 @@ public class HiveSourceBuilder {
      * @param tablePath path of the table to be read
      * @param catalogTable the table to be read
      */
+    // 基于 Flink Catalog 中已经解析好的表对象进行初始化。
     public HiveSourceBuilder(
             @Nonnull JobConf jobConf,
             @Nonnull ReadableConfig flinkConf,
@@ -174,17 +191,24 @@ public class HiveSourceBuilder {
     }
 
     /** Builds HiveSource with custom BulkFormat. */
+    // 负责将复杂的 Hive 元数据和 Flink 的配置整合成一个可执行的 HiveSource 对象。
     public <T> HiveSource<T> buildWithBulkFormat(BulkFormat<T, HiveSourceSplit> bulkFormat) {
+        // 将 tableOptions（包含 Hive 表属性和动态参数）转换为 Flink 的 Configuration 对象
         Configuration configuration = Configuration.fromMap(tableOptions);
+        // 存储扫描间隔等循环监控设置
         ContinuousEnumerationSettings continuousSourceSettings = null;
+        // 用于持续获取新分区或新文件的抓取器。
         ContinuousPartitionFetcher<Partition, ?> fetcher = null;
         HiveTableSource.HiveContinuousPartitionFetcherContext<?> fetcherContext = null;
+        // 流模式（Streaming）逻辑分支
         if (isStreamingSource()) {
             Preconditions.checkState(
                     partitions == null, "setPartitions shouldn't be called in streaming mode");
+            // 非分区表的流处理特殊逻辑
             if (partitionKeys.isEmpty()) {
                 HiveOptions.PartitionOrder partitionOrder =
                         configuration.get(STREAMING_SOURCE_PARTITION_ORDER);
+                // 只支持 create-time 排序模式（监控文件创建时间）
                 if (partitionOrder != HiveOptions.PartitionOrder.CREATE_TIME) {
                     throw new UnsupportedOperationException(
                             "Only '"
@@ -193,6 +217,8 @@ public class HiveSourceBuilder {
                 }
                 // for non-partitioned table, we need to add the table to partitions because
                 // HiveSourceFileEnumerator needs it to create new splits
+                // 手动创建一个代表整张表的 HiveTablePartition 对象，放入 partitions 列表中。
+                // 这是因为底层的枚举器（Enumerator）需要这个对象来定位 HDFS 上的表路径
                 partitions =
                         Collections.singletonList(
                                 HiveTablePartition.ofTable(
@@ -201,7 +227,7 @@ public class HiveSourceBuilder {
                                         tablePath.getDatabaseName(),
                                         tablePath.getObjectName()));
             }
-
+            // 监控间隔设置
             Duration monitorInterval =
                     configuration.get(STREAMING_SOURCE_MONITOR_INTERVAL) == null
                             ? DEFAULT_SCAN_MONITOR_INTERVAL
@@ -211,8 +237,10 @@ public class HiveSourceBuilder {
                     "monitorInterval must be > 0");
 
             continuousSourceSettings = new ContinuousEnumerationSettings(monitorInterval);
-
+            // 分区表流模式的 Fetcher 配置
             if (!partitionKeys.isEmpty()) {
+                // 如果是有分区的表，初始化 HiveContinuousPartitionFetcher。
+                // 该抓取器会定期请求 Hive Metastore，对比分区名称或时间戳，筛选出“新”的分区。
                 fetcher = new HiveContinuousPartitionFetcher();
                 final String defaultPartitionName = JobConfUtils.getDefaultPartitionName(jobConf);
                 fetcherContext =
@@ -224,12 +252,16 @@ public class HiveSourceBuilder {
                                 configuration,
                                 defaultPartitionName);
             }
+        // 批模式（Batch）逻辑分支
         } else if (partitions == null) {
+            // 如果是批模式且用户没有通过 setPartitions 指定分区，则调用工具类获取该表下所有的分区。这是典型的全量快照扫描。
             partitions =
                     HivePartitionUtils.getAllPartitions(
                             jobConf, hiveVersion, tablePath, partitionKeys, null);
         }
-
+        // 选择切片分配器
+        // 如果是批模式或非分区表，使用 Flink 默认分配器（支持 Locality 优先）
+        // 如果是分区表的流模式，使用 SimpleSplitAssigner（顺序分配），确保新发现的分区被正确处理。
         FileSplitAssigner.Provider splitAssigner =
                 continuousSourceSettings == null || partitionKeys.isEmpty()
                         ? DEFAULT_SPLIT_ASSIGNER

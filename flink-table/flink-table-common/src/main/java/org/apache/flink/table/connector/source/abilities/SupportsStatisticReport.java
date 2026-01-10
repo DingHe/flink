@@ -36,6 +36,10 @@ import org.apache.flink.table.plan.stats.TableStats;
  * <p>Note: This method is called at plan optimization phase, the implementation of this interface
  * should be as light as possible, but more complete information.
  */
+// SupportsStatisticReport 的主要作用是为 Flink 优化器提供精细化的成本估算依据。
+// 在 SQL 优化过程中，Flink 的 CBO（基于成本的优化器，Cost-Based Optimizer） 需要决定如何连接表、是否使用索引或选择哪种 Join 算法。
+// 背景问题：通常情况下，统计信息（如行数、字段的最大/最小值、空值数量等）存储在外部 Catalog（如 Hive Metastore）中。但很多时候，Catalog 里的信息是过时的、缺失的，或者某些数据源根本没有 Catalog。
+// 接口方案：如果数据源实现了此接口，当优化器发现 Catalog 中没有统计信息时，会直接调用该接口询问 Source：“你预估你现在有多少条数据？”。
 @PublicEvolving
 public interface SupportsStatisticReport {
 

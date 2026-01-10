@@ -26,10 +26,18 @@ import java.util.Objects;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /** JVM metaspace and overhead memory sizes. */
+// 为了将 Flink 内存模型中两个不由 Flink 直接管理、但由 JVM 进程必须占用的内存区域——元空间 (Metaspace) 和 JVM 开销 (Overhead)——封装在一起，方便在计算和传递参数时作为一个整体来处理。
+// 在 Flink 的内存计算逻辑中，总进程内存（Total Process Memory）被分为两大块：
+// Flink 能够管控的内存（Total Flink Memory）：包括 Heap、Direct Memory、Managed Memory 等。
+// Flink 无法直接管控的本地内存：即本类所封装的 Metaspace 和 Overhead。
+
 public class JvmMetaspaceAndOverhead implements Serializable {
     private static final long serialVersionUID = 1L;
-
+    // 存储 JVM 元空间 的大小
+    // 对应配置项 taskmanager.memory.jvm-metaspace.size（默认 256mb）。这部分内存用于存储 Java 类的元数据（Class Metadata）。
     private final MemorySize metaspace;
+    // 存储 JVM 执行开销 的大小
+    // 对应配置项 taskmanager.memory.jvm-overhead.min/max/fraction。这部分内存用于线程栈、代码缓存、垃圾收集器开销等。
     private final MemorySize overhead;
 
     public JvmMetaspaceAndOverhead(MemorySize jvmMetaspace, MemorySize jvmOverhead) {

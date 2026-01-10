@@ -56,6 +56,12 @@ import java.util.List;
  * <p>In the future, more flexible filtering can be pushed into the source connectors through this
  * interface.
  */
+// 核心作用是实现 动态分区裁剪 (Dynamic Partition Pruning, DPP)。
+// 普通的下推（如 SupportsPartitionPushDown）发生在编译优化阶段。如果 SQL 条件是 WHERE date = '2023-01-01'，优化器可以直接告诉 Source 只读一个分区。
+// 但在典型的星型模型 Join 查询中： FACT_TABLE (大事实表) JOIN DIM_TABLE (小维度表) ON FACT.part_key = DIM.id WHERE DIM.color = 'Red'
+// 化器无法在编译时知道 'Red' 对应的 id 有哪些。
+// 这些 id 只有在运行时、维度表过滤完成后才能确定。
+// 如果事实表实现了此接口，Flink 会在运行时将维度表过滤后的结果（候选值）发送给事实表的 Source，让 Source 只读取与这些值匹配的分区或分片，从而在 Join 之前就过滤掉绝大部分无用数据
 @PublicEvolving
 public interface SupportsDynamicFiltering {
 
@@ -64,6 +70,7 @@ public interface SupportsDynamicFiltering {
      * planner which fields can be used as dynamic filtering fields, the planner will pick some
      * fields from the returned fields based on the query, and create dynamic filtering operator.
      */
+    // 告诉优化器（Planner），本数据源能够接收哪些字段的动态过滤信息。
     List<String> listAcceptedFilterFields();
 
     /**
@@ -74,5 +81,6 @@ public interface SupportsDynamicFiltering {
      * <p>NOTE: the candidate filter fields are always from the result of {@link
      * #listAcceptedFilterFields()}.
      */
+    // List<String> candidateFilterFields（优化器最终选定的、将要在运行时下推的过滤字段）。
     void applyDynamicFiltering(List<String> candidateFilterFields);
 }

@@ -104,14 +104,14 @@ public interface DynamicTableSource {
          *
          * @see ResolvedSchema#toPhysicalRowDataType()
          */
-        //根据给定的 DataType 或 LogicalType，创建 Flink 内部数据结构所需的**TypeInformation**
+        // 根据给定的 DataType 或 LogicalType，创建 Flink 内部数据结构所需的**TypeInformation**
         <T> TypeInformation<T> createTypeInformation(DataType producedDataType);
 
         /**
          * Creates type information describing the internal data structures of the given {@link
          * LogicalType}.
          */
-        //根据给定的 DataType 或 LogicalType，创建 Flink 内部数据结构所需的**TypeInformation**
+        // 据给定的 DataType 或 LogicalType，创建 Flink 内部数据结构所需的**TypeInformation**
         <T> TypeInformation<T> createTypeInformation(LogicalType producedLogicalType);
 
         /**
@@ -149,8 +149,9 @@ public interface DynamicTableSource {
     interface DataStructureConverter extends RuntimeConverter {
 
         /** Converts the given object into an internal data structure. */
-        //将给定的外部数据结构转换为 Flink 内部的数据结构
-        //externalStructure: 这是一个输入参数，代表待转换的外部数据对象。这个对象可以是标准的 Java 对象，例如一个 Row、一个 POJO、一个 List 或其他任何外部数据格式。参数可以为 null
+        // 将给定的外部数据结构转换为 Flink 内部的数据结构
+        // externalStructure: 这是一个输入参数，代表待转换的外部数据对象。
+        // 这个对象可以是标准的 Java 对象，例如一个 Row、一个 POJO、一个 List 或其他任何外部数据格式。参数可以为 null
 
         @Nullable
         Object toInternal(@Nullable Object externalStructure);

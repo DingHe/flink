@@ -60,6 +60,10 @@ import org.apache.flink.runtime.util.config.memory.jobmanager.JobManagerFlinkMem
  *               └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
  * </pre>
  */
+// JobManagerProcessSpec 是 Flink 内存模型中专门为 JobManager (JM) 进程定义的内存规格描述类。
+// 简单来说，它就是 JobManager 内存配置的最终成品清单。
+// 主要作用是描述和持有 JobManager 进程在各个资源维度上的具体内存数值。
+// $$Total\ Process\ Memory = JVM\ Heap + Off\text{-}heap + Metaspace + Overhead$$
 public class JobManagerProcessSpec extends CommonProcessMemorySpec<JobManagerFlinkMemory> {
     private static final long serialVersionUID = 1L;
 

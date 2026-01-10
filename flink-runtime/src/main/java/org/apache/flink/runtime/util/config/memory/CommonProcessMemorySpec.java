@@ -54,10 +54,16 @@ import java.util.Objects;
  *               └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
  * </pre>
  */
+// Flink 内存配置模型中的一个核心组合类
+// 核心思想是：分而治之，再组合。它将一个 Flink 进程的内存逻辑上切分为“Flink 管辖的内存”和“JVM 自身开销”两部分，
+// 然后通过这个类将它们重新组装成一个完整的视图。
+
+
 public class CommonProcessMemorySpec<FM extends FlinkMemory> implements ProcessMemorySpec {
     private static final long serialVersionUID = 1L;
-
+    // 持有 Flink 内部内存的具体对象
     private final FM flinkMemory;
+    // 持有 JVM 外部开销的对象
     private final JvmMetaspaceAndOverhead jvmMetaspaceAndOverhead;
 
     protected CommonProcessMemorySpec(

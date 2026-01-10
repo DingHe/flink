@@ -52,22 +52,30 @@ import java.util
  * @param abilitySpecs
  *   The abilitySpecs applied to the source
  */
+// 在 Apache Flink 的 Table Planner 中，TableSourceTable 是连接 Calcite 优化器逻辑层与 Flink 物理数据源层的核心桥梁。
+// 主要作用包括：
+// 元数据映射：将 Flink Catalog 中的表信息、Schema 和 DynamicTableSource 封装成 Calcite 优化器能够理解的“表”对象。
+// 能力支持（Abilities）：记录并管理应用在数据源上的优化策略。例如：谓词下推（Filter Pushdown）、列裁剪（Projection Pushdown）、水印生成下推等。
+// 身份标识（Digest）：通过计算 abilitySpecs 的摘要（Digest），确保优化器能够区分“同一个表在应用不同下推策略后”的不同状态。
+// 计划翻译：为后续将逻辑算子（Logical Scan）翻译成物理算子（Flink ExecNode/Transformation）提供必要的上下文。
+
 class TableSourceTable(
-    relOptSchema: RelOptSchema,
-    rowType: RelDataType,
-    statistic: FlinkStatistic,
-    val tableSource: DynamicTableSource,
-    val isStreamingMode: Boolean,
-    val contextResolvedTable: ContextResolvedTable,
-    val flinkContext: FlinkContext,
-    val flinkTypeFactory: FlinkTypeFactory,
-    val abilitySpecs: Array[SourceAbilitySpec] = Array.empty)
+    relOptSchema: RelOptSchema, // Calcite 的架构对象，表示该表所属的 Schema 空间。
+    rowType: RelDataType, // 该表在优化器眼中的行类型。注意：应用列裁剪后，这个类型会变为裁剪后的字段集合
+    statistic: FlinkStatistic, // 表的统计信息（如行数、字段分布等），优化器（CBO）根据它来计算最优执行计划。
+    val tableSource: DynamicTableSource, // 核心属性。Flink 定义的连接器（Connector）接口，负责实际的数据读取逻辑。
+    val isStreamingMode: Boolean, // 表示当前任务是流处理模式还是批处理模式。
+    val contextResolvedTable: ContextResolvedTable, // 包含表的完整路径（Catalog/Database/Table）和原始解析后的元数据。
+    val flinkContext: FlinkContext, // Flink 运行时的上下文环境，用于访问配置信息或类加载器。
+    val flinkTypeFactory: FlinkTypeFactory, // 类型工厂。用于在 Flink 类型体系和 Calcite 类型体系之间进行转换。
+    val abilitySpecs: Array[SourceAbilitySpec] = Array.empty) // 数组，记录了所有已经应用到该 Source 上的优化能力（如 FilterPushDownSpec）
   extends FlinkPreparingTableBase(
     relOptSchema,
     rowType,
     contextResolvedTable.getIdentifier.toList,
     statistic) {
-
+  // 获取表的限定名（唯一标识符
+  // 返回表名全路径（如 my_cat.my_db.my_table）外，还会追加 getSpecDigests 的内容。
   override def getQualifiedName: util.List[String] = {
     val builder = ImmutableList
       .builder[String]()
@@ -75,7 +83,8 @@ class TableSourceTable(
     builder.addAll(getSpecDigests)
     builder.build()
   }
-
+  // 获取优化能力的摘要列表。
+  // 遍历所有的 abilitySpecs，利用 SourceAbilityContext 计算每一个下推操作的唯一字符串标识。这些标识会决定优化器缓存和节点等价性的判断。
   def getSpecDigests: util.List[String] = {
     val builder = ImmutableList.builder[String]()
     if (abilitySpecs != null && abilitySpecs.length != 0) {
@@ -94,6 +103,7 @@ class TableSourceTable(
   }
 
   /** Adds the newSpec replacing any spec of the same class from existing ones. */
+  // 当新应用一套能力（NewSpecs）时，它会检查现有的 abilitySpecs。如果新旧 Spec 的类类型一致（例如都是过滤下推），则用新的替换旧的；否则合并。
   private def mergeSpecs(
       original: Array[SourceAbilitySpec],
       newSpec: Array[SourceAbilitySpec]): Array[SourceAbilitySpec] = {
@@ -110,6 +120,7 @@ class TableSourceTable(
    * @return
    *   added TableSourceTable instance with specified digest
    */
+  // 由于 Calcite 的不可变性，当优化器对表应用新的优化（下推）时，必须创建新对象
   def copy(
       newTableSource: DynamicTableSource,
       newRowType: RelDataType,
@@ -165,6 +176,7 @@ class TableSourceTable(
    * @param newRowType
    *   new row type
    */
+  // 与 Copy 的区别：它直接替换所有的能力列表，而不是调用 mergeSpecs 进行合并。用于需要重置能力的场景。
   def replace(
       newTableSource: DynamicTableSource,
       newRowType: RelDataType,

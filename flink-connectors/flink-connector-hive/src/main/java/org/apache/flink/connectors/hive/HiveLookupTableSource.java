@@ -68,11 +68,20 @@ import static org.apache.flink.connectors.hive.HiveOptions.STREAMING_SOURCE_PART
  * partition has been read finished. This is a temporarily workaround and will re-implement in the
  * future.
  */
+// HiveLookupTableSource 的主要作用是支持 Hive 表作为维表进行关联（Temporal Join / Lookup Join）。
+// 在实时计算（流处理）中，我们经常需要将事实流与外部静态或准实时的维表进行关联。这个类的核心功能包括：
+// 维表加载：将 Hive 表的数据加载到内存缓存中，作为维表查询的基础。
+// 分区感知：支持查询“最新分区”（Latest Partition）或“全量分区”作为维表。
+// 缓存更新：根据配置的时间间隔（TTL），定期重新加载 Hive 数据，以获取更新。
+// 流批统一：既支持在批作业中使用，也支持在流作业中将 Hive 作为维表使用。
 public class HiveLookupTableSource extends HiveTableSource implements LookupTableSource {
 
     private static final Logger LOG = LoggerFactory.getLogger(HiveLookupTableSource.class);
+    // 默认监控间隔（1小时）。如果用户没有设置刷新时间，默认为1小时刷新一次。
     private static final Duration DEFAULT_LOOKUP_MONITOR_INTERVAL = Duration.ofHours(1L);
+    // 存储来自 catalogTable 的所有配置选项。
     private final Configuration configuration;
+    // 数据重载间隔。实际运行过程中，系统会根据这个时间间隔重新扫描 Hive。
     private Duration hiveTableReloadInterval;
 
     public HiveLookupTableSource(
@@ -85,7 +94,7 @@ public class HiveLookupTableSource extends HiveTableSource implements LookupTabl
         catalogTable.getOptions().forEach(configuration::setString);
         validateLookupConfigurations();
     }
-
+    // 实现自 LookupTableSource 接口。它告诉 Flink 运行时如何获取用于维表查找的函数实例。它返回一个包装了 TableFunction 的 TableFunctionProvider。
     @Override
     public LookupRuntimeProvider getLookupRuntimeProvider(LookupContext context) {
         return TableFunctionProvider.of(getLookupFunction(context.getKeys()));

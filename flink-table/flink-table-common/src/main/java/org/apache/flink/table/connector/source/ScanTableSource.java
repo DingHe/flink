@@ -63,8 +63,8 @@ import java.io.Serializable;
  */
 // Flink 中用于描述全量扫描或连续读取变更日志能力的数据源接口。
 // 它扩展了 DynamicTableSource 接口，专门用于那些需要读取整个表内容（无论是有界还是无界）的场景
-//定义数据源的扫描能力：告诉 Flink 规划器，该数据源可以像批处理一样扫描所有数据，也可以像流处理一样连续产生数据
-//支持变更日志：它能够处理包含插入（INSERT）、更新（UPDATE）和删除（DELETE）等多种变更类型的行，这对于变更数据捕获（CDC）场景至关重要
+// 定义数据源的扫描能力：告诉 Flink 规划器，该数据源可以像批处理一样扫描所有数据，也可以像流处理一样连续产生数据
+// 支持变更日志：它能够处理包含插入（INSERT）、更新（UPDATE）和删除（DELETE）等多种变更类型的行，这对于变更数据捕获（CDC）场景至关重要
 
 @PublicEvolving
 public interface ScanTableSource extends DynamicTableSource {
