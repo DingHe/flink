@@ -28,10 +28,17 @@ import java.util.List;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /** Common Flink's options to describe its JVM process memory configuration for JM or TM. */
+// 在 Flink 复杂的内存计算逻辑中，为了能够通用地处理 JobManager (JM) 和 TaskManager (TM) 的内存推导，Flink 需要知道哪些配置项（ConfigOptions）是用来定义内存的。
+// 这个类并不存储具体的内存数值（如 1024MB），而是存储配置键的定义。
+// ProcessMemoryOptions 的核心作用是参数化内存计算模型。
 public class ProcessMemoryOptions {
+    // 存储必须定义的细粒度内存配置项列表
     private final List<ConfigOption<MemorySize>> requiredFineGrainedOptions;
+    // 指向“Flink 总内存”的配置项 Key
     private final ConfigOption<MemorySize> totalFlinkMemoryOption;
+    // 指向“进程总内存”的配置项 Key
     private final ConfigOption<MemorySize> totalProcessMemoryOption;
+    // 封装了 JVM 元空间（Metaspace）和执行开销（Overhead）相关的配置项
     private final JvmMetaspaceAndOverheadOptions jvmOptions;
 
     public ProcessMemoryOptions(

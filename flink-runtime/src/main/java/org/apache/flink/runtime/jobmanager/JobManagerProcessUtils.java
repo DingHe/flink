@@ -51,7 +51,7 @@ public class JobManagerProcessUtils {
                             JobManagerOptions.JVM_OVERHEAD_MIN,
                             JobManagerOptions.JVM_OVERHEAD_MAX,
                             JobManagerOptions.JVM_OVERHEAD_FRACTION));
-
+    // 旧版的flink job 堆内存配置选项
     @SuppressWarnings("deprecation")
     static final LegacyMemoryOptions JM_LEGACY_HEAP_OPTIONS =
             new LegacyMemoryOptions(
@@ -88,7 +88,8 @@ public class JobManagerProcessUtils {
         return new JobManagerProcessSpec(
                 processMemory.getFlinkMemory(), processMemory.getJvmMetaspaceAndOverhead());
     }
-
+    // 参数 configuration: 传入的原始配置（通常是解析 flink-conf.yaml 得到的）
+    // 参数 configOption: 目标新配置项。对于 JobManager，这个值通常是 JobManagerOptions.TOTAL_PROCESS_MEMORY（即 jobmanager.memory.process.size）
     static Configuration getConfigurationWithLegacyHeapSizeMappedToNewConfigOption(
             Configuration configuration, ConfigOption<MemorySize> configOption) {
         return LEGACY_MEMORY_UTILS.getConfWithLegacyHeapSizeMappedToNewConfigOption(
