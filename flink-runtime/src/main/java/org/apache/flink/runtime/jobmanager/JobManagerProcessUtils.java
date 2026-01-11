@@ -66,7 +66,7 @@ public class JobManagerProcessUtils {
             new MemoryBackwardsCompatibilityUtils(JM_LEGACY_HEAP_OPTIONS);
 
     private JobManagerProcessUtils() {}
-
+    // 在执行正式的内存计算之前，先处理旧版（Legacy）配置参数的兼容性转换。
     public static JobManagerProcessSpec processSpecFromConfigWithNewOptionToInterpretLegacyHeap(
             Configuration config, ConfigOption<MemorySize> newOptionToInterpretLegacyHeap) {
         try {
@@ -78,11 +78,12 @@ public class JobManagerProcessUtils {
                     "JobManager memory configuration failed: " + e.getMessage(), e);
         }
     }
-
+    // createMemoryProcessSpec 是 Flink JobManager 内存计算逻辑中的最后一步“组装”环节。
+    // 虽然代码只有寥寥几行，但它在架构设计上起到了将通用内存规格转换为特定进程规格的作用。
     static JobManagerProcessSpec processSpecFromConfig(Configuration config) {
         return createMemoryProcessSpec(PROCESS_MEMORY_UTILS.memoryProcessSpecFromConfig(config));
     }
-
+    // 根据内存规格，创建JobManager的内存规格
     private static JobManagerProcessSpec createMemoryProcessSpec(
             CommonProcessMemorySpec<JobManagerFlinkMemory> processMemory) {
         return new JobManagerProcessSpec(

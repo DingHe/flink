@@ -264,6 +264,7 @@ public class ConfigurationUtils {
      *     dynamic parameter list.
      * @return The dynamic parameter list {@code String}.
      */
+    // 创建jvm的动态参数
     public static String assembleDynamicConfigsStr(final Map<String, String> config) {
         return config.entrySet().stream()
                 .map(e -> String.format("-D %s=%s", e.getKey(), e.getValue()))

@@ -95,29 +95,46 @@ public class BashJavaUtils {
      * Generate and print JVM parameters and dynamic configs of task executor resources. The last
      * two lines of the output should be JVM parameters and dynamic configs respectively.
      */
+    // Flink TaskManager（TaskExecutor）启动逻辑的核心。
+    // 它的作用是根据用户配置计算出 TaskManager 进程所需的 JVM 启动参数和 Flink 动态配置。
     private static List<String> getTmResourceParams(Configuration configuration) {
+        // 在 Flink 的旧版本中，用户通常使用 taskmanager.heap.size 来配置内存。在新版内存模型中，这个参数被废弃了。
         Configuration configurationWithFallback =
                 TaskExecutorProcessUtils.getConfigurationMapLegacyTaskManagerHeapSizeToConfigOption(
                         configuration, TaskManagerOptions.TOTAL_FLINK_MEMORY);
+        // 调用 TaskExecutorProcessUtils，根据 Flink 的内存公式推导出 TaskManager 各个组件的具体字节数。
+        // 包括 JVM 堆内存（Framework/Task Heap）、托管内存（Managed Memory）、网络缓冲内存（Network Memory）、框架堆外内存、元空间（Metaspace）以及 JVM 开销（Overhead）
         TaskExecutorProcessSpec taskExecutorProcessSpec =
                 TaskExecutorProcessUtils.processSpecFromConfig(configurationWithFallback);
-
+        // 记录最终内存配置日志
         logTaskExecutorConfiguration(taskExecutorProcessSpec);
-
+        // generateJvmParametersStr (JVM 启动参数)
+        // 将 taskExecutorProcessSpec 中的配额转化为 JVM 识别的参数，如 -Xmx, -Xms, -XX:MaxDirectMemorySize 和 -XX:MaxMetaspaceSize。
+        // generateDynamicConfigsStr (Flink 动态配置)
+        // 生成一系列 -D 形式的参数（如 -Dtaskmanager.memory.managed.size=...）
         return Arrays.asList(
                 ProcessMemoryUtils.generateJvmParametersStr(taskExecutorProcessSpec),
                 TaskExecutorProcessUtils.generateDynamicConfigsStr(taskExecutorProcessSpec));
     }
 
     /** Generate and print JVM parameters of Flink Master resources as one line. */
+    // Flink 启动脚本（Bash）与 Java 内存计算逻辑交互的核心入口。
+    // 它的主要任务是根据用户的配置，计算出 JobManager 启动时所需的 JVM 参数和动态配置项。
+    // 返回一个 List<String>，通常包含两行字符串：第一行是 JVM 启动参数（如 -Xmx），第二行是 Flink 的动态配置参数（-D 参数）
     @VisibleForTesting
     static List<String> getJmResourceParams(Configuration configuration) {
+        // 调用 JobManagerProcessUtils 工具类，将 flink-conf.yaml 中的配置信息转化为一个“进程规格对象”。
+        // 它计算出 JobManager 的 JVM Heap、Off-Heap、Metaspace 和 Overhead 的具体数值。
         JobManagerProcessSpec jobManagerProcessSpec =
                 JobManagerProcessUtils.processSpecFromConfigWithNewOptionToInterpretLegacyHeap(
                         configuration, JobManagerOptions.JVM_HEAP_MEMORY);
-
+        // 将计算出的最终内存结果以人类可读的格式打印到日志中（例如：Total Process Memory: 1024mb, JVM Heap: 512mb）。
         logMasterConfiguration(jobManagerProcessSpec);
-
+        // generateJvmParametersStr (JVM 参数行)
+        // 输出示例：-Xmx536870902 -Xms536870902 -XX:MaxMetaspaceSize=268435456
+        // generateDynamicConfigsStr (动态配置行)
+        // 输出示例：-Djobmanager.memory.jvm-heap.size=512mb -Djobmanager.memory.jvm-metaspace.size=256mb
+        // 生成一系列以 -D 开头的参数。这些参数会被传递给进程，确保 Flink 内部组件（如内存管理器）知道自己该用多少内存，防止内部逻辑与外部 JVM 参数产生偏差。
         return Arrays.asList(
                 JobManagerProcessUtils.generateJvmParametersStr(
                         jobManagerProcessSpec, configuration),
