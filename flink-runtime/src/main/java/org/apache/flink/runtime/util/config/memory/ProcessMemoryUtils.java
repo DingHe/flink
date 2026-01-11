@@ -58,26 +58,37 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @param <FM> the FLink memory component structure
  */
+// ProcessMemoryUtils 是 Flink 内存管理系统的核心总调度器。
+// 它的主要作用是将用户在配置文件（flink-conf.yaml）中给出的各种内存参数，转化为一个完整的、符合逻辑的进程内存规格说明书（CommonProcessMemorySpec）
 public class ProcessMemoryUtils<FM extends FlinkMemory> {
     private static final Logger LOG = LoggerFactory.getLogger(ProcessMemoryUtils.class);
-
+    // 内存配置选项的抽象。它定义了当前进程（JM 或 TM）需要哪些 Key。
     private final ProcessMemoryOptions options;
+    // 具体的内存推导工具。它是一个接口，对于 TM 和 JM 有不同的实现，专门负责推导 Flink 内部组件。
     private final FlinkMemoryUtils<FM> flinkMemoryUtils;
 
     public ProcessMemoryUtils(ProcessMemoryOptions options, FlinkMemoryUtils<FM> flinkMemoryUtils) {
         this.options = checkNotNull(options);
         this.flinkMemoryUtils = checkNotNull(flinkMemoryUtils);
     }
-
+    // 解析内存配置的“大总管”
+    // 它按优先级判断用户的配置方式：
+    // 优先检查是否配置了细粒度参数（Fine-grained），如果是，调用相关推导。
+    // 否则检查是否配置了 Flink 总内存。
+    // 再否则检查是否配置了 进程总内存。
+    // 如果都没配，则报错。
     public CommonProcessMemorySpec<FM> memoryProcessSpecFromConfig(Configuration config) {
+        // 当用户把 Task Heap、Managed 等内部分项都配全了时，由此方法推导出总内存和 JVM 开销。
         if (options.getRequiredFineGrainedOptions().stream().allMatch(config::contains)) {
             // all internal memory options are configured, use these to derive total Flink and
             // process memory
             return deriveProcessSpecWithExplicitInternalMemory(config);
+        // 基于 taskmanager.memory.flink.size 进行推导。先切分 Flink 内部组件，再计算 JVM Metaspace 和 Overhead。
         } else if (config.contains(options.getTotalFlinkMemoryOption())) {
             // internal memory options are not configured, total Flink memory is configured,
             // derive from total flink memory
             return deriveProcessSpecWithTotalFlinkMemory(config);
+        // 基于 taskmanager.memory.process.size 推导。这是最复杂的路径：先从总进程内存里扣除 JVM Metaspace 和 Overhead，剩下的算作 Flink 总内存，再进一步拆解
         } else if (config.contains(options.getTotalProcessMemoryOption())) {
             // total Flink memory is not configured, total process memory is configured,
             // derive from total process memory
@@ -85,16 +96,17 @@ public class ProcessMemoryUtils<FM extends FlinkMemory> {
         }
         return failBecauseRequiredOptionsNotConfigured();
     }
-
+    // 核心作用是：当用户已经明确配置了所有细粒度内部内存项时，如何补全 JVM 层的配置并汇总成完整的进程内存规格。
     private CommonProcessMemorySpec<FM> deriveProcessSpecWithExplicitInternalMemory(
             Configuration config) {
+        // 调用具体的内存工具类（如 TaskExecutorFlinkMemoryUtils）来解析 Flink 层的内存。
         FM flinkInternalMemory = flinkMemoryUtils.deriveFromRequiredFineGrainedOptions(config);
         JvmMetaspaceAndOverhead jvmMetaspaceAndOverhead =
                 deriveJvmMetaspaceAndOverheadFromTotalFlinkMemory(
                         config, flinkInternalMemory.getTotalFlinkMemorySize());
         return new CommonProcessMemorySpec<>(flinkInternalMemory, jvmMetaspaceAndOverhead);
     }
-
+    // 描述了 Flink 在已知 “Flink 总内存”（Total Flink Memory） 的情况下，如何拆解并构建出整个进程的内存规格（Process Spec）。
     private CommonProcessMemorySpec<FM> deriveProcessSpecWithTotalFlinkMemory(
             Configuration config) {
         MemorySize totalFlinkMemorySize =
@@ -105,7 +117,7 @@ public class ProcessMemoryUtils<FM extends FlinkMemory> {
                 deriveJvmMetaspaceAndOverheadFromTotalFlinkMemory(config, totalFlinkMemorySize);
         return new CommonProcessMemorySpec<>(flinkInternalMemory, jvmMetaspaceAndOverhead);
     }
-
+    // 描述了 Flink 在已知 “进程总内存”（Total Process Memory） 的情况下，如何“自上而下”地拆解内存。
     private CommonProcessMemorySpec<FM> deriveProcessSpecWithTotalProcessMemory(
             Configuration config) {
         MemorySize totalProcessMemorySize =
@@ -340,14 +352,14 @@ public class ProcessMemoryUtils<FM extends FlinkMemory> {
     public static String generateJvmParametersStr(ProcessMemorySpec processSpec) {
         return generateJvmParametersStr(processSpec, true);
     }
-
+    // Flink 内存管理的最终产出阶段。它的作用是将之前所有复杂的数学推导结果，翻译成 JVM 能够理解的命令行启动参数。
     public static String generateJvmParametersStr(
             ProcessMemorySpec processSpec, boolean enableDirectMemoryLimit) {
         final StringBuilder jvmArgStr = new StringBuilder();
-
+        // 对于TaskManager里说，等于任务堆内存和框架堆内存
         jvmArgStr.append("-Xmx").append(processSpec.getJvmHeapMemorySize().getBytes());
         jvmArgStr.append(" -Xms").append(processSpec.getJvmHeapMemorySize().getBytes());
-
+        // 对于TaskManager来说，等于框架堆外内存 + 任务堆外内存 + 网络内存
         if (enableDirectMemoryLimit) {
             jvmArgStr
                     .append(" -XX:MaxDirectMemorySize=")
