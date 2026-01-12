@@ -44,6 +44,7 @@ public class SystemOutRedirectionUtils {
      * Redirect {@link System#out} and {@link System#err} based on {@link
      * TaskManagerOptions#TASK_MANAGER_SYSTEM_OUT_MODE} related options.
      */
+    // 根据 Flink 的配置，重新决定程序中 System.out（标准输出）和 System.err（标准错误）的流向
     public static void redirectSystemOutAndError(Configuration conf) {
         SystemOutMode systemOutMode = conf.get(TASK_MANAGER_SYSTEM_OUT_MODE);
         switch (systemOutMode) {

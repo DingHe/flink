@@ -51,50 +51,55 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * Configuration for the task manager services such as the memory manager, the io manager and the
  * metric registry.
  */
+// TaskManagerServicesConfiguration 是一个承上启下的参数聚合类。它将散落在 Configuration 中的原始配置项，转化为各个 TaskManager 服务（如网络堆栈、内存管理器、IO 管理器等）能够直接使用的强类型参数
+// 它在 TaskManagerServices 真正创建之前被构造，负责：
+// 解析：将字符串形式的配置解析为具体的 Java 对象（如 InetAddress、MemorySize）
+// 校验：确保关键参数（如超时时间、路径）符合业务逻辑要求。
+// 分发：作为容器，将解析好的参数一次性传递给 TaskManagerServices 用于各个子组件的初始化。
 public class TaskManagerServicesConfiguration {
 
     private static final String LOCAL_STATE_SUB_DIRECTORY_ROOT = "localState_";
-
+    // 原始的 Flink 配置对象，供后续灵活查询。
     private final Configuration configuration;
-
+    // 当前 TaskManager 在集群中的唯一身份标识
     private final ResourceID resourceID;
-
+    // TaskManager 对外公开的 IP/主机名（用于其他节点访问）
     private final String externalAddress;
-
+    // 节点 ID，通常用于指标上报和唯一性确定，默认通常等于 externalAddress
     private final String nodeId;
-
+    // 本地监听的网卡地址
     private final InetAddress bindAddress;
-
+    // Netty 数据交换服务的端口
     private final int externalDataPort;
-
+    // 是否仅允许本地通信（通常用于单机测试模式）
     private final boolean localCommunicationOnly;
-
+    // TaskManager 使用的临时目录列表，用于存放溢写数据等
     private final String[] tmpDirPaths;
-
+    // 用于状态本地恢复（Local Recovery）的存储目录
     private final Reference<File[]> localRecoveryStateDirectories;
-
+    // 当前 TaskManager 提供的任务槽（Task Slot）总数
     private final int numberOfSlots;
-
+    // 可查询状态（Queryable State）服务的配置，如果不开启则为空。
     @Nullable private final QueryableStateConfiguration queryableStateConfig;
-
+    // 内存管理器的页大小（默认 32KB），决定了网络缓冲区和托管内存的切割粒度
     private final int pageSize;
-
+    // 定时器服务关闭时的超时时间
     private final long timerServiceShutdownTimeout;
-
+    // 是否开启本地状态恢复
     private final boolean localRecoveryEnabled;
-
+    // 是否开启本地备份（Checkpoint 辅助）
     private final boolean localBackupEnabled;
-
+    // TaskManager 向 JobManager 注册时的重试策略配置。
     private final RetryingRegistrationConfiguration retryingRegistrationConfiguration;
-
+    // 系统资源指标（CPU、内存等）的采样频率
     private Optional<Time> systemResourceMetricsProbingInterval;
-
+    // 之前讨论过的资源规格（CPU、任务内存、托管内存等）
     private final TaskExecutorResourceSpec taskExecutorResourceSpec;
-
+    // 用户代码类加载顺序（Parent-first 或 Child-first）
     private final FlinkUserCodeClassLoaders.ResolveOrder classLoaderResolveOrder;
-
+    // 哪些包路径必须强制使用 Parent-first 加载模式
     private final String[] alwaysParentFirstLoaderPatterns;
-
+    // 用于 IO 操作（读写磁盘）的线程池大小。
     private final int numIoThreads;
 
     private TaskManagerServicesConfiguration(
@@ -267,6 +272,7 @@ public class TaskManagerServicesConfiguration {
      * @param workingDirectory working directory of the TaskManager
      * @return configuration of task manager services used to create them
      */
+    // 采用私有构造函数，强制通过 fromConfiguration 静态工厂方法进行创建。
     public static TaskManagerServicesConfiguration fromConfiguration(
             Configuration configuration,
             ResourceID resourceID,

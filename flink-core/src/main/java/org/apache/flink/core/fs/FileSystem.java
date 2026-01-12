@@ -313,6 +313,8 @@ public abstract class FileSystem implements IFileSystem {
      * @param pluginManager optional plugin manager that is used to initialized filesystems provided
      *     as plugins.
      */
+    // Flink 文件系统层的核心入口方法。
+    // 它的作用是根据配置加载、初始化所有可用的文件系统实现（如 HDFS、S3、OSS、本地文件系统等），并建立 Scheme（协议头）与具体工厂类的映射关系。
     public static void initialize(Configuration config, @Nullable PluginManager pluginManager)
             throws IllegalConfigurationException {
 
@@ -321,10 +323,11 @@ public abstract class FileSystem implements IFileSystem {
             // make sure file systems are re-instantiated after re-configuration
             CACHE.clear();
             FS_FACTORIES.clear();
-
+            // 创建一个“工厂供应者”列表。这里使用了懒加载模式（Supplier）
             Collection<Supplier<Iterator<FileSystemFactory>>> factorySuppliers = new ArrayList<>(2);
             factorySuppliers.add(() -> ServiceLoader.load(FileSystemFactory.class).iterator());
-
+            // 第二种加载方式。如果提供了插件管理器，则加载 plugins/ 目录下的文件系统。
+            // 插件文件系统会被包装在 PluginFileSystemFactory 中，这确保了插件的类加载器隔离，防止不同文件系统的依赖（如不同版本的 AWS SDK）发生冲突。
             if (pluginManager != null) {
                 factorySuppliers.add(
                         () ->
@@ -332,24 +335,28 @@ public abstract class FileSystem implements IFileSystem {
                                         pluginManager.load(FileSystemFactory.class),
                                         PluginFileSystemFactory::of));
             }
-
+            // 执行真正的加载动作，将上述两种来源的工厂合并到一个列表中。
             final List<FileSystemFactory> fileSystemFactories =
                     loadFileSystemFactories(factorySuppliers);
 
             // configure all file system factories
             for (FileSystemFactory factory : fileSystemFactories) {
+                // 调用每个工厂的初始化方法，将 Flink 配置（如 S3 的 Access Key 等）传给它。
                 factory.configure(config);
                 String scheme = factory.getScheme();
-
+                // 检查配置中是否对该文件系统开启了连接数限制。
+                // 如果是，则用 ConnectionLimitingFactory 包装原始工厂，这是一种典型的装饰者模式，用于控制并发连接数防止压垮后端存储。
                 FileSystemFactory fsf =
                         ConnectionLimitingFactory.decorateIfLimited(factory, scheme, config);
                 FS_FACTORIES.put(scheme, fsf);
             }
 
             // configure the default (fallback) factory
+            // FALLBACK_FACTORY: 通常指 HadoopFileSystemFactory。如果某个 Scheme 没有找到专用工厂，Flink 会尝试使用 Hadoop 的类库来处理。
             FALLBACK_FACTORY.configure(config);
 
             // also read the default file system scheme
+            // 设置默认文件系统 Scheme
             final String stringifiedUri = config.get(CoreOptions.DEFAULT_FILESYSTEM_SCHEME, null);
             if (stringifiedUri == null) {
                 defaultScheme = null;
@@ -365,7 +372,8 @@ public abstract class FileSystem implements IFileSystem {
                             e);
                 }
             }
-
+            // 将允许使用 Hadoop 实现进行“兜底”处理的文件系统 Scheme（如 s3、wasb）加入白名单。
+            // 如果某个文件系统没有原生实现但在此白名单中，Flink 将尝试用 Hadoop 接口加载它。
             ALLOWED_FALLBACK_FILESYSTEMS.clear();
             final Iterable<String> allowedFallbackFilesystems =
                     Splitter.on(';')

@@ -359,6 +359,7 @@ public class EnvironmentInformation {
      *
      * @return The limit of open file handles, or {@code -1}, if the limit could not be determined.
      */
+    // 获取操作系统允许打开的文件描述符数量
     public static long getOpenFileHandlesLimit() {
         if (OperatingSystem
                 .isWindows()) { // getMaxFileDescriptorCount method is not available on Windows

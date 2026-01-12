@@ -74,29 +74,55 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
  * {@link ShuffleEnvironment}. All services are exclusive to a single {@link TaskExecutor}.
  * Consequently, the respective {@link TaskExecutor} is responsible for closing them.
  */
+// Flink TaskManager（任务执行器）中的核心服务容器
+// 核心作用是生命周期管理与依赖注入。它负责创建、持有、并最终销毁 TaskManager 运行所需的几乎所有底层服务组件（如内存管理、网络传输、槽位管理等）
+// 通过将这些零散的服务聚合在一起，它为 TaskExecutor 提供了一个统一的操作界面。你可以把它想象成 TaskManager 的“后勤保障部”。
 public class TaskManagerServices {
     private static final Logger LOG = LoggerFactory.getLogger(TaskManagerServices.class);
 
     /** TaskManager services. */
+    // 存储未解析的 TM 位置信息（ResourceID、IP、端口），用于向集群汇报身份。
     private final UnresolvedTaskManagerLocation unresolvedTaskManagerLocation;
-
-    private final long managedMemorySize;//表示 TaskManager 管理的内存大小
-    private final IOManager ioManager; //用于管理任务的 IO 操作（特别是磁盘 IO），包括中间结果的溢出、读取和写入操作
-    private final ShuffleEnvironment<?, ?> shuffleEnvironment; //负责管理 TaskManager 上的 Shuffle 操作，包括数据的分发和传输。
-    private final KvStateService kvStateService;//管理和提供键值状态（Keyed State）的服务，用于在 TaskManager 内处理有状态任务。
+    // 当前 TM 能够使用的托管内存（Managed Memory）的总大小（字节）。
+    private final long managedMemorySize;
+    // 负责管理同步/异步磁盘 IO。
+    // 当数据超过内存限制时，负责将数据溢写（Spill）到磁盘。
+    private final IOManager ioManager;
+    // 网络层核心。
+    // 负责管理节点间的数据交换（Shuffle），处理数据的分发、接收和网络缓冲池。
+    private final ShuffleEnvironment<?, ?> shuffleEnvironment;
+    // 负责管理可查询状态（Queryable State），允许外部应用查询正在运行的任务状态。
+    private final KvStateService kvStateService;
+    // 管理任务中的广播变量，确保同一节点上的多个任务共享同一份广播数据副本。
     private final BroadcastVariableManager broadcastVariableManager;
-    private final TaskSlotTable<Task> taskSlotTable;//管理 TaskManager 的任务插槽（Slots），包括任务的分配、释放以及插槽状态的维护
-    private final JobTable jobTable;//管理 TaskManager 上正在运行的所有作业信息
-    private final JobLeaderService jobLeaderService; //跟踪每个作业的 JobManager 的领导者信息
-    private final TaskExecutorLocalStateStoresManager taskManagerStateStore;//管理 TaskManager 本地的状态存储，用于任务的故障恢复
-    private final TaskExecutorFileMergingManager taskManagerFileMergingManager;//负责管理 TaskManager 上文件的合并操作，减少文件碎片
-    private final TaskExecutorStateChangelogStoragesManager taskManagerChangelogManager;//管理状态的 Changelog 存储，用于记录状态变化
+    // 槽位管理器。
+    // 记录当前 TM 上所有 Slot 的分配情况、状态及其与 Task 的绑定关系。
+    private final TaskSlotTable<Task> taskSlotTable;
+    // 记录当前 TM 上承载的所有 Job 的元数据信息。
+    private final JobTable jobTable;
+    // 领导者监听服务。
+    // 负责监听各 JobManager 的 Leader 变化，确保 TM 能连接到正确的 JM。
+    private final JobLeaderService jobLeaderService;
+    // 管理本地状态存储。
+    // 通过在本地保留状态副本，加速 Checkpoint 恢复（Local Recovery）。
+    private final TaskExecutorLocalStateStoresManager taskManagerStateStore;
+    // 实验性功能，负责合并小文件，优化大规模状态下的文件系统压力。
+    private final TaskExecutorFileMergingManager taskManagerFileMergingManager;
+    // 管理状态更新的流水（Changelog）存储，支持异步状态上报。
+    private final TaskExecutorStateChangelogStoragesManager taskManagerChangelogManager;
     private final TaskExecutorChannelStateExecutorFactoryManager taskManagerChannelStateManager; //管理通道状态（Channel State），支持流处理的高效状态恢复
-    private final TaskEventDispatcher taskEventDispatcher; //负责分发任务事件，例如状态更新、生命周期通知等
+    // 事件总线。负责在任务之间分发控制事件（如迭代计算中的屏障、取消信号等）。
+    private final TaskEventDispatcher taskEventDispatcher;
+    // 专用的线程池，处理后台 IO 密集型操作，防止阻塞主 RPC 线程。
     private final ExecutorService ioExecutor;
-    private final LibraryCacheManager libraryCacheManager;//管理作业的依赖库缓存
-    private final SlotAllocationSnapshotPersistenceService slotAllocationSnapshotPersistenceService;//负责管理插槽分配的快照持久化。
-    private final SharedResources sharedResources; //管理 TaskManager 内的共享资源，例如线程池、网络连接等
+    // 类加载器管理。
+    // 负责从 BlobService 下载作业 JAR 包并创建对应的 UserCodeClassLoader。
+    private final LibraryCacheManager libraryCacheManager;
+    // 用于将 Slot 分配状态持久化到磁盘，以便 TM 异常重启后能尝试恢复之前的分配。
+    private final SlotAllocationSnapshotPersistenceService slotAllocationSnapshotPersistenceService;
+    // 管理跨任务共享的资源（如 RocksDB 的共享内存、缓存等）。
+    private final SharedResources sharedResources;
+    // 元数据缓存。缓存 JobInformation、TaskInformation 等静态信息，避免重复的网络传输。
     private final GroupCache<JobID, PermanentBlobKey, JobInformation> jobInformationCache;
     private final GroupCache<JobID, PermanentBlobKey, TaskInformation> taskInformationCache;
     private final GroupCache<JobID, PermanentBlobKey, ShuffleDescriptorGroup>

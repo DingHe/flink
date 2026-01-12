@@ -45,6 +45,13 @@ import java.util.UUID;
  *
  * <p>Before the task slot table can be used, it must be started via the {@link #start} method.
  */
+// TaskSlotTable 是 Flink TaskManager（TaskExecutor）中管理任务槽（Task Slot）核心状态的接口。
+// 它充当了 TaskManager 内部的“账本”，记录了当前节点上所有 Slot 的分配、占用、活跃状态以及与具体任务（Task）的对应关系。
+// 状态维护：维护 Slot 的生命周期（Free -> Allocated -> Active -> Releasing）
+// 索引查询：提供多种索引方式，例如：通过 JobID 查找 Slot，通过 AllocationID 查找 Task，或者通过 ExecutionAttemptID 查找具体的执行实例。
+// 超时管理：自动处理 Slot 分配后的超时逻辑。如果一个 Slot 被分配给了某个 JobManager 但对方迟迟没有部署任务，它负责通知系统回收资源。
+// 资源关联：为每个 Slot 绑定特定的资源（如 MemoryManager），确保任务之间的资源隔离。
+
 public interface TaskSlotTable<T extends TaskSlotPayload>
         extends TimeoutListener<AllocationID>, AutoCloseableAsync {
     /**
@@ -54,6 +61,8 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @param mainThreadExecutor {@link ComponentMainThreadExecutor} to schedule internal calls to
      *     the main thread
      */
+    // 启动 Table。
+    // 注入 SlotActions（用于触发释放/超时回调）和主线程执行器（确保线程安全）。
     void start(SlotActions initialSlotActions, ComponentMainThreadExecutor mainThreadExecutor);
 
     /**
@@ -62,6 +71,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @param jobId for which to return the set of {@link AllocationID}.
      * @return Set of {@link AllocationID} for the given job
      */
+    // 获取某个作业占用的所有分配 ID。
     Set<AllocationID> getAllocationIdsPerJob(JobID jobId);
 
     /**
@@ -69,6 +79,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      *
      * @return The {@code AllocationID} of any active task.
      */
+    // 获取当前所有正在运行任务的 Slot 分配 ID。
     Set<AllocationID> getActiveTaskSlotAllocationIds();
 
     /**
@@ -81,7 +92,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      *     passed {@code JobID}.
      */
     Set<AllocationID> getActiveTaskSlotAllocationIdsPerJob(JobID jobId);
-
+    // 生成 Slot 汇报单，TaskManager 会定期将此报告发送给 ResourceManager，以便同步集群资源视图。
     SlotReport createSlotReport(ResourceID resourceId);
 
     /**
@@ -95,6 +106,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @param slotTimeout until the slot times out
      * @return True if the task slot could be allocated; otherwise false
      */
+    // 为特定作业分配一个 Slot
     @VisibleForTesting
     boolean allocateSlot(int index, JobID jobId, AllocationID allocationId, Duration slotTimeout);
 
@@ -111,6 +123,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @param slotTimeout until the slot times out
      * @return True if the task slot could be allocated; otherwise false
      */
+    // 为特定作业分配一个 Slot
     boolean allocateSlot(
             int index,
             JobID jobId,
@@ -126,6 +139,8 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @throws SlotNotFoundException if the slot could not be found for the given allocation id
      * @return True if the slot could be marked active; otherwise false
      */
+    // 将 Slot 状态由“已分配”转为“活跃”
+    // 当 JobManager 真正开始在该 Slot 上部署任务时触发。
     boolean markSlotActive(AllocationID allocationId) throws SlotNotFoundException;
 
     /**
@@ -137,6 +152,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @throws SlotNotFoundException if the slot could not be found for the given allocation id
      * @return True if the slot could be marked inactive
      */
+    // 将活跃 Slot 转为不活跃，并设置新的超时时间。
     boolean markSlotInactive(AllocationID allocationId, Duration slotTimeout)
             throws SlotNotFoundException;
 
@@ -149,6 +165,8 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @throws SlotNotFoundException if there is not task slot for the given allocation id
      * @return Index of the freed slot if the slot could be freed; otherwise -1
      */
+    // 释放 Slot。
+    // 如果 Slot 内仍有任务在运行，会将状态设为 Releasing 并让任务失败；如果为空，则直接设为 Free。
     default int freeSlot(AllocationID allocationId) throws SlotNotFoundException {
         return freeSlot(allocationId, new Exception("The task slot of this task is being freed."));
     }
@@ -163,6 +181,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @throws SlotNotFoundException if there is not task slot for the given allocation id
      * @return Index of the freed slot if the slot could be freed; otherwise -1
      */
+    // 释放 Slot。
     int freeSlot(AllocationID allocationId, Throwable cause) throws SlotNotFoundException;
 
     /**
@@ -172,6 +191,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @param ticket of the timeout
      * @return True if the timeout is valid; otherwise false
      */
+    // 校验超时票据是否有效（防止过期的超时信号干扰当前分配）。
     boolean isValidTimeout(AllocationID allocationId, UUID ticket);
 
     /**
@@ -199,6 +219,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @param index of the task slot
      * @return True if the task slot is free; otherwise false
      */
+    // 检查指定索引的物理槽位是否空闲。
     boolean isSlotFree(int index);
 
     /**
@@ -224,6 +245,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @return Owning job of the specified {@link TaskSlot} or null if there is no slot for the
      *     given allocation id or if the slot has no owning job assigned
      */
+    // 根据分配 ID 查找所属的 JobID。
     @Nullable
     JobID getOwningJob(AllocationID allocationId);
 
@@ -235,6 +257,8 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @throws SlotNotActiveException if there was no slot active for task's job and allocation id
      * @return True if the task could be added to the task slot; otherwise false
      */
+    // 将一个具体的 Task 放入已激活的 Slot 中。
+    // 对应的 Slot 必须已经是 Active 状态。
     boolean addTask(T task) throws SlotNotFoundException, SlotNotActiveException;
 
     /**
@@ -245,6 +269,8 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @param executionAttemptID identifying the task to remove
      * @return The removed task if there is any for the given execution attempt id; otherwise null
      */
+    // 根据执行尝试 ID 移除任务。
+    // 移除后如果 Slot 处于 Releasing 状态且已空，则彻底释放 Slot。
     T removeTask(ExecutionAttemptID executionAttemptID);
 
     /**
@@ -253,6 +279,8 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @param executionAttemptID identifying the requested task
      * @return The task for the given execution attempt id if it exist; otherwise null
      */
+    // 查询任务实例。
+    // 支持单体查询或按作业批量查询。
     T getTask(ExecutionAttemptID executionAttemptID);
 
     /**
@@ -261,6 +289,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @param jobId identifying the job of the requested tasks
      * @return Iterator over all task for a given job
      */
+    // 查询任务实例。支持单体查询或按作业批量查询。
     Iterator<T> getTasks(JobID jobId);
 
     /**
@@ -277,5 +306,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @param allocationID allocation id of the slot allocated for the task
      * @return the memory manager of the slot allocated for the task
      */
+    // 获取该 Slot 专有的内存管理器。
+    // Flink 的托管内存是按 Slot 隔离的，通过此方法，Task 可以获取到属于自己的那部分内存份额。
     MemoryManager getTaskMemoryManager(AllocationID allocationID) throws SlotNotFoundException;
 }

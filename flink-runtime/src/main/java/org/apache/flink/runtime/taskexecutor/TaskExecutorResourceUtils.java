@@ -69,7 +69,7 @@ public class TaskExecutorResourceUtils {
     static final MemorySize DEFAULT_MANAGED_MEMORY_SIZE = MemorySize.parse("128m");
 
     private TaskExecutorResourceUtils() {}
-
+    // 从用户提供的原始配置（Configuration）中提取关键的资源参数，并将其封装成一个结构化的 TaskExecutorResourceSpec 对象。
     static TaskExecutorResourceSpec resourceSpecFromConfig(Configuration config) {
         try {
             checkTaskExecutorResourceConfigSet(config);

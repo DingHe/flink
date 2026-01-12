@@ -56,9 +56,13 @@ public class StateChangelogStorageLoader {
         // Guarantee to trigger once.
         initialize(null);
     }
-
+    // 该方法通过 SPI 机制 和 插件隔离加载机制，为 Flink 提供了一个可扩展的 Changelog 存储发现系统。
+    // 它允许用户通过简单的配置字符串（Identifier）来切换底层存储，而不需要修改 Flink 的核心代码。
     public static void initialize(PluginManager pluginManager) {
         STATE_CHANGELOG_STORAGE_FACTORIES.clear();
+        // 情况 A (pluginManager == null)：仅从当前的 Classpath 下通过 Java 原生 ServiceLoader 加载实现类。
+        // 情况 B (pluginManager != null)：双渠道加载。它会同时从 Flink 的插件目录（通过 pluginManager）和标准的 Classpath（通过 ServiceLoader）加载工厂，并使用 concat 方法将两者的迭代器合并。
+        // 这保证了无论是内置实现还是用户自定义插件都能被识别。
         Iterator<StateChangelogStorageFactory> iterator =
                 pluginManager == null
                         ? ServiceLoader.load(StateChangelogStorageFactory.class).iterator()
@@ -67,6 +71,8 @@ public class StateChangelogStorageLoader {
                                 ServiceLoader.load(StateChangelogStorageFactory.class).iterator());
         iterator.forEachRemaining(
                 factory -> {
+                    // 遍历找到的所有工厂，并获取其“标识符（Identifier）”
+                    // getIdentifier()：每个工厂都会定义一个唯一的快捷名称（如 memory、filesystem 或 dstl）。
                     String identifier = factory.getIdentifier().toLowerCase();
                     StateChangelogStorageFactory prev =
                             STATE_CHANGELOG_STORAGE_FACTORIES.get(identifier);

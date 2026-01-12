@@ -40,6 +40,11 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /** Default implementation of {@link PluginManager}. */
+// DefaultPluginManager 是 Flink 插件机制（Plugin System）的核心默认实现。
+// 它承接了之前提到的 PluginManager 接口，负责具体管理插件的生命周期、类加载器的维护以及服务发现。
+// DefaultPluginManager 的核心作用是 “隔离加载与按需分发”。
+// 类加载器缓存：为每个插件维护一个独立的 PluginLoader。这意味着每个插件都有自己独立的 ClassLoader，从而实现与 Flink 核心库及其他插件的依赖隔离。
+// SPI 服务聚合：当用户请求某种服务（如 FileSystemFactory）时，它会遍历所有插件的加载器，并将所有找到的实现类聚合成一个统一的迭代器返回。
 @Internal
 @ThreadSafe
 public class DefaultPluginManager implements PluginManager {
@@ -50,17 +55,23 @@ public class DefaultPluginManager implements PluginManager {
      * Parent-classloader to all classloader that are used for plugin loading. We expect that this
      * is thread-safe.
      */
+    // 所有插件类加载器的“父加载器”。
+    // 通常是 Flink 的系统类加载器（AppClassLoader），确保插件能访问到 Flink 核心 API。
     private final ClassLoader parentClassLoader;
 
     /** A collection of descriptions of all plugins known to this plugin manager. */
+    // 多插件管理：它持有一组 PluginDescriptor（插件描述符），代表了物理磁盘上发现的所有插件。
+    // 存储插件的描述信息，包括插件的 ID、JAR 包路径等元数据。
     private final Collection<PluginDescriptor> pluginDescriptors;
-
+    // 互斥锁，保护 pluginLoaders 映射表的并发访问，确保同一个插件不会被初始化两次。
     private final Lock pluginLoadersLock;
-
+    // 插件加载器缓存。Key 是插件 ID，Value 是对应的加载器实例。这避免了重复创建加载器带来的性能开销和内存泄漏。
     @GuardedBy("pluginLoadersLock")
     private final Map<String, PluginLoader> pluginLoaders;
 
     /** List of patterns for classes that should always be resolved from the parent ClassLoader. */
+    // 父加载器优先模式的类过滤规则。
+    // 定义哪些包路径下的类必须由 parentClassLoader 加载（如 org.apache.flink.*），以防止插件包里自带的 Flink 核心类导致冲突。
     private final String[] alwaysParentFirstPatterns;
 
     @VisibleForTesting

@@ -108,6 +108,16 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * constructs the related components (network, I/O manager, memory manager, RPC service, HA service)
  * and starts them.
  */
+// TaskManagerRunner 是一个至关重要的类。它不仅是 TaskManager 进程的可执行入口（即 main 方法所在处），还承担了“组件装配工”的角色。
+// 主要职责是：
+// 启动入口：负责解析命令行参数并加载 Flink 配置。
+// 生命周期管理：控制 TaskManager 从初始化、启动到关闭的完整过程，并注册 JVM 钩子（Shutdown Hook）以确保优雅退出。
+// 服务编排：它负责初始化 TaskManager 运行所需的几乎所有底层服务，包括：
+// 通信层：RPC 服务（基于 Pekko/Akka）。
+// 协调层：高可用服务（HA）、心跳服务。
+// 存储层：Blob 缓存服务（用于分发 Jar 包）、工作目录管理。
+// 监控层：指标注册表（Metrics）、JMX 服务。
+// 核心组件创建：最终实例化并启动 TaskExecutor，这是真正负责执行 Task 的核心对象。
 public class TaskManagerRunner implements FatalErrorHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(TaskManagerRunner.class);
@@ -116,19 +126,20 @@ public class TaskManagerRunner implements FatalErrorHandler {
 
     private static final int SUCCESS_EXIT_CODE = 0;
     @VisibleForTesting public static final int FAILURE_EXIT_CODE = 1;
-
+    // JVM 关闭钩子。当接收到操作系统信号（如 SIGTERM）时，执行异步清理工作。
     private final Thread shutdownHook;
-
+    // 内部同步锁，确保多线程下（如启动与关闭并发）服务的状态一致性。
     private final Object lock = new Object();
-
+    // 存储从 flink-conf.yaml 解析出的所有配置参数。
     private final Configuration configuration;
 
     private final Time timeout;
 
     private final PluginManager pluginManager;
-
+    // 任务执行器服务工厂，用于创建 TaskExecutorService 实例。
     private final TaskExecutorServiceFactory taskExecutorServiceFactory;
-
+    // 运行状态承诺。
+    // 当 TaskManager 彻底退出时，该 Future 会完成并返回退出码。
     private final CompletableFuture<Result> terminationFuture;
 
     @GuardedBy("lock") //只是标注访问这几个字段要枷锁
@@ -140,25 +151,25 @@ public class TaskManagerRunner implements FatalErrorHandler {
 
     @GuardedBy("lock")
     private RpcSystem rpcSystem;
-
+    // 基础 RPC 通信服务，处理节点间的消息分发。
     @GuardedBy("lock")
     private RpcService rpcService;
-
+    // 连接 Zookeeper 或 Kubernetes，用于获取 Leader（ResourceManager）地址。
     @GuardedBy("lock")
     private HighAvailabilityServices highAvailabilityServices;
-
+    // 指标注册表，负责收集并上报 TaskManager 的 CPU、内存及自定义指标。
     @GuardedBy("lock")
     private MetricRegistryImpl metricRegistry;
-
+    // 用于从 JobManager 下载作业所需的 Jar 包和库。
     @GuardedBy("lock")
     private BlobCacheService blobCacheService;
 
     @GuardedBy("lock")
     private DeterminismEnvelope<WorkingDirectory> workingDirectory;
-
-    @GuardedBy("lock")  //封装TaskExecutor
+    // 对 TaskExecutor 的包装，是执行算子逻辑的核心服务。
+    @GuardedBy("lock")
     private TaskExecutorService taskExecutorService;
-
+    // 标记位，记录当前服务是否已经启动了关闭流程。
     @GuardedBy("lock")
     private boolean shutdown;
 
@@ -460,10 +471,13 @@ public class TaskManagerRunner implements FatalErrorHandler {
 
     public static void main(String[] args) throws Exception {
         // startup checks and logging
+        // 在日志中输出当前系统的上下文信息
         EnvironmentInformation.logEnvironmentInfo(LOG, "TaskManager", args);
+        // 注册对操作系统信号（如 SIGTERM, SIGINT）的监听
+        // 当管理员执行 kill <pid> 或在终端按 Ctrl+C 时，Flink 通过这个处理器捕获信号，并记录一条优雅的日志。这能防止进程被突发终止时，开发者不知道发生了什么。
         SignalHandler.register(LOG);
         JvmShutdownSafeguard.installAsShutdownHook(LOG);
-
+        // 查询当前操作系统对进程允许打开的最大文件句柄数（File Descriptors）
         long maxOpenFileHandles = EnvironmentInformation.getOpenFileHandlesLimit();
 
         if (maxOpenFileHandles != -1L) {
@@ -479,7 +493,7 @@ public class TaskManagerRunner implements FatalErrorHandler {
         return ConfigurationParserUtils.loadCommonConfiguration(
                 args, TaskManagerRunner.class.getSimpleName());
     }
-
+    // 初始化并启动 TaskManager 进程，并阻塞等待其运行结束，最后返回退出状态码。
     public static int runTaskManager(Configuration configuration, PluginManager pluginManager)
             throws Exception {
         final TaskManagerRunner taskManagerRunner;
@@ -488,9 +502,9 @@ public class TaskManagerRunner implements FatalErrorHandler {
             taskManagerRunner =
                     new TaskManagerRunner(
                             configuration,
-                            pluginManager,
-                            TaskManagerRunner::createTaskExecutorService);
-            taskManagerRunner.start();
+                            pluginManager, // 传入之前讨论过的插件管理器，用于加载文件系统、安全模块等插件。
+                            TaskManagerRunner::createTaskExecutorService); // 指定了如何创建底层的 TaskExecutor。TaskExecutor 才是真正执行任务的“劳动力”。
+            taskManagerRunner.start(); // 正式启动内部各组件
         } catch (Exception exception) {
             throw new FlinkException("Failed to start the TaskManagerRunner.", exception);
         }
@@ -503,35 +517,49 @@ public class TaskManagerRunner implements FatalErrorHandler {
                     ExceptionUtils.stripExecutionException(t));
         }
     }
-
+    // 从原始命令行参数向结构化配置对象过渡的关键步骤。
+    //
+    // 它确保了在没有任何配置的情况下，进程能够安全地报错退出，而不是带着错误的状态启动。
     public static void runTaskManagerProcessSecurely(String[] args) {
+        // 这个变量将承载从 flink-conf.yaml 文件以及命令行 -D 参数中解析出来的所有配置信息
         Configuration configuration = null;
 
         try {
+            // 它会定位 Flink 的配置目录（通常是 CONF_DIR）
+            // 读取并解析 YAML 配置文件
+            // 将命令行传入的动态参数（如 --configDir）覆盖到基础配置中
             configuration = loadConfiguration(args);
         } catch (FlinkParseException fpe) {
             LOG.error("Could not load the configuration.", fpe);
             System.exit(FAILURE_EXIT_CODE);
         }
-
+        // 进入真正的“安全上下文”启动逻辑。
         runTaskManagerProcessSecurely(checkNotNull(configuration));
     }
-
+    // 核心任务是在正式启动计算服务之前，建立安全防线并加载所有的底层插件。
     public static void runTaskManagerProcessSecurely(Configuration configuration) {
+        // 根据配置初始化 Flink 自带的 Java SecurityManager
         FlinkSecurityManager.setFromConfiguration(configuration);
+        // 加载 Flink 的插件系统。
+        // Flink 采用插件化设计（放在 plugins/ 目录下），如各种文件系统（S3, OSS, Azure）、指标报告器（Prometheus）等。此行代码负责扫描目录并加载这些隔离的插件类。
         final PluginManager pluginManager =
                 PluginUtils.createPluginManagerFromRootFolder(configuration);
+        // 全局初始化 Flink 支持的所有文件系统（HDFS, S3, Local 等）
+        // 它会结合刚才加载的插件，使得 Flink 后续可以通过 hdfs:// 或 s3:// 这种 Schema 读写数据。
         FileSystem.initialize(configuration, pluginManager);
-
+        // 加载用于“状态增量日志（Changelog）”的存储插件
         StateChangelogStorageLoader.initialize(pluginManager);
 
         int exitCode;
         Throwable throwable = null;
-
+        // 设置 JVM 范围内的 UncaughtExceptionHandler
         ClusterEntrypointUtils.configureUncaughtExceptionHandler(configuration);
         try {
+            // 安装安全模块（如 Kerberos 认证、JAAS 配置）
+            // 这是与 Hadoop 环境交互的基础。它会根据配置确定是否需要从 Keytab 登录，并启动自动刷新 TGT 的后台任务。
             SecurityUtils.install(new SecurityConfiguration(configuration));
-
+            // 最核心的步骤。
+            // 在安全上下文中启动真正的 TaskManager
             exitCode =
                     SecurityUtils.getInstalledContext()
                             .runSecured(() -> runTaskManager(configuration, pluginManager));
@@ -552,22 +580,24 @@ public class TaskManagerRunner implements FatalErrorHandler {
     // --------------------------------------------------------------------------------------------
     //  Static utilities
     // --------------------------------------------------------------------------------------------
-
+    // Flink TaskManager 的启动链路中起到了承上启下的作用。
+    // 它将底层的、复杂的 TaskExecutor（任务执行器核心）封装成一个更易于生命周期管理的 TaskExecutorService 服务。
     public static TaskExecutorService createTaskExecutorService(
             Configuration configuration,
             ResourceID resourceID,
-            RpcService rpcService,
-            HighAvailabilityServices highAvailabilityServices,
+            RpcService rpcService, // 处理所有远程过程调用，是 TaskManager 内部及与 JobManager 通信的基础。
+            HighAvailabilityServices highAvailabilityServices, // 提供元数据存储（如 Zookeeper），用于集群恢复和地址发现。
             HeartbeatServices heartbeatServices,
             MetricRegistry metricRegistry,
-            BlobCacheService blobCacheService,
+            BlobCacheService blobCacheService, // 负责从 JobManager 下载大文件（如 JAR 包）
             boolean localCommunicationOnly,
             ExternalResourceInfoProvider externalResourceInfoProvider,
             WorkingDirectory workingDirectory,
-            FatalErrorHandler fatalErrorHandler,
-            DelegationTokenReceiverRepository delegationTokenReceiverRepository)
+            FatalErrorHandler fatalErrorHandler, // 致命错误处理器，当发生 OOM 或无法恢复的故障时触发关机。
+            DelegationTokenReceiverRepository delegationTokenReceiverRepository) // 全相关的组件，用于处理 Hadoop 代理令牌。
             throws Exception {
 
+        // startTaskManager 来构造并返回一个 TaskExecutor 实例
         final TaskExecutor taskExecutor =
                 startTaskManager(
                         configuration,
@@ -586,9 +616,10 @@ public class TaskManagerRunner implements FatalErrorHandler {
         return TaskExecutorToServiceAdapter.createFor(taskExecutor);
     }
 
+    // startTaskManager 是 Flink TaskManager 启动过程中最关键的底层方法。它负责组装资源、初始化核心服务（内存、网络、IO）并最终创建执行引擎对象
     public static TaskExecutor startTaskManager(
             Configuration configuration,
-            ResourceID resourceID,
+            ResourceID resourceID, // TaskManager的唯一资源标识符
             RpcService rpcService,
             HighAvailabilityServices highAvailabilityServices,
             HeartbeatServices heartbeatServices,
@@ -600,21 +631,22 @@ public class TaskManagerRunner implements FatalErrorHandler {
             FatalErrorHandler fatalErrorHandler,
             DelegationTokenReceiverRepository delegationTokenReceiverRepository)
             throws Exception {
-
+        // 确保核心依赖（配置、资源ID、RPC服务、HA服务）不为空
         checkNotNull(configuration);
         checkNotNull(resourceID);
         checkNotNull(rpcService);
         checkNotNull(highAvailabilityServices);
-
+        // 在日志中记录 TaskManager 的唯一资源标识符（ResourceID），这对于在 Yarn/K8s 容器中定位问题至关重要。
         LOG.info("Starting TaskManager with ResourceID: {}", resourceID.getStringWithMetadata());
-
+        // 根据配置重定向系统的 stdout 和 stderr。通常将打印到控制台的内容转义到日志文件中，防止日志分散
         SystemOutRedirectionUtils.redirectSystemOutAndError(configuration);
-
+        // 获取当前 TaskManager 的外部 RPC 通信地址
         String externalAddress = rpcService.getAddress();
-        //TaskExecutor资源说明
+        // 从配置中解析内存模型（堆内、堆外、托管内存、网络内存等）和 CPU 核心数。
+        // 它定义了当前 TaskManager 的物理资源边界
         final TaskExecutorResourceSpec taskExecutorResourceSpec =
                 TaskExecutorResourceUtils.resourceSpecFromConfig(configuration);
-
+        // 将原始的 Configuration 转换为更具体的“服务层配置”，包含网络堆栈、IO设置等。
         TaskManagerServicesConfiguration taskManagerServicesConfiguration =
                 TaskManagerServicesConfiguration.fromConfiguration(
                         configuration,
@@ -623,19 +655,23 @@ public class TaskManagerRunner implements FatalErrorHandler {
                         localCommunicationOnly,
                         taskExecutorResourceSpec,
                         workingDirectory);
-
+        // 初始化度量（Metrics）系统，为当前 TaskManager 创建一个度量组。这决定了你之后在 Flink UI 上看到的 CPU 使用率、内存占用等指标的路径。
         Tuple2<TaskManagerMetricGroup, MetricGroup> taskManagerMetricGroup =
                 MetricUtils.instantiateTaskManagerMetricGroup(
                         metricRegistry,
                         externalAddress,
                         resourceID,
                         taskManagerServicesConfiguration.getSystemResourceMetricsProbingInterval());
-
+        // 创建专门用于磁盘读写和文件操作的线程池
         final ExecutorService ioExecutor =
                 Executors.newFixedThreadPool(
                         taskManagerServicesConfiguration.getNumIoThreads(),
                         new ExecutorThreadFactory("flink-taskexecutor-io"));
-        //在里面创建各种服务
+        // 这是最重的方法。
+        // 它在内部实例化了 TaskManager 的三大基石：
+        // MemoryManager: 内存管理器（预分配托管内存）
+        // ShuffleEnvironment: 网络通信与数据交换环境
+        // TaskSlotTable: 槽位表，记录当前节点可以跑多少个并行的 Subtask
         TaskManagerServices taskManagerServices =
                 TaskManagerServices.fromConfiguration(
                         taskManagerServicesConfiguration,
@@ -645,12 +681,12 @@ public class TaskManagerRunner implements FatalErrorHandler {
                         rpcService.getScheduledExecutor(),
                         fatalErrorHandler,
                         workingDirectory);
-
+        // 注册内存相关的监控指标，特别是针对托管内存（Managed Memory）的使用情况进行实时打点。
         MetricUtils.instantiateFlinkMemoryMetricGroup(
                 taskManagerMetricGroup.f1,
                 taskManagerServices.getTaskSlotTable(),
                 taskManagerServices::getManagedMemorySize);
-
+        // 封装 TaskManager 运行时的控制参数（如心跳超时、任务杀掉等待时间等）。
         TaskManagerConfiguration taskManagerConfiguration =
                 TaskManagerConfiguration.fromConfiguration(
                         configuration,
@@ -659,7 +695,7 @@ public class TaskManagerRunner implements FatalErrorHandler {
                         workingDirectory.getTmpDirectory());
 
         String metricQueryServiceAddress = metricRegistry.getMetricQueryServiceGatewayRpcAddress();
-
+        // 终点。将所有初始化好的 RPC 服务、配置、存储、内存、监控组件全部注入到 TaskExecutor 实例中并返回
         return new TaskExecutor(
                 rpcService,
                 taskManagerConfiguration,
@@ -671,7 +707,7 @@ public class TaskManagerRunner implements FatalErrorHandler {
                 metricQueryServiceAddress,
                 taskExecutorBlobService,
                 fatalErrorHandler,
-                new TaskExecutorPartitionTrackerImpl(taskManagerServices.getShuffleEnvironment()),
+                new TaskExecutorPartitionTrackerImpl(taskManagerServices.getShuffleEnvironment()), // 用于追踪当前节点上的中间数据集（Data Partition）状态，确保在 Failover 时数据能被正确清理或复用。
                 delegationTokenReceiverRepository);
     }
 
