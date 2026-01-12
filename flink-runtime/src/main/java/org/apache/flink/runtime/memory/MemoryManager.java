@@ -107,7 +107,12 @@ public class MemoryManager {
      * @param memorySize The total size of the off-heap memory to be managed by this memory manager.
      * @param pageSize The size of the pages handed out by the memory manager.
      */
+    // 是 TaskManager 启动时，根据推导出的托管内存（Managed Memory）数值来初始化“内存大管家”的过程。
+    // memorySize：该管理器负责管理的总内存字节数（即托管内存 Managed Memory 的总量）。
+    // pageSize：内存页（Page）的大小。Flink 内部将内存划分为固定大小的块（MemorySegment），默认通常是 32KB。
     MemoryManager(long memorySize, int pageSize) {
+        // 基本的合法性检查
+        // 确保 memorySize 大于 0，且 pageSize 是 2 的幂次方（通常为了位运算优化）且不大于总内存大小。如果检查失败，会抛出异常。
         sanityCheck(memorySize, pageSize);
 
         this.pageSize = pageSize;
@@ -115,7 +120,9 @@ public class MemoryManager {
         this.totalNumberOfPages = memorySize / pageSize;
         this.allocatedSegments = new ConcurrentHashMap<>();
         this.reservedMemory = new ConcurrentHashMap<>();
+        // 初始化共享资源管家
         this.sharedResources = new SharedResources();
+        // 确保页数没有超过 Integer.MAX_VALUE
         verifyIntTotalNumberOfPages(memorySize, totalNumberOfPages);
 
         LOG.debug(
@@ -123,7 +130,7 @@ public class MemoryManager {
                 memorySize,
                 pageSize);
     }
-
+    // 确保 memorySize 大于 0，且 pageSize 是 2 的幂次方（通常为了位运算优化）且不大于总内存大小。如果检查失败，会抛出异常。
     private static void sanityCheck(long memorySize, int pageSize) {
         Preconditions.checkArgument(memorySize >= 0L, "Size of total memory must be non-negative.");
         Preconditions.checkArgument(
@@ -133,7 +140,7 @@ public class MemoryManager {
         Preconditions.checkArgument(
                 MathUtils.isPowerOf2(pageSize), "The given page size is not a power of two.");
     }
-
+    // 确保页数没有超过 Integer.MAX_VALUE
     private static void verifyIntTotalNumberOfPages(long memorySize, long numberOfPagesLong) {
         Preconditions.checkArgument(
                 numberOfPagesLong <= Integer.MAX_VALUE,

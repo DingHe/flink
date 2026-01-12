@@ -36,4 +36,6 @@ Flink 将这个容量传递给 RocksDB 的配置。RocksDB 会在 C++ 层尽量�
 现在的托管内存默认是 Off-Heap，且通常作为 Native Memory 处理。如果强行把这部分也塞进 MaxDirectMemorySize，会导致 Direct Memory 的限制变得极其复杂且容易误判，因为 RocksDB 这种本地库的内存申请并不受 JVM Direct 计数器的监控。
 
 
+4、代码逻辑在
 
+UnsafeMemoryBudget  负责实际的托管内存控制，申请和释放都需要这个类许可

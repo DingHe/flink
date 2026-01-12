@@ -31,10 +31,20 @@ import java.util.function.LongConsumer;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /** A map that keeps track of acquired shared resources and handles their allocation disposal. */
+// 在 Flink 的内存管理体系中，SharedResources 类扮演着“共享资源管家”的角色。
+// 它主要用于管理那些可以被多个对象（Leased Holders）共同使用的资源，典型的应用场景是 RocksDB 的共享内存消耗（如共享 Cache 或 Write Buffer Manager）
+// SharedResources 的核心作用是实现 引用计数管理（Reference Counting）。
+// 在 Flink 中，同一个 TaskManager 上的多个 Slot 可能运行着相同的作业任务，它们可以共享某些昂贵的资源（如内存池）
+// 单例创建：确保同一种类型的资源只被初始化一次。
+// 租约追踪：记录目前有多少个“租户”（leaseHolder）正在使用该资源。
+// 自动释放：当最后一个租户离开（释放租约）时，自动调用资源的关闭方法（close()）以回收物理内存。
 public final class SharedResources {
-
+    // 互斥锁。
+    // 保证在多线程环境下（多个任务同时申请或释放共享资源），对内部 Map 的操作是线程安全的。
     private final ReentrantLock lock = new ReentrantLock();
-
+    // 资源注册表
+    // Key 是资源类型的标识（String），Value 是被封装的受控资源（LeasedResource）。
+    // 它记录了当前所有活跃的共享资源
     @GuardedBy("lock")
     private final HashMap<String, LeasedResource<?>> reservedResources = new HashMap<>();
 
@@ -45,11 +55,12 @@ public final class SharedResources {
      * <p>The resource must be released when no longer used. That releases the lease. When all
      * leases are released, the resource is disposed.
      */
+    // 确保了跨任务的共享资源（如 RocksDB 的内存池）能够线程安全地初始化、按需共享、并正确计数
     public <T extends AutoCloseable> ResourceAndSize<T> getOrAllocateSharedResource(
-            String type,
-            Object leaseHolder,
-            LongFunctionWithException<T, Exception> initializer,
-            long sizeForInitialization)
+            String type, // 资源的唯一标识符（例如 "RocksDB_Shared_Cache"）
+            Object leaseHolder, // 租户对象（通常是申请内存的任务或算子实例），用于追踪是谁在使用资源。
+            LongFunctionWithException<T, Exception> initializer, // 初始化函数。如果资源还没创建，将调用它来创建
+            long sizeForInitialization) // 传给初始化函数的参数，通常是预留的内存字节数
             throws Exception {
 
         // We could be stuck on this lock for a while, in cases where another initialization is
@@ -57,6 +68,7 @@ public final class SharedResources {
         // happening and the initialization is expensive.
         // We lock interruptibly here to allow for faster exit in case of cancellation errors.
         try {
+            // 使用可中断锁
             lock.lockInterruptibly();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -66,13 +78,15 @@ public final class SharedResources {
         try {
             // we cannot use "computeIfAbsent()" here because the computing function may throw an
             // exception.
+            // 尝试从现有的资源注册表（reservedResources）中根据类型名称获取资源
             @SuppressWarnings("unchecked")
             LeasedResource<T> resource = (LeasedResource<T>) reservedResources.get(type);
+            // 如果资源不存在，则调用 createResource
             if (resource == null) {
                 resource = createResource(initializer, sizeForInitialization);
                 reservedResources.put(type, resource);
             }
-
+            // 将当前的 leaseHolder（租户）添加到该资源的 HashSet 中。
             resource.addLeaseHolder(leaseHolder);
             return resource;
         } finally {
@@ -141,13 +155,14 @@ public final class SharedResources {
 
     private static final class LeasedResource<T extends AutoCloseable>
             implements ResourceAndSize<T> {
-
+        // 存储所有持有该资源引用的对象。
+        // 利用 HashSet 自动去重，确保同一个对象多次申请只算一个租约。
         private final HashSet<Object> leaseHolders = new HashSet<>();
-
+        // 实际的物理资源对象（必须实现 AutoCloseable）
         private final T resourceHandle;
 
         private final long size;
-
+        // 标记位，防止资源被重复关闭。
         private boolean disposed;
 
         private LeasedResource(T resourceHandle, long size) {
