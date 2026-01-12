@@ -88,13 +88,23 @@ import java.util.stream.Collectors;
  *               └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
  * </pre>
  */
+// TaskExecutorProcessSpec 是一个非常核心的类。
+// 如果说 TaskExecutorFlinkMemory 只是描述了内存，那么 TaskExecutorProcessSpec 则是描述了 整个 TaskManager 进程的完整资源蓝图。
+// TaskExecutorProcessSpec（TaskExecutor 进程规格说明书）的主要作用是 全面描述一个 TaskManager 进程在所有资源维度上的规格。
+// 所有 内存组件（堆内、堆外、托管内存等），还扩展到了 CPU 资源、任务槽（Slot）数量 以及 外部扩展资源（如 GPU）
+// 资源全景图：作为 TaskManager 启动、资源申请（如向 YARN/Kubernetes 申请容器）的最终依据。
+// 计算基准：Flink 内部通过它来验证资源分配合规性，并确保 JVM 启动参数与容器资源限制精确匹配。
+
 public class TaskExecutorProcessSpec extends CommonProcessMemorySpec<TaskExecutorFlinkMemory> {
     private static final long serialVersionUID = 1L;
-
+    // 描述该进程被分配的 CPU 核心数。
+    // 这直接影响 Flink 在 Yarn/K8s 上申请容器时的 CPU 限制（VCore）。
     private final CPUResource cpuCores;
-
+    // 该 TaskManager 包含的 任务槽（Task Slot） 数量。
+    // 这是 Flink 并行执行任务的最小单位。
     private final int numSlots;
-
+    // 存储自定义的外部资源。
+    // 例如你为 TaskManager 申请了 GPU 资源，这些信息会以键值对的形式存储在这里，方便 Flink 与底层调度器对接。
     private final Map<String, ExternalResource> extendedResources;
 
     @VisibleForTesting

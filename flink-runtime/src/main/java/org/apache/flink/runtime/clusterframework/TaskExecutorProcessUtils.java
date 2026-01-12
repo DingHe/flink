@@ -156,7 +156,7 @@ public class TaskExecutorProcessUtils {
     public static TaskExecutorProcessSpecBuilder newProcessSpecBuilder(final Configuration config) {
         return TaskExecutorProcessSpecBuilder.newBuilder(config);
     }
-
+    // 任务是从复杂的 Configuration（配置对象）中提取规则，并产出最终的资源规格说明书（TaskExecutorProcessSpec）
     public static TaskExecutorProcessSpec processSpecFromConfig(final Configuration config) {
         try {
             return createMemoryProcessSpec(

@@ -42,6 +42,9 @@ import static org.apache.flink.runtime.taskexecutor.TaskExecutorResourceUtils.ca
 import static org.apache.flink.runtime.taskexecutor.TaskExecutorResourceUtils.calculateTotalProcessMemoryFromComponents;
 
 /** TaskExecutorConfiguration collects the configuration of a TaskExecutor instance. */
+// TaskExecutorMemoryConfiguration 的核心作用是 收集并持久化 TaskExecutor 实例的完整内存配置信息。
+// 配置快照：它将分散在 Configuration 对象中的各项内存参数（如框架堆、任务堆、网络内存等）统一提取并转换成以“字节（Long）”为单位的具体数值。
+// 前后端交互（JSON 化）：类中大量使用了 Jackson 注解（如 @JsonProperty），这说明该类主要用于 Flink Web UI 或 REST API。当你在 Flink 仪表盘查看 TaskManager 的内存详情时，后端返回的数据模型通常就是这个类。
 public class TaskExecutorMemoryConfiguration implements Serializable {
     public static final String FIELD_NAME_FRAMEWORK_HEAP = "frameworkHeap";
     public static final String FIELD_NAME_TASK_HEAP = "taskHeap";
