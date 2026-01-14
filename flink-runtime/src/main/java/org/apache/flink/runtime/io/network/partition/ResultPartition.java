@@ -398,7 +398,9 @@ public abstract class ResultPartition implements ResultPartitionWriter {
     }
 
     // ------------------------------------------------------------------------
-
+    // 防止非法写入：在 Flink 中，一旦 Task 发送了 EndOfPartitionEvent（表示数据写完了），
+    // 这个分区就进入了只读或等待销毁的状态。
+    // 如果此时由于 Bug 或异常的异步回调尝试继续调用 emitRecord 写入数据，该方法会立即报错，防止破坏数据的一致性。
     protected void checkInProduceState() throws IllegalStateException {
         checkState(!isFinished, "Partition already finished.");
     }

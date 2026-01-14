@@ -55,20 +55,30 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * {@link #onConsumedSubpartition(int)}) then the partition as a whole is disposed and all buffers
  * are freed.
  */
+// Flink 网络传输层中的核心实现类，主要用于流式（Pipelined）数据传输。
+// 与批处理中的排序分区不同，它追求的是低延迟，即数据一旦写入缓冲区，就可以立即被下游消费。
+// 流式分发：支持数据产生后立即发送，不强制要求 Buffer 填满（通过 flush 机制）。
+// 生命周期管理：这种分区是一次性的。一旦消费者读取完毕或连接断开，该分区即被销毁，不支持重连或多次消费。
+// 状态恢复支持：实现了 CheckpointedResultPartition 接口，支持在 Unaligned Checkpoint 场景下恢复通道状态。
+// 自动释放：通过引用计数（numberOfUsers）管理资源，当写入端和所有消费端都结束时，自动释放内存。
 public class PipelinedResultPartition extends BufferWritingResultPartition
         implements CheckpointedResultPartition, ChannelStateHolder {
+    // 用于在减少引用计数时区分“写入者本身”和“子分区消费者”。
     private static final int PIPELINED_RESULT_PARTITION_ITSELF = -42;
 
     /**
      * The lock that guard operations which can be asynchronously propagated from the networks
      * threads.
      */
+    // 保护跨线程访问的属性（如指标统计和引用计数），确保线程安全。
     private final Object lock = new Object();
 
     /**
      * A flag for each subpartition indicating whether the downstream task has processed all the
      * user records.
      */
+    // 标记每个子分区的数据处理状态。
+    // 记录下游每一个 Subtask 是否已经处理完了该分区发送的所有用户数据。
     @GuardedBy("lock")
     private final boolean[] allRecordsProcessedSubpartitions;
 
@@ -76,6 +86,7 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
      * The total number of subpartitions whose user records have not been fully processed by the
      * downstream tasks yet.
      */
+    // 记录尚未处理完数据的子分区数量
     @GuardedBy("lock")
     private int numNotAllRecordsProcessedSubpartitions;
 
@@ -85,6 +96,7 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
     /**
      * The future represents whether all the records has been processed by all the downstream tasks.
      */
+    // 当所有下游子分区都处理完数据时，该 Future 会被完成。用于协调 Task 的关闭流程。
     @GuardedBy("lock")
     private final CompletableFuture<Void> allRecordsProcessedFuture = new CompletableFuture<>();
 
@@ -92,6 +104,7 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
      * A flag for each subpartition indicating whether it was already consumed or not, to make
      * releases idempotent.
      */
+    // 录哪些子分区已经被消费并释放了，防止重复调用释放逻辑。
     @GuardedBy("lock")
     private final boolean[] consumedSubpartitions;
 
@@ -102,6 +115,8 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
      * results. Even if all consumers are released, partition can not be released until writer
      * releases the partition as well.
      */
+    // 引用计数器。
+     // 初始值为 子分区数量 + 1（1 代表写入者自己）。只有当这个值归零时，整个分区才会被物理释放。
     @GuardedBy("lock")
     private int numberOfUsers;
 
@@ -188,7 +203,7 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
     public ResultSubpartitionInfo getCheckpointedSubpartitionInfo(int subpartitionIndex) {
         return subpartitions[subpartitionIndex].getSubpartitionInfo();
     }
-
+    // 强制下刷数据。
     @Override
     public void flushAll() {
         flushAllSubpartitions(false);
