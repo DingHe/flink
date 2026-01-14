@@ -28,7 +28,7 @@ import java.util.List;
 // 集成数据拉取（InputGate 的能力）、检查点协调（CheckpointableInput 的能力）和管理多个输入通道
 // 索引化： 它为输入网关引入了唯一的索引 (getGateIndex())，这在任务有多个输入（例如，处理来自不同算子的数据流或处理恢复状态的 InputGate 和新的数据流的 InputGate）时，是必不可少的身份标识。
 /** An {@link InputGate} with a specific index. */
-public abstract class IndexedInputGate extends InputGate implements CheckpointableInput {
+public abstract class  IndexedInputGate extends InputGate implements CheckpointableInput {
     /** Returns the index of this input gate. Only supported on */
     // 获取网关索引（抽象）。
     // 返回该输入网关在当前任务所有输入网关中的唯一索引。这是识别网关的关键。

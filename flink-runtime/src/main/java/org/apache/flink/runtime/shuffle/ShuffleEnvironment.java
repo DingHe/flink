@@ -101,6 +101,16 @@ import java.util.Optional;
  * @param <P> type of provided result partition writers
  * @param <G> type of provided input gates
  */
+// 定义了 TaskManager（任务执行器）本地 Shuffle 服务的运行环境。
+// 如果说 JobTable 负责管理作业的逻辑，那么 ShuffleEnvironment 则负责管理作业的 数据传输（IO）。
+// 它屏蔽了底层数据传输的具体实现（是基于内存、本地磁盘，还是远程存储）
+// ShuffleEnvironment 的主要作用是管理任务之间数据交换的生命周期和资源。
+// 数据写出控制：作为工厂类，为生产者任务创建 ResultPartitionWriter，将计算结果写入缓冲区。
+// 数据读取控制：为消费者任务创建 InputGate，从其他节点或本地读取数据。
+// 生命周期管理：负责 Shuffle 服务的启动、关闭以及中间结果数据（Partitions）的清理。
+// 资源抽象：支持插件化 Shuffle 服务。Flink 默认实现是 NettyShuffleEnvironment，但也可以扩展为外部 Shuffle 服务（如 Remote Shuffle Service）。
+// P extends ResultPartitionWriter: 代表该环境产生的生产者组件类型。
+// G extends IndexedInputGate: 代表该环境产生的消费者组件类型。
 public interface ShuffleEnvironment<P extends ResultPartitionWriter, G extends IndexedInputGate>
         extends AutoCloseable {
 
@@ -110,6 +120,7 @@ public interface ShuffleEnvironment<P extends ResultPartitionWriter, G extends I
      * @return a port to connect for the shuffle data exchange, -1 if only local connection is
      *     possible.
      */
+    // 启动 Shuffle 环境内部的相关服务（如 Netty 服务器、内存池等）
     int start() throws IOException;
 
     /**
@@ -125,6 +136,9 @@ public interface ShuffleEnvironment<P extends ResultPartitionWriter, G extends I
      * @return context of the shuffle input/output owner used to create partitions or gates
      *     belonging to the owner
      */
+    // 为特定的 Task 创建一个“IO 所有者上下文”。
+    // 包含所有者名称、执行尝试 ID（ExecutionAttemptID）和度量组。
+    // 确保每个 Task 的 Shuffle 资源能够被正确地追踪和度量。
     ShuffleIOOwnerContext createShuffleIOOwnerContext(
             String ownerName, ExecutionAttemptID executionAttemptID, MetricGroup parentGroup);
 
@@ -141,6 +155,8 @@ public interface ShuffleEnvironment<P extends ResultPartitionWriter, G extends I
      *     owner
      * @return list of the {@link ResultPartitionWriter ResultPartitionWriters}
      */
+    // 生产者工厂方法
+    // 根据部署描述符创建一组 ResultPartitionWriter
     List<P> createResultPartitionWriters(
             ShuffleIOOwnerContext ownerContext,
             List<ResultPartitionDeploymentDescriptor> resultPartitionDeploymentDescriptors);
@@ -153,6 +169,7 @@ public interface ShuffleEnvironment<P extends ResultPartitionWriter, G extends I
      *
      * @param partitionIds identifying the partitions to be released
      */
+    // 手动释放指定的本地分区资源。
     void releasePartitionsLocally(Collection<ResultPartitionID> partitionIds);
 
     /**
@@ -161,6 +178,7 @@ public interface ShuffleEnvironment<P extends ResultPartitionWriter, G extends I
      * @return collection of partitions which still occupy some resources locally and have not been
      *     released yet.
      */
+    // 查询当前哪些分区还在占用本地资源（如内存缓冲区或本地磁盘文件）
     Collection<ResultPartitionID> getPartitionsOccupyingLocalResources();
 
     /**
@@ -187,6 +205,8 @@ public interface ShuffleEnvironment<P extends ResultPartitionWriter, G extends I
      * @param inputGateDeploymentDescriptors descriptors of the input gates to consume
      * @return list of the {@link InputGate InputGates}
      */
+    // 消费者工厂方法。根据描述符创建 InputGate
+    // Task 启动时，通过此方法建立读取数据的“入口”。
     List<G> createInputGates(
             ShuffleIOOwnerContext ownerContext,
             PartitionProducerStateProvider partitionProducerStateProvider,
@@ -204,6 +224,9 @@ public interface ShuffleEnvironment<P extends ResultPartitionWriter, G extends I
      * @throws IOException IO problem by the update
      * @throws InterruptedException potentially blocking operation was interrupted
      */
+    // 动态更新分区信息。
+    // 由于 Flink 任务是并行启动的，有时消费者启动时，生产者的位置（IP/端口）还不知道。
+    // 当生产者地址确定后，JobManager 会通知消费者，消费者通过此方法更新连接信息。
     boolean updatePartitionInfo(ExecutionAttemptID consumerID, PartitionInfo partitionInfo)
             throws IOException, InterruptedException;
 }

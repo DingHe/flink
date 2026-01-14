@@ -53,7 +53,9 @@ import static org.apache.flink.util.concurrent.FutureUtils.assertNoException;
  */
 // 核心作用是将底层的网络输入（InputGate）与 Flink 的 Checkpoint 机制（CheckpointBarrierHandler）集成在一起，实现数据的拉取、事件分发以及 Checkpoint Barrier 的处理
 // 容错封装： 它封装了标准的 InputGate，拦截所有从网络接收到的 **Barrier（屏障）**和 Cancel Marker（取消标记），并将它们转发给 CheckpointBarrierHandler（这是实现对齐或非对齐 Checkpoint 逻辑的地方）。
-// 数据/事件分发： 它从 InputGate 持续拉取 BufferOrEvent。如果是数据 Buffer，它会将其传递给下游（例如 StreamTaskNetworkInput）并通知 barrierHandler 累加对齐期间处理的字节数；如果是控制事件，它会根据事件类型进行专门处理或转发。
+// 数据/事件分发： 它从 InputGate 持续拉取 BufferOrEvent。
+// 如果是数据 Buffer，它会将其传递给下游（例如 StreamTaskNetworkInput）并通知 barrierHandler 累加对齐期间处理的字节数；
+// 如果是控制事件，它会根据事件类型进行专门处理或转发。
 // 它是 Task 内部的网络输入组件，专门用于处理和协调 Checkpoint Barrier，确保 Flink 的容错语义（如一致性）在数据传输过程中得到正确维护。
 
 
@@ -69,7 +71,8 @@ public class CheckpointedInputGate implements PullingAsyncDataInput<BufferOrEven
     /** The gate that the buffer draws its input from. */
     // 底层网络输入门。 原始的网络 I/O 组件，负责从网络接收 Buffer 和 Event。
     private final InputGate inputGate;
-    // Mailbox 执行器。 用于将优先级网络事件提交给 Task 的 Mailbox 线程执行，以避免 Task 主线程阻塞在 I/O 时错过重要事件。
+    // Mailbox 执行器。
+    // 用于将优先级网络事件提交给 Task 的 Mailbox 线程执行，以避免 Task 主线程阻塞在 I/O 时错过重要事件。
     private final MailboxExecutor mailboxExecutor;
 
     /** Indicate end of the input. */

@@ -29,7 +29,8 @@ import java.util.function.Consumer;
 /** A subclass of {@link StreamTaskSourceInput} for {@link ExternallyInducedSourceReader}. */
 public class StreamTaskExternallyInducedSourceInput<T> extends StreamTaskSourceInput<T> {
     // Checkpoint 触发钩子
-    // 用于实际向 JobManager 触发 Checkpoint 的逻辑。它接收 Checkpoint ID 作为参数。当 Source Reader 判断需要触发 Checkpoint 时，会调用此 Hook
+    // 用于实际向 JobManager 触发 Checkpoint 的逻辑。
+    // 它接收 Checkpoint ID 作为参数。当 Source Reader 判断需要触发 Checkpoint 时，会调用此 Hook
     private final Consumer<Long> checkpointTriggeringHook;
     // 外部触发 Source Reader 实例
     private final ExternallyInducedSourceReader<T, ?> sourceReader;

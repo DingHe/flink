@@ -60,37 +60,42 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * the buffers for the network data transfer. When new local buffer pools are created, the
  * NetworkBufferPool dynamically redistributes the buffers between the pools.
  */
+// NetworkBufferPool 是 Flink 网络传输层的核心组件，位于 TaskManager 中。它主要负责管理整个 TaskManager 节点级别的网络内存资源。
+// 全局内存分配：在 TaskManager 启动时，预先分配一大块堆外内存（Off-heap Memory），并将其切分为固定大小的 MemorySegment（默认 32KB）。
+// 动态资源分配：它为每一个 Task 相关的 LocalBufferPool 分配内存。当作业运行、Task 启动或停止时，它会动态地在各个 LocalBufferPool 之间重新分配（Redistribute）空闲的缓冲区。
+// 防止资源耗尽：通过设置最大、最小缓冲区限制，确保网络传输不会无限制占用内存，同时保证每个 Task 至少有最基本的可用内存。
 public class NetworkBufferPool
         implements BufferPoolFactory, MemorySegmentProvider, AvailabilityProvider {
-
+    // 定义无限大连接池的值
     public static final int UNBOUNDED_POOL_SIZE = Integer.MAX_VALUE;
-
+    // 内存使用警告阈值（100%），用于触发日志警告。
     private static final int USAGE_WARNING_THRESHOLD = 100;
 
     private static final Logger LOG = LoggerFactory.getLogger(NetworkBufferPool.class);
-
+    // 全局池管理的总 MemorySegment 数量。
     private final int totalNumberOfMemorySegments;
-
+    // 每个 MemorySegment 的字节大小（通常由 taskmanager.memory.segment-size 配置）
     private final int memorySegmentSize;
-
+    // 核心容器：存储当前空闲、可被分配的 MemorySegment 实例。
     private final ArrayDeque<MemorySegment> availableMemorySegments;
-
+    // 标记该全局池是否已被销毁。
     private volatile boolean isDestroyed;
 
     // ---- Managed buffer pools ----------------------------------------------
-
+    // 工厂锁
+    // 用于同步 LocalBufferPool 的创建、销毁以及缓冲区的重新分配。
     private final Object factoryLock = new Object();
-
+    // 维护所有从该池创建的 LocalBufferPool 实例
     private final Set<LocalBufferPool> allBufferPools = new HashSet<>();
-
+    // 维护那些配置了最大/最小范围、可以动态调整大小的 LocalBufferPool。
     private final Set<LocalBufferPool> resizableBufferPools = new HashSet<>();
-
+    // 所有已创建 BufferPool 的“最小保证（Required）”缓冲区总和。
     private int numTotalRequiredBuffers;
-
+    // 申请内存段时的超时时间。
     private final Duration requestSegmentsTimeout;
-
+    // 辅助工具，用于处理异步可用性通知（当池中有了新空闲 Segment 时通知等待者）。
     private final AvailabilityHelper availabilityHelper = new AvailabilityHelper();
-
+    // 记录上一次检查的内存使用率，避免重复打印相同警告日志。
     private int lastCheckedUsage = -1;
 
     @VisibleForTesting

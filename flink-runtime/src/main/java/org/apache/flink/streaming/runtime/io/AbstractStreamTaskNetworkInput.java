@@ -58,7 +58,8 @@ public abstract class AbstractStreamTaskNetworkInput<
     // 带 Checkpoint 的输入门（核心）。
     // 这是实际从网络拉取 Buffer 或 Event 的组件，并负责处理 Checkpoint Barrier 对齐和通道状态的写入/恢复。
     protected final CheckpointedInputGate checkpointedInputGate;
-    // 反序列化委托。 用于将字节流反序列化成 StreamElement（包括数据记录、水位线、延迟标记等）
+    // 反序列化委托。
+    // 用于将字节流反序列化成 StreamElement（包括数据记录、水位线、延迟标记等）
     protected final DeserializationDelegate<StreamElement> deserializationDelegate;
     // 负责序列化 Task 接收到的实际用户数据（类型 T）
     protected final TypeSerializer<T> inputSerializer;
@@ -66,11 +67,13 @@ public abstract class AbstractStreamTaskNetworkInput<
     // R 是一个泛型，表示特定类型的反序列化器。
     protected final Map<InputChannelInfo, R> recordDeserializers;
     // 扁平化通道索引映射。
-    // 将每个输入通道映射到一个从 0 开始的扁平索引。这个索引主要供 StatusWatermarkValve 使用，用于识别来自哪个通道的水位线。
+    // 将每个输入通道映射到一个从 0 开始的扁平索引。
+    // 这个索引主要供 StatusWatermarkValve 使用，用于识别来自哪个通道的水位线。
     protected final Map<InputChannelInfo, Integer> flattenedChannelIndices = new HashMap<>();
     /** Valve that controls how watermarks and watermark statuses are forwarded. */
     // 状态水位线控制阀。
-    // 负责对齐来自所有输入通道的水位线（Watermark）和水位线状态（Watermark Status）。只有当控制阀允许时，水位线才会被向下游 Task 发送。
+    // 负责对齐来自所有输入通道的水位线（Watermark）和水位线状态（Watermark Status）。
+    // 只有当控制阀允许时，水位线才会被向下游 Task 发送。
     protected final StatusWatermarkValve statusWatermarkValve;
     // 输入索引。
     // 标识该网络输入在整个 Task 所有输入中的逻辑索引位置（例如，对于双输入 Task，可能是 0 或 1）。
@@ -181,7 +184,6 @@ public abstract class AbstractStreamTaskNetworkInput<
      */
     // Flink 运行时在接收到网络数据后，对反序列化出的 流元素（StreamElement） 进行分派和处理的核心逻辑。
     // 它负责将用户数据转发给操作符，并将控制事件（如 Watermark、WatermarkStatus 等）路由给相应的协调组件。
-
     // 该方法返回一个布尔值，指示外部调用者（即 emitNext 方法）是否应该在处理完这个元素后立即中断当前的批量发射循环 (while(true))，
     // 并将控制权返回给 Mailbox。返回 true 表示中断并返回，返回 false 表示可以继续批量处理下一条记录。
     private boolean processElement(StreamElement streamElement, DataOutput<T> output)

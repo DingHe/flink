@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 // 高性能 I/O 抽象： 提供一套抽象接口来创建高性能的**块（Block）**读写器（Reader/Writer），这些读写器直接操作 MemorySegment，通常会利用 NIO 或异步 I/O 来最小化对任务执行的阻塞。
 // 异步 I/O 执行： 维护一个专用的线程池（ExecutorService）来执行实际的磁盘读写操作，从而实现异步 I/O，防止 I/O 延迟阻塞 Flink 的计算线程。
 // IOManager 是 Flink 的本地磁盘溢写（Spilling）服务，确保 Flink 即使在处理超大数据集时，也能稳定且高效地运行，并将磁盘 I/O 隔离到后台线程。
+
 public abstract class IOManager implements AutoCloseable {
     protected static final Logger LOG = LoggerFactory.getLogger(IOManager.class);
     // 临时文件目录名称的前缀，默认为 "io"，用于在配置的临时目录中创建 Flink I/O 专用的子目录。

@@ -46,6 +46,9 @@ import java.util.Optional;
  * In order to completely remove the {@link Job} from the {@link JobTable}, one needs to call {@link
  * Job#close} which also closes the associated {@link JobTable.JobServices} instance.
  */
+// JobTable 的主要职责是在 TaskExecutor 端维护和管理所有 Flink 作业的状态及其与 JobManager 的连接。
+// 作业实体映射：它充当了一个容器，记录了当前 TaskExecutor 上正在运行的所有作业（Job）。每个作业由 JobID 唯一标识。
+// 生命周期管理：它定义了作业从创建（Registered）、连接（Connected）、断开连接（Disconnected）到彻底关闭（Closed）的完整流转逻辑。
 public interface JobTable extends AutoCloseable {
 
     /**
@@ -57,6 +60,7 @@ public interface JobTable extends AutoCloseable {
      * @return the current job (existing or created) registered under jobId
      * @throws E if the job services could not be created
      */
+    // 获取已存在的作业实体，如果不存在则创建一个。
     <E extends Exception> Job getOrCreateJob(
             JobID jobId,
             SupplierWithException<? extends JobTable.JobServices, E> jobServicesSupplier)
@@ -69,6 +73,7 @@ public interface JobTable extends AutoCloseable {
      * @return an {@code Optional} containing the {@link Job} registered under jobId, or an empty
      *     {@code Optional} if no job has been registered
      */
+    // 根据 JobID 检索作业。如果该作业尚未在 TaskExecutor 上注册，则返回空。
     Optional<Job> getJob(JobID jobId);
 
     /**
@@ -79,6 +84,7 @@ public interface JobTable extends AutoCloseable {
      *     empty {@code Optional} if no connection has been registered (this could also mean that a
      *     job which has not been connected exists)
      */
+    // 获取已经建立的连接。你可以通过 JobID 或 JobManager 的 ResourceID 来查找。
     Optional<Connection> getConnection(JobID jobId);
 
     /**
@@ -95,6 +101,7 @@ public interface JobTable extends AutoCloseable {
      *
      * @return collection of registered jobs
      */
+    // 返回当前 TaskExecutor 上注册的所有作业集合。
     Collection<Job> getJobs();
 
     /**
@@ -102,6 +109,7 @@ public interface JobTable extends AutoCloseable {
      *
      * @return {@code true} if the job table does not contain any jobs, otherwise {@code false}
      */
+    // 检查当前是否有作业正在运行
     boolean isEmpty();
 
     /**
@@ -112,6 +120,7 @@ public interface JobTable extends AutoCloseable {
      * <p>Accessing any methods after a job has been closed will throw an {@link
      * IllegalStateException}.
      */
+    // 代表一个在 TaskExecutor 上登记的作业。
     interface Job {
 
         /**
@@ -119,6 +128,7 @@ public interface JobTable extends AutoCloseable {
          *
          * @return {@code true} if the job is connected to a JobManager, otherwise {@code false}
          */
+        // 判断当前作业是否已经与对应的 JobManager（JobMaster）建立了活跃连接。
         boolean isConnected();
 
         /**
@@ -135,6 +145,7 @@ public interface JobTable extends AutoCloseable {
          *     job is connected to a leading JobManager, or an empty {@code Optional} if the job is
          *     not connected
          */
+        // 如果作业已连接，将其“转型”为 Connection 对象，以便访问 JobManager 的 Gateway。
         Optional<Connection> asConnection();
 
         /**
@@ -152,6 +163,8 @@ public interface JobTable extends AutoCloseable {
          * @return the established {@link Connection}
          * @throws IllegalStateException if the job is already connected
          */
+        // 核心方法。
+        // 将作业与具体的 JobManager 建立关联
         Connection connect(
                 ResourceID resourceId,
                 JobMasterGateway jobMasterGateway,
@@ -161,6 +174,7 @@ public interface JobTable extends AutoCloseable {
                 PartitionProducerStateChecker partitionStateChecker);
 
         /** Closes this job and removes it from the owning {@link JobTable}. */
+        // 关闭作业，并将其从 JobTable 中移除，同时销毁 JobServices
         void close();
     }
 
@@ -174,6 +188,7 @@ public interface JobTable extends AutoCloseable {
      * <p>Accessing any methods after a connection has been disconnected will throw an {@link
      * IllegalStateException}.
      */
+    // 代表作业与 JobManager 之间的活跃会话。
     interface Connection {
 
         /**
@@ -182,6 +197,8 @@ public interface JobTable extends AutoCloseable {
          *
          * @return the remaining job belonging to this connection
          */
+        // 断开与当前 JobManager 的连接。
+        // 关闭所有绑定在连接上的服务，但作业实体本身依然保留在 JobTable 中（以便后续可能的重连）
         Job disconnect();
 
         JobMasterId getJobMasterId();
@@ -215,6 +232,7 @@ public interface JobTable extends AutoCloseable {
          *
          * @return {@link LibraryCacheManager.ClassLoaderHandle} for the associated job
          */
+        // 提供该作业专属的类加载器，用于解析用户上传的 Jar 包。
         LibraryCacheManager.ClassLoaderHandle getClassLoaderHandle();
 
         /**
@@ -222,6 +240,7 @@ public interface JobTable extends AutoCloseable {
          *
          * <p>This method is called once the {@link JobTable.Job} is being closed.
          */
+        // 当作业彻底结束时调用，回收类加载资源。
         void close();
     }
 }

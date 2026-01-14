@@ -32,7 +32,8 @@ import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
  * Optional.empty()} via {@link PullingAsyncDataInput#pollNext()}.
  */
 // 统一输入处理模型： 为 Flink 任务定义了一个统一的异步数据输入机制，适用于从网络（上游 Task 的输出）和数据源（Source Task 的输入）获取数据。
-// 推模式（Pushing）： 区别于传统的拉模式（Pulling）。在这种模式下，数据输入方（例如 InputGate 或 SourceReader）负责主动将数据推送到下游的输出处理逻辑（由 DataOutput 接口定义），而不是等待下游主动调用 pollNext() 来拉取数据。
+// 推模式（Pushing）： 区别于传统的拉模式（Pulling）。
+// 在这种模式下，数据输入方（例如 InputGate 或 SourceReader）负责主动将数据推送到下游的输出处理逻辑（由 DataOutput 接口定义），而不是等待下游主动调用 pollNext() 来拉取数据。
 // 支持背压（Backpressure）： 通过返回的 DataInputStatus 来通知调用方当前输入的状态，从而在没有数据时暂停拉取，实现流量控制和背压。
 @Internal
 public interface PushingAsyncDataInput<T> extends AvailabilityProvider {

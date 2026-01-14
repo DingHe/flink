@@ -79,7 +79,7 @@ public interface AvailabilityProvider {
         return getAvailableFuture() == AVAILABLE;
     }
 
-    //逻辑 AND 组合。
+    // 逻辑 AND 组合。
     // 接收两个 CompletableFuture，返回一个新的 Future，该 Future 仅在两者都完成时才会完成
     static CompletableFuture<?> and(CompletableFuture<?> first, CompletableFuture<?> second) {
         if (first == AVAILABLE && second == AVAILABLE) {

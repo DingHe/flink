@@ -35,18 +35,27 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-
+// DefaultJobTable 是 Flink 任务执行器（TaskExecutor）中 JobTable 接口的默认实现。
+// 它像是一个“作业管理器”，在 TaskManager 的内存中维护着所有正在运行或已注册的作业信息。
+// DefaultJobTable 的主要作用是通过内存映射表管理作业及其与 JobManager 之间的连接状态。
+// 它的设计精妙之处在于将 作业实体（Job） 和 连接状态（Connection） 统一到了一个名为 JobOrConnection 的内部类中。这使得 TaskExecutor 可以：
+// 按 ID 快速索引：通过 JobID 或 JobManager 的 ResourceID 瞬间找到对应的资源和服务。
+// 解耦作业与连接：即使与 JobManager 的网络连接断开了（Disconnect），作业的服务（如类加载器）依然可以留在表中，直到显式关闭（Close）。
 /** Default implementation of the {@link JobTable}. */
 public final class DefaultJobTable implements JobTable {
+    // 主存储表。
+    // 以 JobID 为键，保存了 TaskExecutor 上所有的作业对象。
     private final Map<JobID, JobOrConnection> jobs;
-
+    // 二级索引。
+    // 建立 JobManager 资源 ID 到作业 ID 的映射，方便在收到来自特定 JM 的消息时快速定位作业。
     private final Map<ResourceID, JobID> resourceIdJobIdIndex;
 
     private DefaultJobTable() {
         this.jobs = new HashMap<>();
         this.resourceIdJobIdIndex = new HashMap<>();
     }
-
+    // 如果作业已在表中则返回；
+    // 不在则调用 supplier 创建新的作业服务并存入 Map。
     @Override
     public <E extends Exception> Job getOrCreateJob(
             JobID jobId,

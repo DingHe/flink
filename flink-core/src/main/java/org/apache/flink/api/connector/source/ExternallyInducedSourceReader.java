@@ -42,6 +42,12 @@ import java.util.Optional;
  * @param <T> The type of records produced by the source.
  * @param <SplitT> The type of splits handled by the source.
  */
+// 在 Flink 的 Source 连接器架构（FLIP-27）中，ExternallyInducedSourceReader 是一个特殊的接口。
+// 它打破了 Flink 传统的“由 Checkpoint 协调器统一触发”的模式，赋予了数据源主动触发 Checkpoint 的能力。
+// 在 Flink 默认的机制中，Checkpoint 是由 JobManager 端的 Checkpoint Coordinator 定期发起的。但在某些特殊场景下（例如从消息队列 Pravega 或某些具有事务特性的外部系统读取数据时），数据源（Source）本身更清楚什么时候该做快照。
+// 外部诱导/触发： 它允许 Source Reader 根据从外部系统接收到的特定消息（如 Checkpoint 标记位、特定的 Event 等）来告知 Flink 运行环境：“现在应该开始做 Checkpoint 了”。
+// 同步外部事务： 确保 Flink 的 Checkpoint 边界与外部存储系统的事务边界或数据分块边界严格一致。
+
 @Experimental
 @PublicEvolving
 public interface ExternallyInducedSourceReader<T, SplitT extends SourceSplit>
@@ -60,5 +66,9 @@ public interface ExternallyInducedSourceReader<T, SplitT extends SourceSplit>
      *
      * @return An optional checkpoint ID that Flink runtime should take a checkpoint for.
      */
+    // 调用时机： Flink 运行时会在 pollNext(ReaderOutput) 返回 InputStatus.NOTHING_AVAILABLE（即当前没有新数据可读）时，
+    // 主动调用此方法进行检查。
+    // 返回 Optional.of(checkpointId)：Source Reader 告诉 Flink ：“请立刻以这个 checkpointId 发起一次 Checkpoint”。
+    // Flink 接收到这个信号后，会启动快照流程。
     Optional<Long> shouldTriggerCheckpoint();
 }
