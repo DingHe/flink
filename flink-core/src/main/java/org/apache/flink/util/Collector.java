@@ -25,7 +25,8 @@ import org.apache.flink.annotation.Public;
  * java.util.Iterator}, which "pulls" data in.
  */
 // Flink 数据流编程模型中实现向下游输出数据的通用机制。
-// 在 Flink 中，运算符（Operator）处理完输入数据后，需要将结果发送给链中的下一个运算符或输出到外部系统。Collector 就是用于实现这种**数据推送（Push-based）**的抽象。
+// 在 Flink 中，运算符（Operator）处理完输入数据后，需要将结果发送给链中的下一个运算符或输出到外部系统。
+// Collector 就是用于实现这种**数据推送（Push-based）**的抽象。
 // 推模式 vs 拉模式： 如接口注释所述，Collector 是 Java 标准库中 Iterator 的“推模式”对应物。Iterator 是拉取（Pull）数据，而 Collector 是推送（Push）数据。
 // 核心用途： 任何生成结果记录的 Flink 函数（例如 MapFunction, FlatMapFunction, SourceFunction 等）都会获得一个 Collector 实例，它们通过调用 collect(T record) 方法将结果向下游发出
 
