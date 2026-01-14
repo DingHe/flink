@@ -288,10 +288,18 @@ public class SourceOperatorStreamTask<T> extends StreamTask<T, SourceOperator<T,
     // ---------------------------
 
     /** Implementation of {@link DataOutput} that wraps a specific {@link Output}. */
+    // 主要作用是：将异步数据读取层（DataOutput 接口）产生的数据，桥接到 Flink 算子链的输出层（Output 接口）。
+    // 在 Flink 的新版 Source 架构（Flip-27）中，数据读取是在 SourceReader 中异步进行的。读取到的数据需要通过一个统一的接口下发。该类负责：
+    // 接口转换：将 DataOutput<T> 的方法调用转换为 Output<StreamRecord<T>> 的调用。
+    // 指标埋点：在数据流经该组件时，自动更新 Source 相关的监控指标（如记录发射数、水位线值等）。
     public static class AsyncDataOutputToOutput<T> implements DataOutput<T> {
-
+        // 底层真正负责数据分发的组件。
+        // 常对应于算子链中的下游算子。当调用此对象的 collect 方法时，数据就会被发送到下一个算子进行处理。
         private final Output<StreamRecord<T>> output;
+        // Source 专用的度量指标组。
+        // 用于记录 Source 级别的监控信息。通过这个属性，Flink 能够统计诸如“读取了多少条记录”、“最后一次读取的时间戳”以及“当前发射的水位线”等关键运维指标。
         private final InternalSourceReaderMetricGroup metricGroup;
+        // 水位线测量仪表。
         @Nullable private final WatermarkGauge inputWatermarkGauge;
 
         public AsyncDataOutputToOutput(

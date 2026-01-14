@@ -244,16 +244,26 @@ public class StreamMultipleInputProcessorFactory {
      * The network data output implementation used for processing stream elements from {@link
      * StreamTaskNetworkInput} in two input selective processor.
      */
+    // 接收从网络输入端（StreamTaskNetworkInput）反序列化出来的流元素，并将它们分发给算子的处理逻辑。
+    // 输入端（StreamTaskNetworkInput）负责从网络 Buffer 中解析出对象。
+    // 中间人（StreamTaskNetworkOutput）负责记录监控指标（如输入速率、水位线），并执行 JIT 优化的分发逻辑。
+    // 目的地（Input<T> / Operator）负责执行真正的业务逻辑。
     private static class StreamTaskNetworkOutput<T> implements PushingAsyncDataInput.DataOutput<T> {
+        // 这是数据的下游目的地。
+        // 通常指向算子（Operator）的包装对象。所有的元素（记录、水位线等）最终都会调用这个对象的 processXXX 方法进行业务处理。
         private final Input<T> input;
-
+        // 水位线度量指标
+        // 用于在 Flink UI 或监控系统中展示当前算子收到的最大水位线。每当有新的水位线通过时，它会更新内部的时间戳。
         private final WatermarkGauge inputWatermarkGauge;
-
+        // 算子级别的输入记录计数器。
+        // 记录该算子接收到的总记录数，用于计算算子的吞吐量（TPS）。
         private final Counter mainOperatorRecordsIn;
-
+        // 网络层级别的输入记录计数器。
+        // 通常用于统计从特定网络通道进入的数据量，帮助分析是否存在背压或网络倾斜。
         private final Counter networkRecordsIn;
 
         /** The function way is only used for frequent record processing as for JIT optimization. */
+        // 高度优化的记录处理函数。
         private final ThrowingConsumer<StreamRecord<T>, Exception> recordConsumer;
 
         private StreamTaskNetworkOutput(
@@ -296,7 +306,10 @@ public class StreamMultipleInputProcessorFactory {
             input.processRecordAttributes(recordAttributes);
         }
     }
-
+    // StreamTaskSourceOutput 是 AsyncDataOutputToOutput 的一个特定子类。
+    // 它的核心作用是：专门为 Source 算子（SourceOperator）定制的输出适配器，用于将 SourceReader 产生的数据直接对接到 Flink 的算子链（Operator Chain）中。
+    // 然父类 AsyncDataOutputToOutput 已经处理了大部分记录和指标的转换，但在 SourceOperatorStreamTask（即新版 Source 的执行任务）中，输出端通常是一个更复杂的 WatermarkGaugeExposingOutput。
+    // 这个子类通过显式持有这个特殊的输出接口，确保了水位线状态（WatermarkStatus）能够正确地在算子链中传播，而不仅仅是作为普通事件处理。
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static class StreamTaskSourceOutput
             extends SourceOperatorStreamTask.AsyncDataOutputToOutput {

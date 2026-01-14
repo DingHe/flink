@@ -54,7 +54,10 @@ import static java.util.stream.Collectors.toMap;
  * given lock object. This ensures that we don't call methods on a {@link StreamInputProcessor}
  * concurrently with the timer callback or other things.
  */
-// Flink 任务中用于处理网络输入（即来自上游任务的数据）的最终实现类。它是连接 Flink 网络 I/O 子系统和 Stream Task 逻辑处理器的关键桥梁
+// 负责 “从网络层摄取数据并将其转换为算子可识别对象” 的核心组件。它位于网络堆栈（Network Stack）与算子处理逻辑（StreamTask）之间。
+// 数据的“翻译官”（反序列化）：它将从上游 TaskManager 发送过来的、存储在 Buffer 中的字节流数据，通过反序列化器还原成 Java 对象（如 StreamRecord、Watermark 或 LatencyMarker）。
+// 网络通道的管理：它包装了 CheckpointedInputGate，负责从多个输入通道（Input Channels）读取数据，并感知通道的状态（是否空闲、是否到达水位线等）。
+// 支持非对齐 Checkpoint：它是 Flink 实现 Unaligned Checkpoint 的关键环节。它负责在 Snapshot 时捕获那些已经到达 Task 但还在反序列化器缓冲区中未被处理的数据（In-flight Data），并将其写入 Checkpoint。
 @Internal
 public final class StreamTaskNetworkInput<T>
         extends AbstractStreamTaskNetworkInput<
@@ -65,7 +68,7 @@ public final class StreamTaskNetworkInput<T>
     public StreamTaskNetworkInput(
             CheckpointedInputGate checkpointedInputGate,
             TypeSerializer<T> inputSerializer,
-            IOManager ioManager,
+            IOManager ioManager, // 负责处理磁盘 I/O（用于大记录溢写）
             StatusWatermarkValve statusWatermarkValve,
             int inputIndex,
             CanEmitBatchOfRecordsChecker canEmitBatchOfRecords) {
@@ -79,6 +82,8 @@ public final class StreamTaskNetworkInput<T>
     }
 
     // Initialize one deserializer per input channel
+    // 为每一个输入通道（Input Channel）初始化一个独立的反序列化器。
+    // 由于一条 Flink 记录可能被拆分到多个网络 Buffer 中发送，因此每个通道必须有自己的反序列化器来维护解析状态。
     private static Map<
                     InputChannelInfo,
                     SpillingAdaptiveSpanningRecordDeserializer<
@@ -93,7 +98,7 @@ public final class StreamTaskNetworkInput<T>
                                         new SpillingAdaptiveSpanningRecordDeserializer<>(
                                                 ioManager.getSpillingDirectoriesPaths())));
     }
-
+    // 在执行 Checkpoint 快照时，保存当前网络层的状态
     @Override
     public CompletableFuture<Void> prepareSnapshot(
             ChannelStateWriter channelStateWriter, long checkpointId) throws CheckpointException {

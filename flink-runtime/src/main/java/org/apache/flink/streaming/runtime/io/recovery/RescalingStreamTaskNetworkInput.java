@@ -78,6 +78,11 @@ import static org.apache.flink.util.Preconditions.checkState;
  * the cross product of channels. So if two subtasks are collapsed and two channels overlap from the
  * output side, there is a total of 4 virtual channels.
  */
+// 专门用于 状态恢复（Recovery）阶段 的特殊输入组件。
+// 主要作用是解决 “扩缩容（Rescaling）场景下的非对齐 Checkpoint 恢复”。
+// 当 Flink 任务在含有“非对齐 Checkpoint（Unaligned Checkpoint）”的情况下进行扩缩容（改变并行度）时，会出现以下挑战：
+// 虚拟通道解复用（Demultiplexing）：原来一个物理通道里的数据，现在可能需要分给多个新的子任务；或者多个旧物理通道的数据汇聚到了现在的一个通道里。
+// 数据过滤（Filtering）：恢复时的“飞行中数据”（In-flight data）可能包含不属于当前子任务的数据，需要根据分区规则（Partitioner）重新过滤，确保每条记录只被处理一次。
 @Internal
 public final class RescalingStreamTaskNetworkInput<T>
         extends AbstractStreamTaskNetworkInput<T, DemultiplexingRecordDeserializer<T>>
@@ -85,6 +90,7 @@ public final class RescalingStreamTaskNetworkInput<T>
 
     private static final Logger LOG =
             LoggerFactory.getLogger(RescalingStreamTaskNetworkInput.class);
+    // Flink 的 I/O 管理器，用于处理反序列化过程中可能产生的临时磁盘溢写。
     private final IOManager ioManager;
 
     public RescalingStreamTaskNetworkInput(
@@ -93,8 +99,8 @@ public final class RescalingStreamTaskNetworkInput<T>
             IOManager ioManager,
             StatusWatermarkValve statusWatermarkValve,
             int inputIndex,
-            InflightDataRescalingDescriptor inflightDataRescalingDescriptor,
-            Function<Integer, StreamPartitioner<?>> gatePartitioners,
+            InflightDataRescalingDescriptor inflightDataRescalingDescriptor, // 描述扩缩容映射关系的描述符
+            Function<Integer, StreamPartitioner<?>> gatePartitioners, // 调用父类构造器并创建特殊的解复用反序列化器
             TaskInfo taskInfo,
             CanEmitBatchOfRecordsChecker canEmitBatchOfRecords) {
         super(
