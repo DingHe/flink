@@ -166,8 +166,9 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
     void onConsumedSubpartition(int subpartitionIndex) {
         decrementNumberOfUsers(subpartitionIndex);
     }
-
+    // decrementNumberOfUsers 是负责资源释放逻辑的核心方法。它利用**引用计数（Reference Counting）**机制来决定何时可以安全地销毁整个结果分区。
     private void decrementNumberOfUsers(int subpartitionIndex) {
+        // 果分区已经被释放了，则直接返回
         if (isReleased()) {
             return;
         }
@@ -177,7 +178,9 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
         // we synchronize only the bookkeeping section, to avoid holding the lock during any
         // calls into other components
         synchronized (lock) {
+            // 判断当前通知者是不是一个具体的下游子分区消费者（Subpartition
             if (subpartitionIndex != PIPELINED_RESULT_PARTITION_ITSELF) {
+                // 如果某个子分区已经报告过“读完了”，第二次报告时直接忽略，确保计数器不会被错误地多减。
                 if (consumedSubpartitions[subpartitionIndex]) {
                     // repeated call - ignore
                     return;
@@ -185,12 +188,13 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
 
                 consumedSubpartitions[subpartitionIndex] = true;
             }
+            // 核心计数递减。
             remainingUnconsumed = (--numberOfUsers);
         }
 
         LOG.debug(
                 "{}: Received consumed notification for subpartition {}.", this, subpartitionIndex);
-
+        // 当计数归零时，触发物理销毁。
         if (remainingUnconsumed == 0) {
             partitionManager.onConsumedPartition(this);
         } else if (remainingUnconsumed < 0) {

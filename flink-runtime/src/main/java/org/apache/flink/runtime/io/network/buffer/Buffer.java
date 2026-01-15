@@ -308,7 +308,8 @@ public interface Buffer {
          * time-out'ed to an unaligned checkpoint barrier.
          */
 
-        // 可超时的对齐 Checkpoint Barrier。表示一个可超时的对齐屏障，如果超时，将降级为非对齐模式。它也阻塞上游，并且需要宣告。
+        // 可超时的对齐 Checkpoint Barrier。
+        // 表示一个可超时的对齐屏障，如果超时，将降级为非对齐模式。它也阻塞上游，并且需要宣告。
         TIMEOUTABLE_ALIGNED_CHECKPOINT_BARRIER(false, true, true, false, true, false),
 
         /**

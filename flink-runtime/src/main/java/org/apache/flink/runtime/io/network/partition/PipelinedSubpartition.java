@@ -187,6 +187,7 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         checkState(this.channelStateWriter == null, "Already initialized");
         this.channelStateWriter = checkNotNull(channelStateWriter);
     }
+
     // 添加 Buffer。
     // 将新的 BufferConsumer 写入队列。
     // 这是生产数据的入口。
@@ -199,6 +200,7 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
     public boolean isSupportChannelStateRecover() {
         return true;
     }
+
     // 完成写入。
     // 向下游关闭数据写入，将 EndOfPartitionEvent 写入队列，并设置 isFinished = true
     @Override
@@ -209,13 +211,19 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         LOG.debug("{}: Finished {}.", parent.getOwningTaskName(), this);
         return eventBufferConsumer.getWrittenBytes();
     }
+    // add 是数据从 Task 线程（生产者） 正式进入 发送队列（等待 Netty 传输） 的核心方法。
+    // 它不仅负责把数据“放进队列”，还承担了统计监控、反压控制和事件通知的重任。
+    // bufferConsumer：包装了物理内存的消费者视图。
+    // finish：布尔值，表示这是否是该分区的最后一个 Buffer（通常在 Task 结束时为 true）。
 
     private int add(BufferConsumer bufferConsumer, int partialRecordLength, boolean finish) {
         checkNotNull(bufferConsumer);
-
+        // 标记是否需要通知下游有新数据
         final boolean notifyDataAvailable;
         int prioritySequenceNumber = DEFAULT_PRIORITY_SEQUENCE_NUMBER;
+        // 用于返回给上层的期望 Buffer 大小（Buffer Debloating 机制）。
         int newBufferSize;
+        // 加锁保护队列并进行状态检查
         synchronized (buffers) {
             if (isFinished || isReleased) {
                 bufferConsumer.close();
@@ -223,17 +231,24 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
             }
 
             // Add the bufferConsumer and update the stats
+            // 调用内部方法 addBuffer 将 bufferConsumer 插入 buffers 队列。
+            // 如果插入的是一个高优先级的 Buffer（例如 Checkpoint Barrier），则更新 prioritySequenceNumber，以便稍后触发优先级通知。
             if (addBuffer(bufferConsumer, partialRecordLength)) {
                 prioritySequenceNumber = sequenceNumber;
             }
+            // 更新统计信息。
             updateStatistics(bufferConsumer);
+            // 增加 Backlog（积压） 计数。
+            // Backlog 的大小会告诉下游：我这里还有多少数据没发，下游会据此决定是否申请更多的接收 Buffer。
             increaseBuffersInBacklog(bufferConsumer);
+            // 判定是否通知下游
             notifyDataAvailable = finish || shouldNotifyDataAvailable();
 
             isFinished |= finish;
+            // 更新状态位，并获取当前的 bufferSize（这是 Buffer Debloating 计算出的建议大小，将作为返回值告知生产者）
             newBufferSize = bufferSize;
         }
-
+        // 如果刚才加入的是 Barrier 等特殊事件，立即通知下游优先处理，这是 Flink 实现 Unaligned Checkpoint 的关键点之一
         notifyPriorityEvent(prioritySequenceNumber);
         if (notifyDataAvailable) {
             notifyDataAvailable();
@@ -241,12 +256,16 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
 
         return newBufferSize;
     }
-
+    // addBuffer 方法是数据入队的“最后一步”逻辑。
+    // 它负责识别不同类型的 Buffer（数据 vs 控制事件），并根据它们的优先级决定是“顺序排队”还是“特殊处理”。
     @GuardedBy("buffers")
     private boolean addBuffer(BufferConsumer bufferConsumer, int partialRecordLength) {
+        // 在开发测试阶段确保调用者确实持有锁
         assert Thread.holdsLock(buffers);
+        // 检查 Buffer 的数据类型是否具有优先级（例如：Checkpoint Barrier、Cancel Task Event 等）
         if (bufferConsumer.getDataType().hasPriority()) {
             return processPriorityBuffer(bufferConsumer, partialRecordLength);
+        // 超时对齐 Barrier 处理
         } else if (Buffer.DataType.TIMEOUTABLE_ALIGNED_CHECKPOINT_BARRIER
                 == bufferConsumer.getDataType()) {
             processTimeoutableCheckpointBarrier(bufferConsumer);
@@ -255,20 +274,32 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         return false;
     }
 
+    // processPriorityBuffer 是实现 非对齐检查点（Unaligned Checkpoint） 的核心方法。
+    // 当一个具有优先级的事件（通常是 CheckpointBarrier）到达子分区时，该方法负责将其“插队”并处理“在途数据（In-flight Data）
     @GuardedBy("buffers")
     private boolean processPriorityBuffer(BufferConsumer bufferConsumer, int partialRecordLength) {
+        // 执行“插队”入队
         buffers.addPriorityElement(
                 new BufferConsumerWithPartialRecordLength(bufferConsumer, partialRecordLength));
+        // 记录了当前队列头部有多少个优先级元素。
         final int numPriorityElements = buffers.getNumPriorityElements();
 
+        // 解析并校验 Barrier
+        // 尝试将缓冲区内容解析为 CheckpointBarrier。
+        // 如果解析成功，必须确保它是“非对齐”模式。因为在 Flink 中，只有非对齐检查点才会把 Barrier 作为优先级事件来处理以绕过反压。
         CheckpointBarrier barrier = parseCheckpointBarrier(bufferConsumer);
         if (barrier != null) {
             checkState(
                     barrier.getCheckpointOptions().isUnalignedCheckpoint(),
                     "Only unaligned checkpoints should be priority events");
+            // 创建一个迭代器遍历当前子分区队列。
+            // 使用 Iterators.advance 跳过头部的所有优先级元素（包括刚刚加进去的那个）。
+            // 这意味着迭代器现在指向的是被该 Barrier 超过的所有普通数据 Buffer。
             final Iterator<BufferConsumerWithPartialRecordLength> iterator = buffers.iterator();
             Iterators.advance(iterator, numPriorityElements);
             List<Buffer> inflightBuffers = new ArrayList<>();
+            // 遍历 Barrier 之后的所有 Buffer。
+            // 如果是真实的数据 Buffer（非事件），则通过 copy() 创建一个副本，并调用 build() 生成一个只读的 Buffer 切片，存入 inflightBuffers 列表。
             while (iterator.hasNext()) {
                 BufferConsumer buffer = iterator.next().getBufferConsumer();
 
@@ -278,6 +309,8 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
                     }
                 }
             }
+            // 将收集到的在途数据交给 channelStateWriter。
+            // 这些数据将作为 Checkpoint 状态的一部分上传到分布式存储（如 HDFS/S3
             if (!inflightBuffers.isEmpty()) {
                 channelStateWriter.addOutputData(
                         barrier.getId(),
@@ -286,14 +319,20 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
                         inflightBuffers.toArray(new Buffer[0]));
             }
         }
+        // 告知上层是否需要立即唤醒网络线程（通过 notifyPriorityEvent）来处理这个刚插队的 Barrier
         return needNotifyPriorityEvent();
     }
 
     // It is just called after add priorityEvent.
+    // 决定了当一个高优先级事件（如非对齐检查点的 Barrier）“插队”进入队列后，是否需要立即打断网络线程的当前工作，去优先处理这个事件。
     @GuardedBy("buffers")
     private boolean needNotifyPriorityEvent() {
         assert Thread.holdsLock(buffers);
         // if subpartition is blocked then downstream doesn't expect any notifications
+
+        // 如果数量是 1，说明这是队列中第一个插入的优先级事件。
+        // 此时下游网络线程（Netty）可能还在处理普通的旧数据，需要立即通知它切换到“优先级模式”。
+        // 检查子分区当前是否处于非阻塞状态
         return buffers.getNumPriorityElements() == 1 && !isBlocked;
     }
 
@@ -441,6 +480,7 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
                 new BufferConsumerWithPartialRecordLength(
                         EventSerializer.toBufferConsumer(barrier.asUnaligned(), true), 0));
     }
+
     // 作用是安全地从一个 BufferConsumer 中解析出 CheckpointBarrier 事件。
     // 由于 Checkpoint 屏障是以事件的形式封装在数据流中的，该方法需要将其从缓冲区中提取并反序列化。
     @Nullable
@@ -499,6 +539,7 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
             view.releaseAllResources();
         }
     }
+
     // PipelinedSubpartition 中供消费者（PipelinedSubpartitionView）拉取数据的核心方法。
     // 它负责从内部队列中取出下一个可用的 Buffer 或 Event，并处理流控、Checkpoint 协调和资源清理等一系列重要逻辑
     @Nullable
@@ -627,6 +668,11 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         return isReleased;
     }
 
+    // 连接数据生产者与**数据消费者（网络层）**的关键桥梁。
+    // 当下游任务准备好通过网络接收数据时，Netty 服务端会调用此方法来创建一个“视图”。
+    // 这个视图负责监控缓冲区的可用性，并将数据从子分区（Subpartition）中拉取出来发送出去。
+    // BufferAvailabilityListener 回调监听器（通常由 Netty 层的线程持有）。
+    // 它的作用是：当子分区中有新数据进入（add）时，子分区会调用这个监听器来通知 Netty 线程“有货了，快来读”。
     @Override
     public PipelinedSubpartitionView createReadView(
             BufferAvailabilityListener availabilityListener) {
@@ -644,7 +690,7 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
                     parent.getOwningTaskName(),
                     getSubPartitionIndex(),
                     parent.getPartitionId());
-
+            // 用于流式传输，它的数据是不持久化的，读过即删。因此，Flink 规定一个流式子分区只能被消费一次。
             readView = new PipelinedSubpartitionView(this, availabilityListener);
         }
 
@@ -784,6 +830,10 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
      * Increases the number of non-event buffers by one after adding a non-event buffer into this
      * subpartition.
      */
+    // 负责维护一个关键指标：Backlog（积压量）
+    // 在向子分区添加一个非事件（数据）缓冲区后，将积压缓冲区数量加一。
+    // 在 Flink 的网络传输中，Buffer 分为两种：数据 Buffer（Data Buffer） 和 事件 Buffer（Event Buffer，如 Checkpoint Barrier）
+    // 只有数据 Buffer 才会增加 buffersInBacklog 计数。
     @GuardedBy("buffers")
     private void increaseBuffersInBacklog(BufferConsumer buffer) {
         assert Thread.holdsLock(buffers);
@@ -818,13 +868,18 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
                 && !isBlocked
                 && getNumberOfFinishedBuffers() == 1;
     }
-
+    // 核心作用是：当生产者向缓冲区（Subpartition）写入了新数据后，通知下游的消费层（网络层）“现在有货了，可以来取了”。
     private void notifyDataAvailable() {
         final PipelinedSubpartitionView readView = this.readView;
         if (readView != null) {
             readView.notifyDataAvailable();
         }
     }
+
+    // 实现 优先级事件（如非对齐 Checkpoint Barrier）快速分发 的最后一步。
+    // 它的作用是将“插队”成功的信号从数据队列（Subpartition）传递给网络传输层（ReadView/Netty）。
+    // 参数 prioritySequenceNumber：这是该优先级事件在子分区中的序列号。
+    // 它代表了该事件在所有已发送数据流中的逻辑位置，用于下游判断哪些数据是被该事件“越过”的。
 
     private void notifyPriorityEvent(int prioritySequenceNumber) {
         final PipelinedSubpartitionView readView = this.readView;

@@ -47,25 +47,36 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <p>It also keeps track of available buffers and notifies the outbound handler about
  * non-emptiness, similar to the {@link LocalInputChannel}.
  */
+// 实现**基于信用的流量控制（Credit-based Flow Control）**的核心类。
+// 它作为 NetworkSequenceViewReader 接口的具体实现，运行在发送端的 Netty 线程池中。
+// 该类的主要作用是**“有节制地拉取数据”**。它在 ResultSubpartitionView（数据源）和 Netty 发送队列之间增加了一个“阀门”：
+// 信用控制：只有当下游发送了“信用（Credit）”，即告知自己有空闲的接收 Buffer 时，该类才允许从子分区拉取数据。
+// 状态同步：它实时监控子分区的可用性，并将自己注册到 Netty 的 PartitionRequestQueue 中，等待轮询发送。
+// 事件优先：对于控制事件（如 Barrier），它可以无视信用限制优先下发。
+
 class CreditBasedSequenceNumberingViewReader
         implements BufferAvailabilityListener, NetworkSequenceViewReader {
-
+    // 内部锁对象
+    // 用于同步分区的请求和创建过程，确保 subpartitionView 的初始化是线程安全的。
     private final Object requestLock = new Object();
-
+    // 下游接收端 InputChannel 的唯一标识
     private final InputChannelID receiverId;
-
+    // Netty 的发送队列。
+    // 本类会将自己注册到这个队列中，由队列统一调度发送。
     private final PartitionRequestQueue requestQueue;
-
+    // 初始信用值
     private final int initialCredit;
 
     /**
      * Cache of the index of the only subpartition if the underlining {@link ResultSubpartitionView}
      * only consumes one subpartition, or -1 otherwise.
      */
+    // 缓存子分区索引。
+    // 如果当前 Reader 只处理一个子分区，记录其 ID 以优化性能。
     private int subpartitionId;
-
+    // 指向底层的子分区读取视图，真正的 Buffer 数据是从这里拿的。
     private volatile ResultSubpartitionView subpartitionView;
-
+    // 当请求的分区尚未产生时，负责监听分区的创建事件。
     private volatile PartitionRequestListener partitionRequestListener;
 
     /**
@@ -75,9 +86,12 @@ class CreditBasedSequenceNumberingViewReader
      * <p>It is mainly used to avoid repeated registrations but should be accessed by a single
      * thread only since there is no synchronisation.
      */
+    // 标记该 Reader 是否已经在 Netty 的待处理列表中，防止重复注册。
     private boolean isRegisteredAsAvailable = false;
 
     /** The number of available buffers for holding data on the consumer side. */
+    // 最核心属性。表示当前剩余的可发送配额。
+    // 每发送一个数据 Buffer 减 1，收到下游反馈加N。
     private int numCreditsAvailable;
 
     CreditBasedSequenceNumberingViewReader(
@@ -90,42 +104,52 @@ class CreditBasedSequenceNumberingViewReader
         this.requestQueue = requestQueue;
         this.subpartitionId = -1;
     }
-
+    // 下游任务（Consumer）通过 Netty 向本节点请求数据时的入口函数。
+    // 它的核心逻辑是：如果上游数据分区（Partition）已经准备好了，就直接建立读取连接；如果还没准备好，就注册一个监听器等着。
     @Override
     public void requestSubpartitionViewOrRegisterListener(
-            ResultPartitionProvider partitionProvider,
-            ResultPartitionID resultPartitionId,
-            ResultSubpartitionIndexSet subpartitionIndexSet)
+            ResultPartitionProvider partitionProvider, // partitionProvider：通常是 ResultPartitionManager，负责查找和管理本地分区。
+            ResultPartitionID resultPartitionId, // 请求的目标分区唯一标识。
+            ResultSubpartitionIndexSet subpartitionIndexSet) // 请求的子分区索引集合（可能请求一个或多个子分区）
             throws IOException {
         synchronized (requestLock) {
+            // 确保这个 Reader 实例是干净的。
+            // 如果 subpartitionView 或监听器已经存在，说明该请求已经处理过，直接抛出异常防止重复请求。
             checkState(subpartitionView == null, "Subpartitions already requested");
             checkState(
                     partitionRequestListener == null, "Partition request listener already created");
+            // 如果目标分区现在不存在（例如上游 Task 还没启动），这个监听器会被注册到管理器中，等分区一旦被上游 Task 注册，就会回调这个监听器来通知 Reader。
             partitionRequestListener =
                     new NettyPartitionRequestListener(
                             partitionProvider, this, subpartitionIndexSet, resultPartitionId);
             // The partition provider will create subpartitionView if resultPartition is
             // registered, otherwise it will register a listener of partition request to the result
             // partition manager.
+            // 尝试获取视图或注册监听。
             Optional<ResultSubpartitionView> subpartitionViewOptional =
                     partitionProvider.createSubpartitionViewOrRegisterListener(
                             resultPartitionId,
                             subpartitionIndexSet,
                             this,
                             partitionRequestListener);
+            // 如果分区已存在：立即创建一个 ResultSubpartitionView 并返回。
             if (subpartitionViewOptional.isPresent()) {
                 this.subpartitionView = subpartitionViewOptional.get();
                 if (subpartitionIndexSet.size() == 1) {
+                    // 如果请求的只有一个子分区，将该索引记录在 subpartitionId 变量中，方便后续读取时快速定位。
                     subpartitionId = subpartitionIndexSet.values().iterator().next();
                 }
+            // 如果分区不存在：将刚才创建的 partitionRequestListener 挂载到该 Partition ID 的等待队列下，返回 Optional.empty()
             } else {
                 // If the subpartitionView is not exist, it means that the requested partition is
                 // not registered.
                 return;
             }
         }
-
+        // 激活数据传输。
         notifyDataAvailable(subpartitionView);
+        // 告诉 Netty 的 PartitionRequestQueue，一个新的 Reader 诞生了。
+        // 由于 Flink 是 Credit-based 模式，Reader 创建后会触发积压量（Backlog）的同步，让下游知道该申请多少 Credit。
         requestQueue.notifyReaderCreated(this);
     }
 
@@ -289,7 +313,8 @@ class CreditBasedSequenceNumberingViewReader
         }
         subpartitionView.releaseAllResources();
     }
-
+    // 实现了从“数据存储层”到“网络发送层”的跨线程通知。
+    // 将当前的 CreditBasedSequenceNumberingViewReader 实例（即 this）添加到一个**“活跃读取器队列”**中。
     @Override
     public void notifyDataAvailable(ResultSubpartitionView view) {
         requestQueue.notifyReaderNonEmpty(this);

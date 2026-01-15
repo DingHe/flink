@@ -60,7 +60,8 @@ public interface ResultSubpartitionView {
     // 释放所有资源。
     // 在消费完成、任务取消或失败时调用，用于清理该视图相关的内存、文件句柄或网络连接等所有资源。
     void releaseAllResources() throws IOException;
-    // 检查是否释放。返回该视图是否已经释放了所有资源
+    // 检查是否释放。
+    // 返回该视图是否已经释放了所有资源
     boolean isReleased();
     // 恢复消费。
     // 当消费端被暂停（例如由于反压或 Checkpoint 对齐）后，通过此方法恢复数据的读取和处理。

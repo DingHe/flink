@@ -46,9 +46,18 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <p>If partialRecordLength < 0, partialRecordLength is undefined. It is currently used in {@cite
  * ResultSubpartitionRecoveredStateHandler#recover}
  */
+// 解决了流处理中一个棘手的问题：当一条记录非常大，跨越了多个 Buffer 存储时，如果前面的 Buffer 丢了，剩下的 Buffer 里的“残缺记录”该如何处理。
+// 核心功能：该类将一个普通的 BufferConsumer 与一个 “残余记录长度”（Partial Record Length） 绑定在一起。
+
 @NotThreadSafe
 public class BufferConsumerWithPartialRecordLength {
+    // 被包装的原始缓冲区消费者。
+    // 真正持有内存数据（MemorySegment）和读取位置（currentReaderPosition）的对象。
+    // 所有的实际读取操作最终都委托给它
     private final BufferConsumer bufferConsumer;
+    // 记录该 Buffer 开头残余数据的字节长度。
+    // 0：说明这个 Buffer 的开头就是一个完整记录的起始点，没有残余数据。
+    // > 0：说明 Buffer 开头有长度为 partialRecordLength 的数据属于上一个 Buffer 没写完的记录。
     private final int partialRecordLength;
 
     public BufferConsumerWithPartialRecordLength(
